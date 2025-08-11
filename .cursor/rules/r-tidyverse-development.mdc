@@ -1,0 +1,825 @@
+---
+alwaysApply: true
+---
+# Comprehensive R/Tidyverse Development Rules
+# Based on Hadley Wickham's "R for Data Science" and tidyverse conventions
+
+## Code Style and Structure
+
+### Always use tidyverse/dplyr idioms:
+- Use `dplyr::mutate()`, `dplyr::filter()`, `dplyr::group_by()`, `dplyr::summarise()` instead of base R
+- Use `%>%` pipe operator for data transformations
+- Use `.data[[column_name]]` for dynamic column access in dplyr verbs
+- Use `rlang::.data` for tidy evaluation in ggplot2 aesthetics
+- Avoid base R subsetting like `df$col` or `df[["col"]]` in favor of tidy evaluation
+
+### Function Design:
+- Use `rlang::enquo()` and `!!` for non-standard evaluation when needed
+- Use `{{ }}` (curly-curly) for function arguments that should be evaluated
+- Always use `dplyr::` prefix for dplyr functions in package code
+- Use `ggplot2::` prefix for ggplot2 functions in package code
+- Use `purrr::map()` family for functional programming patterns
+
+### Variable Naming:
+- Use snake_case for variable and function names
+- Use descriptive names that clearly indicate purpose
+- Avoid abbreviations unless they are widely understood
+- Use consistent naming for related variables (e.g., `data_raw`, `data_clean`, `data_processed`)
+
+## Data Manipulation with dplyr
+
+### Core Verbs:
+- **`dplyr::select()`**: Choose columns by name, position, or pattern
+- **`dplyr::filter()`**: Choose rows based on conditions
+- **`dplyr::arrange()`**: Reorder rows
+- **`dplyr::mutate()`**: Create new variables from existing ones
+- **`dplyr::summarise()`**: Collapse multiple values to a single summary
+- **`dplyr::group_by()`**: Group data for operations
+
+### Advanced dplyr Operations:
+- Use `dplyr::across()` for operations on multiple columns
+- Use `dplyr::where()` for selecting columns by type
+- Use `dplyr::everything()`, `dplyr::starts_with()`, `dplyr::ends_with()`, `dplyr::contains()` for column selection
+- Use `dplyr::relocate()` to move columns to specific positions
+- Use `dplyr::rename()` and `dplyr::rename_with()` for column renaming
+
+### Data Extraction:
+- Prefer `dplyr::pull()` over `df[[col]]` for extracting single columns
+- Use `dplyr::slice()` for row selection by position
+- Use `dplyr::slice_head()`, `dplyr::slice_tail()`, `dplyr::slice_min()`, `dplyr::slice_max()` for conditional row selection
+- Use `dplyr::distinct()` for unique rows
+
+### Grouped Operations:
+- Always use `dplyr::ungroup()` after grouped operations when no longer needed
+- Use `dplyr::group_by()` with multiple variables for nested grouping
+- Use `dplyr::group_modify()` for complex grouped operations
+- Use `dplyr::group_map()` for applying functions to each group
+
+## Data Joins (Relational Data)
+
+### Join Types and When to Use:
+- **`dplyr::inner_join()`**: Keep only rows that appear in both datasets
+- **`dplyr::left_join()`**: Keep all rows from left dataset, matching rows from right
+- **`dplyr::right_join()`**: Keep all rows from right dataset, matching rows from left
+- **`dplyr::full_join()`**: Keep all rows from both datasets
+- **`dplyr::semi_join()`**: Keep rows from left that have matches in right
+- **`dplyr::anti_join()`**: Keep rows from left that don't have matches in right
+
+### Join Best Practices:
+- Always specify the `by` argument explicitly for clarity
+- Use `by = c("key1" = "key2")` when joining on different column names
+- Check for duplicate keys before joining: `dplyr::count(data, key) %>% dplyr::filter(n > 1)`
+- Use `dplyr::suffix` parameter to handle column name conflicts
+- Consider using `dplyr::nest_join()` for complex nested data structures
+
+### Join Examples:
+```r
+# Simple join
+result <- df1 %>%
+  dplyr::left_join(df2, by = "id")
+
+# Join with different column names
+result <- df1 %>%
+  dplyr::left_join(df2, by = c("id1" = "id2"))
+
+# Join with suffix handling
+result <- df1 %>%
+  dplyr::left_join(df2, by = "id", suffix = c("_x", "_y"))
+```
+
+## Data Reshaping with tidyr
+
+### Pivoting (Long to Wide and Wide to Long):
+- Use `tidyr::pivot_longer()` to make wide data long
+- Use `tidyr::pivot_wider()` to make long data wide
+- Always specify `names_from` and `values_from` explicitly
+- Use `names_prefix` and `names_sep` for clean column naming
+- Use `values_fill` to handle missing values
+
+### Separating and Uniting:
+- Use `tidyr::separate()` to split one column into multiple
+- Use `tidyr::unite()` to combine multiple columns into one
+- Use `tidyr::separate_rows()` to split rows based on delimiters
+
+### Nesting and Unnesting:
+- Use `tidyr::nest()` to create list-columns of data frames
+- Use `tidyr::unnest()` to expand list-columns
+- Use `tidyr::unnest_wider()` and `tidyr::unnest_longer()` for specific unnesting patterns
+
+### Missing Values:
+- Use `tidyr::drop_na()` to remove rows with missing values
+- Use `tidyr::fill()` to fill missing values with previous/next values
+- Use `tidyr::replace_na()` to replace missing values with specific values
+
+## Data Import and Export
+
+### Reading Data:
+- Use `readr::read_csv()` for CSV files (faster and more robust than base R)
+- Use `readr::read_tsv()` for tab-separated files
+- Use `readr::read_delim()` for custom delimiters
+- Use `readxl::read_excel()` for Excel files
+- Use `haven::read_sas()`, `haven::read_spss()`, `haven::read_stata()` for statistical software files
+
+### Writing Data:
+- Use `readr::write_csv()` for CSV files
+- Use `readr::write_rds()` for R objects
+- Use `readr::write_parquet()` for efficient binary format
+- Use `openxlsx::write.xlsx()` for Excel files
+
+### Data Import Best Practices:
+- Always specify `col_types` for better performance and error catching
+- Use `readr::problems()` to check for parsing issues
+- Use `readr::guess_encoding()` for files with encoding issues
+- Use `readr::locale()` for locale-specific parsing
+
+## Data Visualization with ggplot2
+
+### Grammar of Graphics:
+- **Data**: The dataset being plotted
+- **Aesthetics**: Mappings from data to visual properties
+- **Geometries**: The actual marks on the plot
+- **Scales**: Control how aesthetics are mapped to values
+- **Facets**: Split data into subplots
+- **Statistics**: Transform data for plotting
+- **Coordinates**: Control the coordinate system
+- **Themes**: Control non-data elements
+
+### Aesthetics:
+- Use `.data[[column]]` for dynamic column access in aesthetics
+- Use `inherit.aes = FALSE` when adding geoms that don't inherit aesthetics
+- Set `color =` and `fill =` aesthetics consistently
+- Use `alpha` for transparency, `size` for point/line thickness, `shape` for point types
+
+### Geometries (Geoms):
+- **`geom_point()`**: Scatter plots
+- **`geom_line()`**: Line plots
+- **`geom_col()`**: Bar charts (prefer over `geom_bar()`)
+- **`geom_histogram()`**: Histograms
+- **`geom_density()`**: Density plots
+- **`geom_boxplot()`**: Box plots
+- **`geom_violin()`**: Violin plots
+- **`geom_tile()`**: Heatmaps
+- **`geom_text()`**: Text labels
+
+### Scales and Themes:
+- Always use `scale_color_manual()` or `scale_fill_manual()` with custom palettes
+- Use `scale_x_log10()`, `scale_y_log10()` for log scales
+- Use `scale_x_reverse()`, `scale_y_reverse()` for reversed scales
+- Use `ggplot2::theme_minimal()` or `ggplot2::theme_bw()` for clean themes
+- Use `ggplot2::theme()` for custom theme modifications
+- Set legend positions explicitly with `theme(legend.position = "bottom")`
+
+### Color Accessibility and Best Practices:
+- **NEVER use default ggplot2 colors** - they are not colorblind-friendly and are hard to distinguish
+- **Always use colorblind-friendly palettes** for categorical data
+- **Prefer distinct, high-contrast colors** that work for all types of color vision deficiency
+
+#### Recommended Colorblind-Friendly Palettes:
+```r
+# ColorBrewer Set1 (8 colors) - excellent for colorblind users
+colorblind_friendly_8 <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#D55E00", "#CC79A7", "#000000", "#990099")
+
+# ColorBrewer Set2 (8 colors) - softer but still accessible
+colorblind_friendly_8_soft <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
+
+# Viridis palettes - perceptually uniform and colorblind-friendly
+# Use viridis::viridis(n) for n colors
+# Use viridis::plasma(n) for n colors  
+# Use viridis::inferno(n) for n colors
+# Use viridis::magma(n) for n colors
+
+# Okabe-Ito palette (9 colors) - specifically designed for colorblind users
+okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#990099")
+```
+
+#### Color Usage Guidelines:
+- **Use consistent colors** across related plots and figures
+- **Limit palette to 8-10 colors maximum** for categorical data
+- **Use different shapes AND colors** for additional distinction
+- **Test your plots** with colorblind simulation tools
+- **Provide alternative encodings** (text labels, patterns) when possible
+- **Use high contrast** between foreground and background colors
+
+#### Implementation Examples:
+```r
+# Good: Using colorblind-friendly palette
+ggplot(data, aes(x = x, y = y, color = category)) +
+  geom_point() +
+  scale_color_manual(values = colorblind_friendly_8) +
+  theme_minimal()
+
+# Good: Using viridis for continuous data
+ggplot(data, aes(x = x, y = y, color = value)) +
+  geom_point() +
+  scale_color_viridis_c() +
+  theme_minimal()
+
+# Good: Combining color and shape for better distinction
+ggplot(data, aes(x = x, y = y, color = category, shape = category)) +
+  geom_point() +
+  scale_color_manual(values = colorblind_friendly_8) +
+  scale_shape_manual(values = c(16, 17, 18, 19, 20, 21, 22, 23)) +
+  theme_minimal()
+```
+
+#### Tools for Testing Color Accessibility:
+- Use `colorblindr::cvd_grid()` to simulate color vision deficiency
+- Use `scales::show_col()` to preview color palettes
+- Use online tools like ColorBrewer or Adobe Color Accessibility Tools
+
+### Faceting:
+- Use `facet_wrap()` for single variable faceting
+- Use `facet_grid()` for two-variable faceting
+- Use `scales = "free"` for independent scales across facets
+- Use `ncol` or `nrow` to control facet layout
+
+### Data Preparation for Plotting:
+- Prepare data with dplyr before plotting
+- Use `dplyr::group_by()` and `dplyr::summarise()` for aggregated plots
+- Handle missing data explicitly with `dplyr::filter(!is.na())`
+- Use `dplyr::count()` for frequency plots
+- Use `dplyr::mutate()` to create derived variables for plotting
+
+### Color Palette Selection:
+- **For categorical data**: Use colorblind-friendly palettes (ColorBrewer Set1, Okabe-Ito, viridis)
+- **For continuous data**: Use viridis palettes or other perceptually uniform scales
+- **For diverging data**: Use ColorBrewer RdYlBu or similar diverging palettes
+- **For sequential data**: Use viridis, ColorBrewer sequential, or similar palettes
+- **Always test** color choices with colorblind simulation tools
+- **Limit categorical palettes** to 8-10 colors maximum for clarity
+
+## Functional Programming with purrr
+
+### Map Functions:
+- Use `purrr::map()` for applying functions to list elements
+- Use `purrr::map_dbl()`, `purrr::map_int()`, `purrr::map_chr()`, `purrr::map_lgl()` for typed output
+- Use `purrr::map_df()` for data frame output
+- Use `purrr::map2()` for functions with two arguments
+- Use `purrr::pmap()` for functions with multiple arguments
+
+### List Operations:
+- Use `purrr::pluck()` for safe list element extraction
+- Use `purrr::keep()` and `purrr::discard()` for filtering lists
+- Use `purrr::compact()` to remove NULL elements
+- Use `purrr::flatten()` and `purrr::flatten_dbl()` for flattening lists
+
+### Error Handling:
+- Use `purrr::safely()` for functions that might fail
+- Use `purrr::possibly()` for functions with default values on failure
+- Use `purrr::quietly()` for functions that might produce messages
+
+## String Manipulation with stringr
+
+### Pattern Matching:
+- Use `stringr::str_detect()` for pattern detection
+- Use `stringr::str_subset()` for filtering by pattern
+- Use `stringr::str_extract()` and `stringr::str_extract_all()` for extraction
+- Use `stringr::str_replace()` and `stringr::str_replace_all()` for replacement
+
+### String Operations:
+- Use `stringr::str_length()` for string length
+- Use `stringr::str_sub()` for substring extraction
+- Use `stringr::str_pad()` for padding strings
+- Use `stringr::str_trim()` for removing whitespace
+- Use `stringr::str_to_lower()`, `stringr::str_to_upper()`, `stringr::str_to_title()` for case conversion
+
+### Regular Expressions:
+- Use `stringr::regex()` for complex patterns
+- Use `stringr::fixed()` for literal string matching
+- Use `stringr::coll()` for locale-aware matching
+- Use `stringr::boundary()` for word boundaries
+
+## Date and Time with lubridate
+
+### Parsing Dates:
+- Use `lubridate::ymd()`, `lubridate::mdy()`, `lubridate::dmy()` for common formats
+- Use `lubridate::parse_date_time()` for complex formats
+- Use `lubridate::as_date()` for date-only objects
+- Use `lubridate::as_datetime()` for date-time objects
+
+### Date Operations:
+- Use `lubridate::year()`, `lubridate::month()`, `lubridate::day()` for extraction
+- Use `lubridate::wday()`, `lubridate::yday()` for day of week/year
+- Use `lubridate::floor_date()`, `lubridate::ceiling_date()` for rounding
+- Use `lubridate::interval()` for time intervals
+- Use `lubridate::duration()` and `lubridate::period()` for time spans
+
+## Package Development
+
+### File Organization:
+- Put functions in appropriate R/ files
+- Use descriptive file names that indicate content
+- Keep related functions together
+- Use `R/data.R` for data documentation
+- Use `R/utils.R` for utility functions
+
+### Error Handling:
+- Use `stop()` with informative error messages
+- Check for required columns with `if (!all(required_cols %in% names(df)))`
+- Validate input types and ranges where appropriate
+- Use `rlang::abort()` for more sophisticated error handling
+- Use `rlang::warn()` and `rlang::inform()` for warnings and messages
+
+### Performance:
+- Use vectorized operations when possible
+- Avoid loops in favor of `dplyr::group_by()` and `dplyr::summarise()`
+- Use `dplyr::filter()` before `dplyr::group_by()` to reduce data size
+- Use `dplyr::collect()` for lazy evaluation with databases
+- Use `dplyr::compute()` for materializing intermediate results
+
+### Documentation:
+- Always include `@param` descriptions for all function arguments
+- Use `@return` to describe what the function returns
+- Include `@examples` with working code
+- Use `@importFrom` for specific functions, not `@import` for entire packages
+- Include `@export` for public functions
+- Use `@keywords internal` for internal functions
+
+## Testing and Validation
+
+### Input Validation:
+- Check for required columns: `if (!all(c("col1", "col2") %in% names(df)))`
+- Validate data types: `if (!is.numeric(df$value))`
+- Check for empty data: `if (nrow(df) == 0)`
+- Use `rlang::check_required()` for required arguments
+- Use `rlang::arg_match()` for argument validation
+
+### Error Messages:
+- Be specific about what went wrong
+- Suggest how to fix the issue
+- Include the problematic value in the message
+- Use `rlang::format_error_bullets()` for structured error messages
+
+### Testing:
+- Use `testthat` for unit testing
+- Test edge cases and error conditions
+- Use `vctrs::vec_assert()` for vector validation
+- Use `rlang::is_installed()` to check for optional dependencies
+
+## Code Examples
+
+### Good (tidyverse style):
+```r
+# Data manipulation pipeline
+result <- df %>%
+  dplyr::filter(!is.na(value)) %>%
+  dplyr::group_by(category) %>%
+  dplyr::summarise(
+    mean_val = mean(value, na.rm = TRUE),
+    n = dplyr::n(),
+    .groups = "drop"
+  ) %>%
+  dplyr::arrange(desc(mean_val))
+
+# Visualization
+result %>%
+  ggplot(aes(x = category, y = mean_val, fill = category)) +
+  geom_col() +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Mean Values by Category",
+    x = "Category",
+    y = "Mean Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+### Avoid (base R style):
+```r
+# Don't do this:
+df$value[!is.na(df$value)]
+aggregate(value ~ category, data = df, FUN = mean)
+plot(df$category, df$value)
+```
+
+## General Principles
+
+1. **Readability over brevity**: Code should be self-documenting
+2. **Consistency**: Use the same patterns throughout the codebase
+3. **Explicit over implicit**: Be clear about what you're doing
+4. **Fail fast**: Catch errors early with clear messages
+5. **Document as you go**: Keep documentation up to date with code changes
+6. **Think in verbs**: Focus on what you're doing to the data
+7. **Pipes for clarity**: Use `%>%` to make data transformations explicit
+8. **Tidy data first**: Ensure your data is in tidy format before analysis
+
+## References
+- "R for Data Science" by Hadley Wickham & Garrett Grolemund
+- "Advanced R" by Hadley Wickham
+- "R Packages" by Hadley Wickham & Jenny Bryan
+- Tidyverse style guide: https://style.tidyverse.org/
+- R package development: https://r-pkgs.org/
+- ggplot2 documentation: https://ggplot2.tidyverse.org/
+- dplyr documentation: https://dplyr.tidyverse.org/
+# Comprehensive R/Tidyverse Development Rules
+# Based on Hadley Wickham's "R for Data Science" and tidyverse conventions
+
+## Code Style and Structure
+
+### Always use tidyverse/dplyr idioms:
+- Use `dplyr::mutate()`, `dplyr::filter()`, `dplyr::group_by()`, `dplyr::summarise()` instead of base R
+- Use `%>%` pipe operator for data transformations
+- Use `.data[[column_name]]` for dynamic column access in dplyr verbs
+- Use `rlang::.data` for tidy evaluation in ggplot2 aesthetics
+- Avoid base R subsetting like `df$col` or `df[["col"]]` in favor of tidy evaluation
+
+### Function Design:
+- Use `rlang::enquo()` and `!!` for non-standard evaluation when needed
+- Use `{{ }}` (curly-curly) for function arguments that should be evaluated
+- Always use `dplyr::` prefix for dplyr functions in package code
+- Use `ggplot2::` prefix for ggplot2 functions in package code
+- Use `purrr::map()` family for functional programming patterns
+
+### Variable Naming:
+- Use snake_case for variable and function names
+- Use descriptive names that clearly indicate purpose
+- Avoid abbreviations unless they are widely understood
+- Use consistent naming for related variables (e.g., `data_raw`, `data_clean`, `data_processed`)
+
+## Data Manipulation with dplyr
+
+### Core Verbs:
+- **`dplyr::select()`**: Choose columns by name, position, or pattern
+- **`dplyr::filter()`**: Choose rows based on conditions
+- **`dplyr::arrange()`**: Reorder rows
+- **`dplyr::mutate()`**: Create new variables from existing ones
+- **`dplyr::summarise()`**: Collapse multiple values to a single summary
+- **`dplyr::group_by()`**: Group data for operations
+
+### Advanced dplyr Operations:
+- Use `dplyr::across()` for operations on multiple columns
+- Use `dplyr::where()` for selecting columns by type
+- Use `dplyr::everything()`, `dplyr::starts_with()`, `dplyr::ends_with()`, `dplyr::contains()` for column selection
+- Use `dplyr::relocate()` to move columns to specific positions
+- Use `dplyr::rename()` and `dplyr::rename_with()` for column renaming
+
+### Data Extraction:
+- Prefer `dplyr::pull()` over `df[[col]]` for extracting single columns
+- Use `dplyr::slice()` for row selection by position
+- Use `dplyr::slice_head()`, `dplyr::slice_tail()`, `dplyr::slice_min()`, `dplyr::slice_max()` for conditional row selection
+- Use `dplyr::distinct()` for unique rows
+
+### Grouped Operations:
+- Always use `dplyr::ungroup()` after grouped operations when no longer needed
+- Use `dplyr::group_by()` with multiple variables for nested grouping
+- Use `dplyr::group_modify()` for complex grouped operations
+- Use `dplyr::group_map()` for applying functions to each group
+
+## Data Joins (Relational Data)
+
+### Join Types and When to Use:
+- **`dplyr::inner_join()`**: Keep only rows that appear in both datasets
+- **`dplyr::left_join()`**: Keep all rows from left dataset, matching rows from right
+- **`dplyr::right_join()`**: Keep all rows from right dataset, matching rows from left
+- **`dplyr::full_join()`**: Keep all rows from both datasets
+- **`dplyr::semi_join()`**: Keep rows from left that have matches in right
+- **`dplyr::anti_join()`**: Keep rows from left that don't have matches in right
+
+### Join Best Practices:
+- Always specify the `by` argument explicitly for clarity
+- Use `by = c("key1" = "key2")` when joining on different column names
+- Check for duplicate keys before joining: `dplyr::count(data, key) %>% dplyr::filter(n > 1)`
+- Use `dplyr::suffix` parameter to handle column name conflicts
+- Consider using `dplyr::nest_join()` for complex nested data structures
+
+### Join Examples:
+```r
+# Simple join
+result <- df1 %>%
+  dplyr::left_join(df2, by = "id")
+
+# Join with different column names
+result <- df1 %>%
+  dplyr::left_join(df2, by = c("id1" = "id2"))
+
+# Join with suffix handling
+result <- df1 %>%
+  dplyr::left_join(df2, by = "id", suffix = c("_x", "_y"))
+```
+
+## Data Reshaping with tidyr
+
+### Pivoting (Long to Wide and Wide to Long):
+- Use `tidyr::pivot_longer()` to make wide data long
+- Use `tidyr::pivot_wider()` to make long data wide
+- Always specify `names_from` and `values_from` explicitly
+- Use `names_prefix` and `names_sep` for clean column naming
+- Use `values_fill` to handle missing values
+
+### Separating and Uniting:
+- Use `tidyr::separate()` to split one column into multiple
+- Use `tidyr::unite()` to combine multiple columns into one
+- Use `tidyr::separate_rows()` to split rows based on delimiters
+
+### Nesting and Unnesting:
+- Use `tidyr::nest()` to create list-columns of data frames
+- Use `tidyr::unnest()` to expand list-columns
+- Use `tidyr::unnest_wider()` and `tidyr::unnest_longer()` for specific unnesting patterns
+
+### Missing Values:
+- Use `tidyr::drop_na()` to remove rows with missing values
+- Use `tidyr::fill()` to fill missing values with previous/next values
+- Use `tidyr::replace_na()` to replace missing values with specific values
+
+## Data Import and Export
+
+### Reading Data:
+- Use `readr::read_csv()` for CSV files (faster and more robust than base R)
+- Use `readr::read_tsv()` for tab-separated files
+- Use `readr::read_delim()` for custom delimiters
+- Use `readxl::read_excel()` for Excel files
+- Use `haven::read_sas()`, `haven::read_spss()`, `haven::read_stata()` for statistical software files
+
+### Writing Data:
+- Use `readr::write_csv()` for CSV files
+- Use `readr::write_rds()` for R objects
+- Use `readr::write_parquet()` for efficient binary format
+- Use `openxlsx::write.xlsx()` for Excel files
+
+### Data Import Best Practices:
+- Always specify `col_types` for better performance and error catching
+- Use `readr::problems()` to check for parsing issues
+- Use `readr::guess_encoding()` for files with encoding issues
+- Use `readr::locale()` for locale-specific parsing
+
+## Data Visualization with ggplot2
+
+### Grammar of Graphics:
+- **Data**: The dataset being plotted
+- **Aesthetics**: Mappings from data to visual properties
+- **Geometries**: The actual marks on the plot
+- **Scales**: Control how aesthetics are mapped to values
+- **Facets**: Split data into subplots
+- **Statistics**: Transform data for plotting
+- **Coordinates**: Control the coordinate system
+- **Themes**: Control non-data elements
+
+### Aesthetics:
+- Use `.data[[column]]` for dynamic column access in aesthetics
+- Use `inherit.aes = FALSE` when adding geoms that don't inherit aesthetics
+- Set `color =` and `fill =` aesthetics consistently
+- Use `alpha` for transparency, `size` for point/line thickness, `shape` for point types
+
+### Geometries (Geoms):
+- **`geom_point()`**: Scatter plots
+- **`geom_line()`**: Line plots
+- **`geom_col()`**: Bar charts (prefer over `geom_bar()`)
+- **`geom_histogram()`**: Histograms
+- **`geom_density()`**: Density plots
+- **`geom_boxplot()`**: Box plots
+- **`geom_violin()`**: Violin plots
+- **`geom_tile()`**: Heatmaps
+- **`geom_text()`**: Text labels
+
+### Scales and Themes:
+- Always use `scale_color_manual()` or `scale_fill_manual()` with custom palettes
+- Use `scale_x_log10()`, `scale_y_log10()` for log scales
+- Use `scale_x_reverse()`, `scale_y_reverse()` for reversed scales
+- Use `ggplot2::theme_minimal()` or `ggplot2::theme_bw()` for clean themes
+- Use `ggplot2::theme()` for custom theme modifications
+- Set legend positions explicitly with `theme(legend.position = "bottom")`
+
+### Color Accessibility and Best Practices:
+- **NEVER use default ggplot2 colors** - they are not colorblind-friendly and are hard to distinguish
+- **Always use colorblind-friendly palettes** for categorical data
+- **Prefer distinct, high-contrast colors** that work for all types of color vision deficiency
+
+#### Recommended Colorblind-Friendly Palettes:
+```r
+# ColorBrewer Set1 (8 colors) - excellent for colorblind users
+colorblind_friendly_8 <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#D55E00", "#CC79A7", "#000000", "#990099")
+
+# ColorBrewer Set2 (8 colors) - softer but still accessible
+colorblind_friendly_8_soft <- c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
+
+# Viridis palettes - perceptually uniform and colorblind-friendly
+# Use viridis::viridis(n) for n colors
+# Use viridis::plasma(n) for n colors  
+# Use viridis::inferno(n) for n colors
+# Use viridis::magma(n) for n colors
+
+# Okabe-Ito palette (9 colors) - specifically designed for colorblind users
+okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#990099")
+```
+
+#### Color Usage Guidelines:
+- **Use consistent colors** across related plots and figures
+- **Limit palette to 8-10 colors maximum** for categorical data
+- **Use different shapes AND colors** for additional distinction
+- **Test your plots** with colorblind simulation tools
+- **Provide alternative encodings** (text labels, patterns) when possible
+- **Use high contrast** between foreground and background colors
+
+#### Implementation Examples:
+```r
+# Good: Using colorblind-friendly palette
+ggplot(data, aes(x = x, y = y, color = category)) +
+  geom_point() +
+  scale_color_manual(values = colorblind_friendly_8) +
+  theme_minimal()
+
+# Good: Using viridis for continuous data
+ggplot(data, aes(x = x, y = y, color = value)) +
+  geom_point() +
+  scale_color_viridis_c() +
+  theme_minimal()
+
+# Good: Combining color and shape for better distinction
+ggplot(data, aes(x = x, y = y, color = category, shape = category)) +
+  geom_point() +
+  scale_color_manual(values = colorblind_friendly_8) +
+  scale_shape_manual(values = c(16, 17, 18, 19, 20, 21, 22, 23)) +
+  theme_minimal()
+```
+
+#### Tools for Testing Color Accessibility:
+- Use `colorblindr::cvd_grid()` to simulate color vision deficiency
+- Use `scales::show_col()` to preview color palettes
+- Use online tools like ColorBrewer or Adobe Color Accessibility Tools
+
+### Faceting:
+- Use `facet_wrap()` for single variable faceting
+- Use `facet_grid()` for two-variable faceting
+- Use `scales = "free"` for independent scales across facets
+- Use `ncol` or `nrow` to control facet layout
+
+### Data Preparation for Plotting:
+- Prepare data with dplyr before plotting
+- Use `dplyr::group_by()` and `dplyr::summarise()` for aggregated plots
+- Handle missing data explicitly with `dplyr::filter(!is.na())`
+- Use `dplyr::count()` for frequency plots
+- Use `dplyr::mutate()` to create derived variables for plotting
+
+### Color Palette Selection:
+- **For categorical data**: Use colorblind-friendly palettes (ColorBrewer Set1, Okabe-Ito, viridis)
+- **For continuous data**: Use viridis palettes or other perceptually uniform scales
+- **For diverging data**: Use ColorBrewer RdYlBu or similar diverging palettes
+- **For sequential data**: Use viridis, ColorBrewer sequential, or similar palettes
+- **Always test** color choices with colorblind simulation tools
+- **Limit categorical palettes** to 8-10 colors maximum for clarity
+
+## Functional Programming with purrr
+
+### Map Functions:
+- Use `purrr::map()` for applying functions to list elements
+- Use `purrr::map_dbl()`, `purrr::map_int()`, `purrr::map_chr()`, `purrr::map_lgl()` for typed output
+- Use `purrr::map_df()` for data frame output
+- Use `purrr::map2()` for functions with two arguments
+- Use `purrr::pmap()` for functions with multiple arguments
+
+### List Operations:
+- Use `purrr::pluck()` for safe list element extraction
+- Use `purrr::keep()` and `purrr::discard()` for filtering lists
+- Use `purrr::compact()` to remove NULL elements
+- Use `purrr::flatten()` and `purrr::flatten_dbl()` for flattening lists
+
+### Error Handling:
+- Use `purrr::safely()` for functions that might fail
+- Use `purrr::possibly()` for functions with default values on failure
+- Use `purrr::quietly()` for functions that might produce messages
+
+## String Manipulation with stringr
+
+### Pattern Matching:
+- Use `stringr::str_detect()` for pattern detection
+- Use `stringr::str_subset()` for filtering by pattern
+- Use `stringr::str_extract()` and `stringr::str_extract_all()` for extraction
+- Use `stringr::str_replace()` and `stringr::str_replace_all()` for replacement
+
+### String Operations:
+- Use `stringr::str_length()` for string length
+- Use `stringr::str_sub()` for substring extraction
+- Use `stringr::str_pad()` for padding strings
+- Use `stringr::str_trim()` for removing whitespace
+- Use `stringr::str_to_lower()`, `stringr::str_to_upper()`, `stringr::str_to_title()` for case conversion
+
+### Regular Expressions:
+- Use `stringr::regex()` for complex patterns
+- Use `stringr::fixed()` for literal string matching
+- Use `stringr::coll()` for locale-aware matching
+- Use `stringr::boundary()` for word boundaries
+
+## Date and Time with lubridate
+
+### Parsing Dates:
+- Use `lubridate::ymd()`, `lubridate::mdy()`, `lubridate::dmy()` for common formats
+- Use `lubridate::parse_date_time()` for complex formats
+- Use `lubridate::as_date()` for date-only objects
+- Use `lubridate::as_datetime()` for date-time objects
+
+### Date Operations:
+- Use `lubridate::year()`, `lubridate::month()`, `lubridate::day()` for extraction
+- Use `lubridate::wday()`, `lubridate::yday()` for day of week/year
+- Use `lubridate::floor_date()`, `lubridate::ceiling_date()` for rounding
+- Use `lubridate::interval()` for time intervals
+- Use `lubridate::duration()` and `lubridate::period()` for time spans
+
+## Package Development
+
+### File Organization:
+- Put functions in appropriate R/ files
+- Use descriptive file names that indicate content
+- Keep related functions together
+- Use `R/data.R` for data documentation
+- Use `R/utils.R` for utility functions
+
+### Error Handling:
+- Use `stop()` with informative error messages
+- Check for required columns with `if (!all(required_cols %in% names(df)))`
+- Validate input types and ranges where appropriate
+- Use `rlang::abort()` for more sophisticated error handling
+- Use `rlang::warn()` and `rlang::inform()` for warnings and messages
+
+### Performance:
+- Use vectorized operations when possible
+- Avoid loops in favor of `dplyr::group_by()` and `dplyr::summarise()`
+- Use `dplyr::filter()` before `dplyr::group_by()` to reduce data size
+- Use `dplyr::collect()` for lazy evaluation with databases
+- Use `dplyr::compute()` for materializing intermediate results
+
+### Documentation:
+- Always include `@param` descriptions for all function arguments
+- Use `@return` to describe what the function returns
+- Include `@examples` with working code
+- Use `@importFrom` for specific functions, not `@import` for entire packages
+- Include `@export` for public functions
+- Use `@keywords internal` for internal functions
+
+## Testing and Validation
+
+### Input Validation:
+- Check for required columns: `if (!all(c("col1", "col2") %in% names(df)))`
+- Validate data types: `if (!is.numeric(df$value))`
+- Check for empty data: `if (nrow(df) == 0)`
+- Use `rlang::check_required()` for required arguments
+- Use `rlang::arg_match()` for argument validation
+
+### Error Messages:
+- Be specific about what went wrong
+- Suggest how to fix the issue
+- Include the problematic value in the message
+- Use `rlang::format_error_bullets()` for structured error messages
+
+### Testing:
+- Use `testthat` for unit testing
+- Test edge cases and error conditions
+- Use `vctrs::vec_assert()` for vector validation
+- Use `rlang::is_installed()` to check for optional dependencies
+
+## Code Examples
+
+### Good (tidyverse style):
+```r
+# Data manipulation pipeline
+result <- df %>%
+  dplyr::filter(!is.na(value)) %>%
+  dplyr::group_by(category) %>%
+  dplyr::summarise(
+    mean_val = mean(value, na.rm = TRUE),
+    n = dplyr::n(),
+    .groups = "drop"
+  ) %>%
+  dplyr::arrange(desc(mean_val))
+
+# Visualization
+result %>%
+  ggplot(aes(x = category, y = mean_val, fill = category)) +
+  geom_col() +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Mean Values by Category",
+    x = "Category",
+    y = "Mean Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+### Avoid (base R style):
+```r
+# Don't do this:
+df$value[!is.na(df$value)]
+aggregate(value ~ category, data = df, FUN = mean)
+plot(df$category, df$value)
+```
+
+## General Principles
+
+1. **Readability over brevity**: Code should be self-documenting
+2. **Consistency**: Use the same patterns throughout the codebase
+3. **Explicit over implicit**: Be clear about what you're doing
+4. **Fail fast**: Catch errors early with clear messages
+5. **Document as you go**: Keep documentation up to date with code changes
+6. **Think in verbs**: Focus on what you're doing to the data
+7. **Pipes for clarity**: Use `%>%` to make data transformations explicit
+8. **Tidy data first**: Ensure your data is in tidy format before analysis
+
+## References
+- "R for Data Science" by Hadley Wickham & Garrett Grolemund
+- "Advanced R" by Hadley Wickham
+- "R Packages" by Hadley Wickham & Jenny Bryan
+- Tidyverse style guide: https://style.tidyverse.org/
+- R package development: https://r-pkgs.org/
+- ggplot2 documentation: https://ggplot2.tidyverse.org/
+- dplyr documentation: https://dplyr.tidyverse.org/
