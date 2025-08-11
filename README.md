@@ -1,4 +1,10 @@
-# Current XQTL pipeline
+# XQTL2 Pipeline Scripts
+
+This repository contains the bioinformatics pipeline scripts for XQTL (Experimental Quantitative Trait Locus) analysis in Drosophila.
+
+**Note:** The XQTL analysis and visualization functions have been moved to the [XQTL2.Xplore R package](https://github.com/tdlong/XQTL2.Xplore), which provides comprehensive tools for data analysis and plotting.
+
+## Current XQTL pipeline
 
 ## Get sequences from core...
 
@@ -275,54 +281,54 @@ scp tdlong@hpc3.rcic.uci.edu:/dfs7/adl/tdlong/fly_pool/XQTL2/process/ZINC2/TEST_
 
 The "pseudoscan" and "means" files are pretty rich and likely the only files you need to work with
 
-## Some useful functions for creating summary plots
+## Analysis and Visualization Functions
 
-There are some useful functions I have created that allow you to create summary files.
+**Note:** The XQTL analysis and plotting functions have been moved to a dedicated R package called [XQTL2.Xplore](https://github.com/tdlong/XQTL2.Xplore).
 
-```bash
-library(tidyverse)
-library(patchwork)
-library(rtracklayer)
-library(GenomicRanges)
-library(ggplot2)
-library(dplyr)
-library(RColorBrewer)
+### Quick Installation
 
-source("scripts/XQTL_plotting_functions.R")
-df1 = as_tibble(read.table("TEST_F.pseudoscan.txt"))
-df2 = as_tibble(read.table("TEST_F.meansBySample.txt"))
+```r
+# Install from GitHub with vignettes (important for RStudio users!)
+devtools::install_github("tdlong/XQTL2.Xplore", build_vignettes = TRUE)
 
-XQTL_Manhattan_5panel(df1, cM = FALSE)
-XQTL_Manhattan_5panel(df1, cM = TRUE)
-XQTL_Manhattan(df1, cM = FALSE, color_scheme = "UCI")
-XQTL_Manhattan(df1, cM = TRUE)
-XQTL_change_average(df2, "chr3R", 18250000, 19000000)
-# reference strain crossing designs
-XQTL_change_average(df2, "chr3R", 18250000, 19000000, reference_strain="B5")
-XQTL_change_byRep(df2, "chr3R", 18250000, 19000000)
-XQTL_beforeAfter_selectReps(df2, "chr3R", 18250000, 19000000,reps=c(1,7,9,12))
-XQTL_region(df1, "chr3R", 18250000, 19000000, "Wald_log10p")
-XQTL_combined_plot(df1, df2, "chr3R", 18250000, 19000000)
-XQTL_combined_plot(df1, df2, "chr3R", 18250000, 19000000, reference_strain="B5")
-XQTL_region(df1, "chr3R", 18650000, 18725000, "Wald_log10p")
-XQTL_combined_plot(df1, df2, "chr3R", 18650000, 18725000)
-# genes
-# wget https://hgdownload.soe.ucsc.edu/goldenPath/dm6/bigZips/genes/dm6.ncbiRefSeq.gtf.gz
-gtf = import("dm6.ncbiRefSeq.gtf")
-A1 = XQTL_region(df1, "chr2L", 12030000, 12070000, "Wald_log10p")
-A2 = XQTL_change_average(df2, "chr2L", 12030000, 12070000)
-A3 = XQTL_genes(gtf, "chr2L", 12030000, 12070000)
-A1/A2/A3
-# a fast way to explore peaks
-# find the peak score in this window, return a plot and a new interval
-# the last two argument are the left and right -log10p drop on each side of the peak
-out = XQTL_zoom(df1, "chr2L", 15000000, 16000000, 3, 3)
-out$plot  # perhaps adjust left and right drops until you are happy
-A1 = XQTL_region(df1, out$chr, out$start, out$stop, "Wald_log10p")
-A2 = XQTL_change_average(df2, out$chr, out$start, out$stop)
-A3 = XQTL_genes(gtf, out$chr, out$start, out$stop)
-A1/A3/A2
-
+# Load the package
+library(XQTL2.Xplore)
 ```
+
+### What's Available
+
+The XQTL2.Xplore package provides comprehensive tools for:
+- **Genome-wide QTL visualization** with Manhattan plots
+- **Regional analysis** with peak refinement tools  
+- **Frequency change analysis** across experimental conditions
+- **Gene and variant annotation** visualization
+- **Publication-ready multi-panel plots**
+
+### Example Usage
+
+```r
+# Load example data
+data(zinc_hanson_pseudoscan)
+data(zinc_hanson_means)
+
+# Genome-wide analysis
+XQTL_Manhattan_5panel(zinc_hanson_pseudoscan, cM = FALSE)
+
+# Peak refinement
+out <- XQTL_zoom(zinc_hanson_pseudoscan, "chr3R", 18000000, 20000000, 3, 3)
+
+# Publication-ready plot
+XQTL_5panel_plot(zinc_hanson_pseudoscan, zinc_hanson_means, 
+                 dm6.variants, dm6.ncbiRefSeq.genes, 
+                 out$chr, out$start, out$stop)
+```
+
+### Documentation
+
+- **Package vignettes** - Complete tutorials and examples
+- **Function documentation** - Detailed help for all functions
+- **Example datasets** - Ready-to-use data for learning
+
+For the complete analysis workflow and all available functions, please visit the [XQTL2.Xplore repository](https://github.com/tdlong/XQTL2.Xplore).
 
 
