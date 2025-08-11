@@ -331,4 +331,74 @@ XQTL_5panel_plot(zinc_hanson_pseudoscan, zinc_hanson_means,
 
 For the complete analysis workflow and all available functions, please visit the [XQTL2.Xplore repository](https://github.com/tdlong/XQTL2.Xplore).
 
+## Additional Tools
+
+### Sliding Window Heterozygosity Analysis
+
+A useful modification to the pipeline for analyzing low-pass sequence data to assess heterozygosity in strains of interest. This tool is particularly valuable for:
+
+- **Strain validation** - Confirming a tester strain is homozygous before crossing
+- **Chromosome extraction verification** - Validating successful chromosome extraction using balancers
+- **Quality control** - Assessing strain purity and identifying heterozygous regions
+
+The approach takes BAM files from low-pass samples plus A or B founders (to focus on good SNPs) and generates sliding window plots of heterozygosity. It doesn't require high sequence coverage and has proven useful in practice.
+
+#### Step 1: Create BAM file list
+
+First, create a list of BAM files that includes your tester strains and some inbred founders:
+
+```bash
+# Find all BAM files from your samples of interest
+find data/bam/June_2025 -name "*.bam" > tester_strains.bams
+
+# Add B-founder BAM files to focus on good SNPs
+cat /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/founder.bams.txt | grep "B" >> tester_strains.bams
+
+# Run the REFALT generation step
+sbatch scripts/bam2bcf2REFALT.sh tester_strains.bams process/heterozygosity_analysis
+```
+
+#### Step 2: Run heterozygosity analysis
+
+The heterozygosity analysis uses a dedicated script `bam2bcf2REFALT_het.sh` and the `REFALT2HET.awk` utility script (both located in the `scripts/` folder).
+
+```bash
+# Run the heterozygosity-specific REFALT generation
+sbatch scripts/bam2bcf2REFALT_het.sh tester_strains.bams process/heterozygosity_analysis
+```
+
+This will generate heterozygosity scores for each sample at each SNP position, outputting files like `nHet.chrX.txt`, `nHet.chr2L.txt`, etc.
+
+#### Step 3: Process heterozygosity data and create sliding window summaries
+
+The heterozygosity files are processed using the `process_heterozygosity.R` script to create sliding window summaries across genetic map positions.
+
+```bash
+# Process the heterozygosity files
+Rscript scripts/process_heterozygosity.R process/heterozygosity_analysis/
+```
+
+**What this step does:**
+- Reads all chromosome-specific heterozygosity files (`nHet.chr*.txt`)
+- Adds genetic map positions (cM) using the flymap reference
+- Creates sliding window bins (10 bins per chromosome)
+- Calculates average heterozygosity per bin per sample
+- Outputs a combined table (`het.table.R`) ready for visualization
+
+#### Step 4: Create heterozygosity plots
+
+Generate sliding window heterozygosity plots using the `plot_heterozygosity.R` script. This automatically excludes A and B founder strains and creates publication-ready visualizations.
+
+```bash
+# Create heterozygosity plots
+Rscript scripts/plot_heterozygosity.R process/heterozygosity_analysis/het.table.R
+```
+
+**What this step does:**
+- Automatically filters out founder strains (A1, A2, B1, B2, etc.)
+- Creates chromosome-specific plots with sliding window heterozygosity
+- Uses clean, publication-ready styling
+- Saves plots as high-resolution PNG files
+- Provides sample lists for verification
+
 
