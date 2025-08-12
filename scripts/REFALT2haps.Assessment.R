@@ -88,9 +88,6 @@ cat("Using fixed h_cutoff:", h_cutoff, "\n\n")
 
 # Test first sample
 test_sample <- names_in_bam[1]
-sample_data <- df3 %>%
-  select(chr = CHROM, pos = POS, all_of(founders)) %>%
-  mutate(freq = df3[[test_sample]])
 
 for (i in seq_along(window_sizes)) {
   ws <- window_sizes[i]
@@ -99,15 +96,20 @@ for (i in seq_along(window_sizes)) {
   window_start <- max(0, midpoint - ws/2)
   window_end <- midpoint + ws/2
   
-  # Filter SNPs in window
-  window_snps <- sample_data %>%
-    filter(pos >= window_start, pos <= window_end) %>%
-    filter(!is.na(freq))
+  # Filter SNPs in window and reshape data
+  window_snps <- df3 %>%
+    filter(CHROM == mychr &
+           POS >= window_start & 
+           POS <= window_end &
+           (name %in% founders | name == test_sample)) %>%
+    select(-c(CHROM, N)) %>%
+    pivot_wider(names_from = name, values_from = freq) %>%
+    filter(!is.na(!!sym(test_sample)))
   
   if (nrow(window_snps) > 0) {
     # Extract founder matrix and sample frequencies
-    founder_matrix <- window_snps %>% select(matches(founders))
-    sample_freqs <- window_snps$freq
+    founder_matrix <- window_snps %>% select(all_of(founders))
+    sample_freqs <- window_snps[[test_sample]]
     
     # Convert to matrix for clustering
     founder_matrix <- as.matrix(founder_matrix)
