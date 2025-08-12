@@ -1,30 +1,27 @@
 #!/usr/bin/env Rscript
 
 # =============================================================================
-# REFALT2haps Parameter Assessment Script - KISS Version
+# REFALT2haps Parameter Assessment Script - Chromosome Scanner
 # =============================================================================
-# Simple script to test how window size affects haplotype frequency estimates
-# Usage: Rscript scripts/REFALT2haps.Assessment.R chr parfile mydir start_pos end_pos
+# Script to assess how window size affects haplotype estimation across entire chromosome
+# Usage: Rscript scripts/REFALT2haps.Assessment.R chr parfile mydir [verbose]
 
 library(tidyverse)
 library(limSolve)
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 5) {
-  cat("Usage: Rscript REFALT2haps.Assessment.R chr parfile mydir start_pos end_pos\n")
-  cat("Example: Rscript REFALT2haps.Assessment.R chr2L helpfiles/haplotype_parameters.R process/test 18000000 20000000\n")
+if (length(args) < 3) {
+  cat("Usage: Rscript REFALT2haps.Assessment.R chr parfile mydir [verbose]\n")
+  cat("Example: Rscript REFALT2haps.Assessment.R chr2L helpfiles/haplotype_parameters.R process/test\n")
+  cat("Add 'verbose' as 4th argument for detailed output\n")
   quit(status = 1)
 }
 
 mychr <- args[1]
 parfile <- args[2]
 mydir <- args[3]
-start_pos <- as.numeric(args[4])
-end_pos <- as.numeric(args[5])
-
-# Calculate midpoint
-midpoint <- (start_pos + end_pos) / 2
+verbose <- ifelse(length(args) >= 4 && args[4] == "verbose", TRUE, FALSE)
 
 # Source the parameter file
 source(parfile)
@@ -32,18 +29,17 @@ source(parfile)
 # Define file paths
 filein <- paste0(mydir, "/RefAlt.", mychr, ".txt")
 
-cat("=== REFALT2haps Fixed Window Assessment (KISS) ===\n")
+cat("=== REFALT2haps Fixed Window Assessment - Chromosome Scanner ===\n")
 cat("Chromosome:", mychr, "\n")
-cat("Region:", start_pos, "-", end_pos, "bp\n")
-cat("Midpoint:", midpoint, "bp\n")
-cat("Input file:", filein, "\n\n")
+cat("Input file:", filein, "\n")
+cat("Verbose mode:", verbose, "\n\n")
 
 # Load data
-cat("Loading data...\n")
+if (verbose) cat("Loading data...\n")
 df <- read.table(filein, header = TRUE)
 
 # Transform REF/ALT counts to frequencies
-cat("Converting counts to frequencies...\n")
+if (verbose) cat("Converting counts to frequencies...\n")
 df2 <- df %>%
   pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
@@ -60,7 +56,7 @@ df2 <- df %>%
   as_tibble()
 
 # Filter for high-quality SNPs
-cat("Filtering for high-quality SNPs...\n")
+if (verbose) cat("Filtering for high-quality SNPs...\n")
 good_snps <- df2 %>%
   filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
@@ -77,88 +73,160 @@ good_snps <- df2 %>%
 df3 <- good_snps %>%
   left_join(df2, multiple = "all")
 
-# Define window sizes to test
-window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-results <- matrix(NA, nrow = length(founders), ncol = length(window_sizes))
-rownames(results) <- founders
-colnames(results) <- window_sizes
+# Define window sizes to test (removed 1000kb as requested)
+window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
 
-cat("Testing window sizes:", paste(window_sizes/1000, "kb", collapse = ", "), "\n")
-cat("Using fixed h_cutoff:", h_cutoff, "\n\n")
+# Get all non-founder samples
+all_samples <- unique(df2$name)
+non_founder_samples <- all_samples[!all_samples %in% founders]
 
-# Test first sample
-test_sample <- names_in_bam[1]
+if (verbose) {
+  cat("Testing window sizes:", paste(window_sizes/1000, "kb", collapse = ", "), "\n")
+  cat("Using fixed h_cutoff:", h_cutoff, "\n")
+  cat("Non-founder samples:", length(non_founder_samples), "\n")
+  cat("Samples:", paste(non_founder_samples, collapse = ", "), "\n\n")
+}
 
-for (i in seq_along(window_sizes)) {
-  ws <- window_sizes[i]
+# Define scanning positions (500kb to end-500kb, 10kb steps)
+chromosome_length <- max(df$POS)
+scan_start <- 500000
+scan_end <- chromosome_length - 500000
+scan_positions <- seq(scan_start, scan_end, by = 10000)
+
+if (verbose) {
+  cat("Chromosome length:", chromosome_length, "bp\n")
+  cat("Scanning from:", scan_start, "to", scan_end, "bp\n")
+  cat("Total positions to scan:", length(scan_positions), "\n\n")
+}
+
+# Initialize results table
+results_list <- list()
+
+# Scan each position
+for (pos_idx in seq_along(scan_positions)) {
+  test_pos <- scan_positions[pos_idx]
   
-  # Create window around midpoint
-  window_start <- max(0, midpoint - ws/2)
-  window_end <- midpoint + ws/2
+  if (verbose) {
+    cat("Position", pos_idx, "/", length(scan_positions), ":", test_pos, "bp\n")
+  }
   
-  cat("\n--- Testing window size:", ws/1000, "kb ---\n")
-  cat("Window:", window_start, "-", window_end, "bp\n")
-  
-  # Filter SNPs in window and reshape data
-  window_snps <- df3 %>%
-    filter(CHROM == mychr &
-           POS >= window_start & 
-           POS <= window_end &
-           (name %in% founders | name == test_sample)) %>%
-    select(-c(CHROM, N)) %>%
-    pivot_wider(names_from = name, values_from = freq) %>%
-    filter(!is.na(!!sym(test_sample)))
-  
-  cat("SNPs in window:", nrow(window_snps), "\n")
-  
-  if (nrow(window_snps) > 0) {
-    # Extract founder matrix and sample frequencies
-    founder_matrix <- window_snps %>% select(all_of(founders))
-    sample_freqs <- window_snps[[test_sample]]
+  # Test each window size for this position
+  for (ws_idx in seq_along(window_sizes)) {
+    ws <- window_sizes[ws_idx]
     
-    # Convert to matrix for clustering
-    founder_matrix <- as.matrix(founder_matrix)
+    # Create window around test position
+    window_start <- max(0, test_pos - ws/2)
+    window_end <- test_pos + ws/2
     
-    # Build simple constraint matrix (sum to 1 + individual bounds)
-    n_founders <- ncol(founder_matrix)
-    E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
-    F <- 1.0
+    # Filter SNPs in this window
+    window_snps <- df3 %>%
+      filter(CHROM == mychr &
+             POS > window_start &
+             POS < window_end &
+             (name %in% founders | name %in% non_founder_samples)) %>%
+      select(-c(CHROM, N)) %>%
+      pivot_wider(names_from = name, values_from = freq) %>%
+      pivot_longer(!c("POS", matches(founders)), 
+                  names_to = "sample", values_to = "freq") %>%
+      select(-POS)
     
-    cat("Constraints: Sum to 1 + individual bounds (0.0003 to 1.0)\n")
-    
-    # Solve constrained least squares with proper bounds
-    tryCatch({
-      # G = diag(n_founders) sets lower bounds (>= 0.0003)
-      # H = matrix(rep(0.0003, n_founders)) sets minimum frequency
-      result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F,
-                    G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
-      
-      cat("✓ Estimation successful\n")
-      cat("Frequency estimates:\n")
-      for (j in seq_along(founders)) {
-        cat("  ", founders[j], ":", sprintf("%.4f", result$X[j]), "\n")
+    if (nrow(window_snps) > 0) {
+      # Test each non-founder sample
+      for (sample_name in non_founder_samples) {
+        sample_data <- window_snps %>% filter(sample == sample_name)
+        
+        if (nrow(sample_data) > 0) {
+          # Extract founder matrix and sample frequencies
+          founder_matrix <- sample_data %>% select(matches(founders))
+          sample_freqs <- sample_data$freq
+          
+          # Filter for non-NA values
+          valid_positions <- !is.na(sample_freqs)
+          sample_freqs <- sample_freqs[valid_positions]
+          founder_matrix <- founder_matrix[valid_positions, ]
+          
+          if (nrow(founder_matrix) > 0) {
+            # Convert to matrix for clustering
+            founder_matrix <- as.matrix(founder_matrix)
+            
+            # Cluster founders based on similarity
+            founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = h_cutoff)
+            
+            # Count groups
+            n_groups <- length(unique(founder_clusters))
+            
+            # Build constraint matrix (simple: sum to 1 + individual bounds)
+            n_founders <- ncol(founder_matrix)
+            E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
+            F <- 1.0
+            
+            # Solve constrained least squares
+            tryCatch({
+              result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
+                            G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
+              
+              # Store results
+              for (founder_idx in seq_along(founders)) {
+                founder_name <- founders[founder_idx]
+                freq_estimate <- result$X[founder_idx]
+                
+                results_list[[length(results_list) + 1]] <- list(
+                  chr = mychr,
+                  pos = test_pos,
+                  sample = sample_name,
+                  window_size = ws,
+                  founder = founder_name,
+                  freq = freq_estimate
+                )
+              }
+              
+              if (verbose) {
+                cat("  ✓", sample_name, "window", ws/1000, "kb:", n_groups, "groups, estimation successful\n")
+              }
+              
+            }, error = function(e) {
+              if (verbose) {
+                cat("  ✗", sample_name, "window", ws/1000, "kb:", n_groups, "groups, estimation failed:", e$message, "\n")
+              }
+            })
+          }
+        }
       }
-      
-      results[, i] <- result$X
-    }, error = function(e) {
-      cat("✗ Estimation failed:", e$message, "\n")
-      results[, i] <- rep(NA, length(founders))
-    })
-  } else {
-    cat("No SNPs found in window\n")
+    }
+  }
+  
+  # Progress indicator
+  if (pos_idx %% 100 == 0) {
+    cat("Progress:", pos_idx, "/", length(scan_positions), "positions completed\n")
   }
 }
 
-# Output results table
-cat("Haplotype Frequency Estimates vs Window Size\n")
-cat("Sample:", test_sample, "\n")
-cat("Position:", midpoint, "bp\n")
-cat("Fixed h_cutoff:", h_cutoff, "\n\n")
-
-# Print table
-cat("Founder\t", paste(window_sizes/1000, "kb", collapse = "\t"), "\n", sep = "")
-for (i in seq_along(founders)) {
-  cat(founders[i], "\t", paste(sprintf("%.4f", results[i, ]), collapse = "\t"), "\n", sep = "")
+# Convert results to data frame
+if (length(results_list) > 0) {
+  results_df <- bind_rows(results_list)
+  
+  # Save results
+  output_file <- paste0(mydir, "/fixed_window_results_", mychr, ".RDS")
+  saveRDS(results_df, output_file)
+  
+  cat("\n=== SCANNING COMPLETE ===\n")
+  cat("Results saved to:", output_file, "\n")
+  cat("Total estimates:", nrow(results_df), "\n")
+  cat("Output format: chr | pos | sample | window_size | founder | freq\n")
+  
+  # Show summary
+  cat("\nSummary by window size:\n")
+  summary_stats <- results_df %>%
+    group_by(window_size) %>%
+    summarize(
+      n_estimates = n(),
+      mean_freq = mean(freq, na.rm = TRUE),
+      sd_freq = sd(freq, na.rm = TRUE)
+    ) %>%
+    arrange(window_size)
+  
+  print(summary_stats)
+  
+} else {
+  cat("\nNo successful estimates obtained!\n")
 }
-
-cat("\n=== Done ===\n")

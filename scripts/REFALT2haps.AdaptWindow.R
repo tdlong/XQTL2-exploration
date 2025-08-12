@@ -1,30 +1,27 @@
 #!/usr/bin/env Rscript
 
 # =============================================================================
-# REFALT2haps Adaptive Window Testing Script - KISS Version
+# REFALT2haps Adaptive Window Testing Script - Chromosome Scanner
 # =============================================================================
-# Simple script to test how h_cutoff affects haplotype frequency estimates
-# Usage: Rscript scripts/REFALT2haps.AdaptWindow.R chr parfile mydir test_pos test_window_size
+# Script to test adaptive window algorithm across entire chromosome
+# Usage: Rscript scripts/REFALT2haps.AdaptWindow.R chr parfile mydir [verbose]
 
 library(tidyverse)
 library(limSolve)
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 5) {
-  cat("Usage: Rscript REFALT2haps.AdaptWindow.R chr parfile mydir start_pos end_pos\n")
-  cat("Example: Rscript REFALT2haps.AdaptWindow.R chr2L helpfiles/haplotype_parameters.R process/test 18000000 20000000\n")
+if (length(args) < 3) {
+  cat("Usage: Rscript REFALT2haps.AdaptWindow.R chr parfile mydir [verbose]\n")
+  cat("Example: Rscript REFALT2haps.AdaptWindow.R chr2L helpfiles/haplotype_parameters.R process/test\n")
+  cat("Add 'verbose' as 4th argument for detailed output\n")
   quit(status = 1)
 }
 
 mychr <- args[1]
 parfile <- args[2]
 mydir <- args[3]
-start_pos <- as.numeric(args[4])
-end_pos <- as.numeric(args[5])
-
-# Calculate test position (midpoint of the region)
-test_pos <- (start_pos + end_pos) / 2
+verbose <- ifelse(length(args) >= 4 && args[4] == "verbose", TRUE, FALSE)
 
 # Source the parameter file
 source(parfile)
@@ -32,17 +29,17 @@ source(parfile)
 # Define file paths
 filein <- paste0(mydir, "/RefAlt.", mychr, ".txt")
 
-cat("=== REFALT2haps Adaptive Window Test (KISS) ===\n")
+cat("=== REFALT2haps Adaptive Window Test - Chromosome Scanner ===\n")
 cat("Chromosome:", mychr, "\n")
-cat("Test position:", test_pos, "\n")
-cat("Input file:", filein, "\n\n")
+cat("Input file:", filein, "\n")
+cat("Verbose mode:", verbose, "\n\n")
 
 # Load data
-cat("Loading data...\n")
+if (verbose) cat("Loading data...\n")
 df <- read.table(filein, header = TRUE)
 
 # Transform REF/ALT counts to frequencies
-cat("Converting counts to frequencies...\n")
+if (verbose) cat("Converting counts to frequencies...\n")
 df2 <- df %>%
   pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
@@ -59,7 +56,7 @@ df2 <- df %>%
   as_tibble()
 
 # Filter for high-quality SNPs
-cat("Filtering for high-quality SNPs...\n")
+if (verbose) cat("Filtering for high-quality SNPs...\n")
 good_snps <- df2 %>%
   filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
@@ -76,281 +73,343 @@ good_snps <- df2 %>%
 df3 <- good_snps %>%
   left_join(df2, multiple = "all")
 
-# Create window around test position (use a reasonable window size, not the full test_window_size)
-base_window_size <- 1000000  # 1Mb base window
-window_start <- max(0, test_pos - base_window_size/2)
-window_end <- test_pos + base_window_size/2
+# Define window sizes to try (progressive expansion, max 500kb as requested)
+base_window_size <- 10000  # Start with 10kb
+window_sizes <- c(base_window_size, 
+                  base_window_size * 2.5, 
+                  base_window_size * 5, 
+                  base_window_size * 10, 
+                  base_window_size * 20,
+                  base_window_size * 50)  # Max 500kb
 
-# Filter SNPs in window
-window_snps <- df3 %>%
-  filter(CHROM == mychr &
-         POS > window_start &
-         POS < window_end &
-         (name %in% founders | name %in% names_in_bam)) %>%
-  select(-c(CHROM, N)) %>%
-  pivot_wider(names_from = name, values_from = freq) %>%
-  pivot_longer(!c("POS", matches(founders)), 
-              names_to = "sample", values_to = "freq") %>%
-  select(-POS)
+# Define h_cutoff values to test (removed 40 as requested)
+h_cutoffs <- c(2, 4, 6, 8, 10, 20)
 
-if (nrow(window_snps) == 0) {
-  stop("No SNPs found in window!")
+# Get all non-founder samples
+all_samples <- unique(df2$name)
+non_founder_samples <- all_samples[!all_samples %in% founders]
+
+if (verbose) {
+  cat("Testing h_cutoffs:", paste(h_cutoffs, collapse = ", "), "\n")
+  cat("Window sizes:", paste(window_sizes/1000, "kb", collapse = " → "), "\n")
+  cat("Non-founder samples:", length(non_founder_samples), "\n")
+  cat("Samples:", paste(non_founder_samples, collapse = ", "), "\n\n")
 }
 
-# Test different h_cutoffs
-h_cutoffs <- c(2, 4, 6, 8, 10, 20, 40)  # Test range of cutoffs
-window_sizes <- c(10000, 25000, 50000, 100000, 200000, 500000, 1000000)
+# Define scanning positions (500kb to end-500kb, 10kb steps)
+chromosome_length <- max(df$POS)
+scan_start <- 500000
+scan_end <- chromosome_length - 500000
+scan_positions <- seq(scan_start, scan_end, by = 10000)
 
-cat("Testing h_cutoffs:", paste(h_cutoffs, collapse = ", "), "\n")
-cat("Window sizes:", paste(window_sizes/1000, "kb", collapse = " → "), "\n")
-cat("Test position:", test_pos, "bp\n\n")
+if (verbose) {
+  cat("Chromosome length:", chromosome_length, "bp\n")
+  cat("Scanning from:", scan_start, "to", scan_end, "bp\n")
+  cat("Total positions to scan:", length(scan_positions), "\n\n")
+}
 
-# Test first sample
-test_sample <- names_in_bam[1]
+# Initialize results table
+results_list <- list()
 
-# Store final results for each h_cutoff
-final_results <- matrix(NA, nrow = length(founders), ncol = length(h_cutoffs))
-rownames(final_results) <- founders
-colnames(final_results) <- h_cutoffs
-
-# Test each h_cutoff
-for (hc_idx in seq_along(h_cutoffs)) {
-  hc <- h_cutoffs[hc_idx]
-  cat("\n=== Testing h_cutoff:", hc, "===\n")
+# Scan each position
+for (pos_idx in seq_along(scan_positions)) {
+  test_pos <- scan_positions[pos_idx]
+  
+  if (verbose) {
+    cat("Position", pos_idx, "/", length(scan_positions), ":", test_pos, "bp\n")
+  }
+  
+  # Test each h_cutoff for this position
+  for (hc_idx in seq_along(h_cutoffs)) {
+    hc <- h_cutoffs[hc_idx]
+    
+    if (verbose) {
+      cat("  Testing h_cutoff:", hc, "\n")
+    }
     
     # Initialize constraints for this h_cutoff
     accumulated_constraints <- NULL
     accumulated_constraint_values <- NULL
-  
-  # Run adaptive window algorithm for this h_cutoff
-  previous_n_groups <- 0  # Track clustering progress
-  
-  for (window_idx in seq_along(window_sizes)) {
-    current_window_size <- window_sizes[window_idx]
-    cat("\n--- Window size:", current_window_size/1000, "kb ---\n")
     
-    # Create window around test position (this is the adaptive part)
-    window_start <- max(0, test_pos - current_window_size/2)
-    window_end <- test_pos + current_window_size/2
-    cat("Window:", window_start, "-", window_end, "bp (centered at", test_pos, "bp)\n")
+    # Run adaptive window algorithm for this h_cutoff
+    previous_n_groups <- 0  # Track clustering progress
     
-    # Filter SNPs in this expanding window
-    window_snps_current <- df3 %>%
-      filter(CHROM == mychr &
-             POS > window_start &
-             POS < window_end &
-             (name %in% founders | name %in% names_in_bam)) %>%
-      select(-c(CHROM, N)) %>%
-      pivot_wider(names_from = name, values_from = freq) %>%
-      pivot_longer(!c("POS", matches(founders)), 
-                  names_to = "sample", values_to = "freq") %>%
-      select(-POS)
-    
-    # Count SNPs in this window
-    n_snps <- df3 %>%
-      filter(CHROM == mychr &
-             POS > window_start &
-             POS < window_end &
-             name %in% founders) %>%
-      distinct(POS) %>%
-      nrow()
-    
-    cat("SNPs in window:", n_snps, "\n")
-    
-    if (nrow(window_snps_current) == 0) {
-      cat("No SNPs found in window\n")
-      next
-    }
-    
-    # Get sample data for current window
-    sample_data_current <- window_snps_current %>% filter(sample == test_sample)
-    
-    # Extract founder matrix and sample frequencies
-    founder_matrix <- sample_data_current %>% select(matches(founders))
-    sample_freqs <- sample_data_current$freq
-    
-    # Filter for non-NA values
-    valid_positions <- !is.na(sample_freqs)
-    sample_freqs <- sample_freqs[valid_positions]
-    founder_matrix <- founder_matrix[valid_positions, ]
-    
-    if (nrow(founder_matrix) > 0) {
-      # Convert to matrix for clustering
-      founder_matrix <- as.matrix(founder_matrix)
+    for (window_idx in seq_along(window_sizes)) {
+      current_window_size <- window_sizes[window_idx]
       
-      # Cluster founders based on similarity
-      founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = hc)
+      if (verbose) {
+        cat("    --- Window size:", current_window_size/1000, "kb ---\n")
+      }
       
-      # Count groups
-      n_groups <- length(unique(founder_clusters))
-      cat("Founder groups:", n_groups, "\n")
+      # Create window around test position
+      window_start <- max(0, test_pos - current_window_size/2)
+      window_end <- test_pos + current_window_size/2
       
-      # Check if clustering improved (more groups = better separation)
-      if (window_idx > 1 && n_groups <= previous_n_groups) {
-        cat("Clustering not improved (", n_groups, " groups vs ", previous_n_groups, "), skipping to next window\n")
+      if (verbose) {
+        cat("    Window:", window_start, "-", window_end, "bp (centered at", test_pos, "bp)\n")
+      }
+      
+      # Filter SNPs in this expanding window
+      window_snps_current <- df3 %>%
+        filter(CHROM == mychr &
+               POS > window_start &
+               POS < window_end &
+               (name %in% founders | name %in% non_founder_samples)) %>%
+        select(-c(CHROM, N)) %>%
+        pivot_wider(names_from = name, values_from = freq) %>%
+        pivot_longer(!c("POS", matches(founders)), 
+                    names_to = "sample", values_to = "freq") %>%
+        select(-POS)
+      
+      # Count SNPs in this window
+      n_snps <- df3 %>%
+        filter(CHROM == mychr &
+               POS > window_start &
+               POS < window_end &
+               name %in% founders) %>%
+        distinct(POS) %>%
+        nrow()
+      
+      if (verbose) {
+        cat("    SNPs in window:", n_snps, "\n")
+      }
+      
+      if (nrow(window_snps_current) == 0) {
+        if (verbose) cat("    No SNPs found in window\n")
         next
       }
       
-      # Show group composition
-      for (group_id in unique(founder_clusters)) {
-        group_founders <- names(founder_clusters[founder_clusters == group_id])
-        cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
-      }
-      
-      # Update previous_n_groups for next iteration
-      previous_n_groups <- n_groups
-      
-      # Build constraint matrix with accumulated constraints from smaller windows
-      n_founders <- ncol(founder_matrix)
-      E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
-      F <- 1.0
-      
-      # Add accumulated constraints from previous (smaller) windows
-      if (!is.null(accumulated_constraints)) {
-        E <- rbind(E, accumulated_constraints)
-        F <- c(F, accumulated_constraint_values)
-        cat("Added", nrow(accumulated_constraints), "accumulated constraints\n")
-      }
-      
-      # Define unique_clusters outside the if/else block
-      unique_clusters <- unique(founder_clusters)
-      
-      # For the first window, we don't add group constraints yet
-      # We need to run lsei first to get the actual frequency estimates
-      if (window_idx == 1) {
-        cat("First window: No group constraints yet, just sum to 1\n")
-      } else {
-        # Add current window group constraints (only for groups with multiple founders)
-        # BUT: We can't add constraints without values, so we'll do this after lsei
-        multi_founder_groups <- 0
-        for (cluster_id in unique_clusters) {
-          cluster_founders <- which(founder_clusters == cluster_id)
-          if (length(cluster_founders) > 1) {
-            multi_founder_groups <- multi_founder_groups + 1
+      # Test each non-founder sample
+      for (sample_name in non_founder_samples) {
+        sample_data_current <- window_snps_current %>% filter(sample == sample_name)
+        
+        if (nrow(sample_data_current) > 0) {
+          # Extract founder matrix and sample frequencies
+          founder_matrix <- sample_data_current %>% select(matches(founders))
+          sample_freqs <- sample_data_current$freq
+          
+          # Filter for non-NA values
+          valid_positions <- !is.na(sample_freqs)
+          sample_freqs <- sample_freqs[valid_positions]
+          founder_matrix <- founder_matrix[valid_positions, ]
+          
+          if (nrow(founder_matrix) > 0) {
+            # Convert to matrix for clustering
+            founder_matrix <- as.matrix(founder_matrix)
+            
+            # Cluster founders based on similarity
+            founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = hc)
+            
+            # Count groups
+            n_groups <- length(unique(founder_clusters))
+            
+            if (verbose) {
+              cat("    Founder groups:", n_groups, "\n")
+            }
+            
+            # Check if clustering improved (more groups = better separation)
+            if (window_idx > 1 && n_groups <= previous_n_groups) {
+              if (verbose) {
+                cat("    Clustering not improved (", n_groups, " groups vs ", previous_n_groups, "), skipping to next window\n")
+              }
+              next
+            }
+            
+            # Show group composition
+            if (verbose) {
+              for (group_id in unique(founder_clusters)) {
+                group_founders <- names(founder_clusters[founder_clusters == group_id])
+                cat("      Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
+              }
+            }
+            
+            # Update previous_n_groups for next iteration
+            previous_n_groups <- n_groups
+            
+            # Build constraint matrix with accumulated constraints from smaller windows
+            n_founders <- ncol(founder_matrix)
+            E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
+            F <- 1.0
+            
+            # Add accumulated constraints from previous (smaller) windows
+            if (!is.null(accumulated_constraints)) {
+              E <- rbind(E, accumulated_constraints)
+              F <- c(F, accumulated_constraint_values)
+              if (verbose) {
+                cat("    Added", nrow(accumulated_constraints), "accumulated constraints\n")
+              }
+            }
+            
+            # Define unique_clusters outside the if/else block
+            unique_clusters <- unique(founder_clusters)
+            
+            # For the first window, we don't add group constraints yet
+            if (window_idx == 1) {
+              if (verbose) cat("    First window: No group constraints yet, just sum to 1\n")
+            } else {
+              # Add current window group constraints (only for groups with multiple founders)
+              # BUT: We can't add constraints without values, so we'll do this after lsei
+              multi_founder_groups <- 0
+              for (cluster_id in unique_clusters) {
+                cluster_founders <- which(founder_clusters == cluster_id)
+                if (length(cluster_founders) > 1) {
+                  multi_founder_groups <- multi_founder_groups + 1
+                }
+              }
+              if (multi_founder_groups > 0 && verbose) {
+                cat("    Will add", multi_founder_groups, "group constraints after lsei\n")
+              }
+            }
+            
+            # Solve constrained least squares
+            if (verbose) {
+              cat("    Constraint matrix E:\n")
+              print(E)
+              cat("    Constraint values F:\n")
+              print(F)
+            }
+            
+            tryCatch({
+              result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
+                            G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
+              
+              if (verbose) cat("    ✓ lsei succeeded!\n")
+              
+              # Show frequency estimates for this window
+              if (verbose) {
+                cat("    Frequency estimates:\n")
+                for (i in seq_along(founders)) {
+                  cat("      ", founders[i], ":", sprintf("%.4f", result$X[i]), "\n")
+                }
+              }
+              
+              # Accumulate constraints for next (larger) window
+              current_constraints <- NULL
+              current_constraint_values <- NULL
+              
+              if (verbose) cat("    Building constraints for next window:\n")
+              for (cluster_id in unique_clusters) {
+                cluster_founders <- which(founder_clusters == cluster_id)
+                if (length(cluster_founders) > 1) {
+                  # Create constraint row for this group
+                  constraint_row <- rep(0, n_founders)
+                  constraint_row[cluster_founders] <- 1
+                  
+                  # Calculate the actual group frequency from lsei result
+                  group_freq <- sum(result$X[cluster_founders])
+                  
+                  if (verbose) {
+                    cat("      Group", cluster_id, "(", paste(names(founder_clusters[founder_clusters == cluster_id]), collapse = ", "), "): ", 
+                        sprintf("%.4f", group_freq), " (constraint: sum = ", sprintf("%.4f", group_freq), ")\n")
+                  }
+                  
+                  current_constraints <- rbind(current_constraints, constraint_row)
+                  current_constraint_values <- c(current_constraint_values, group_freq)
+                } else {
+                  # Single founder: lock their exact frequency
+                  founder_name <- names(founder_clusters[founder_clusters == cluster_id])
+                  founder_freq <- result$X[cluster_founders]
+                  
+                  if (verbose) {
+                    cat("      Group", cluster_id, "(", founder_name, "): ", 
+                        sprintf("%.4f", founder_freq), " (locked: ", founder_name, " = ", sprintf("%.4f", founder_freq), ")\n")
+                  }
+                  
+                  # Create constraint: this founder = their exact frequency
+                  constraint_row <- rep(0, n_founders)
+                  constraint_row[cluster_founders] <- 1
+                  
+                  current_constraints <- rbind(current_constraints, constraint_row)
+                  current_constraint_values <- c(current_constraint_values, founder_freq)
+                }
+              }
+              
+              # Update accumulated constraints for next window
+              if (!is.null(current_constraints)) {
+                accumulated_constraints <- current_constraints
+                accumulated_constraint_values <- current_constraint_values
+                if (verbose) {
+                  cat("    ✓ Accumulated", nrow(current_constraints), "group constraints for next window\n")
+                }
+              } else {
+                # If no constraints (e.g., all founders in 1 group), reset to NULL
+                accumulated_constraints <- NULL
+                accumulated_constraint_values <- NULL
+                if (verbose) {
+                  cat("    ✓ No meaningful constraints to accumulate, resetting for next window\n")
+                }
+              }
+              
+              # Store results for this position/h_cutoff/window combination
+              for (founder_idx in seq_along(founders)) {
+                founder_name <- founders[founder_idx]
+                freq_estimate <- result$X[founder_idx]
+                
+                results_list[[length(results_list) + 1]] <- list(
+                  chr = mychr,
+                  pos = test_pos,
+                  sample = sample_name,
+                  h_cutoff = hc,
+                  founder = founder_name,
+                  freq = freq_estimate
+                )
+              }
+              
+              # Check if all founders are separated
+              if (n_groups == length(founders)) {
+                if (verbose) {
+                  cat("    ✓ All founders separated! Stopping for this h_cutoff.\n")
+                }
+                break
+              }
+              
+            }, error = function(e) {
+              if (verbose) {
+                cat("    ✗ Estimation failed:", e$message, "\n")
+              }
+            })
           }
         }
-        if (multi_founder_groups > 0) {
-          cat("Will add", multi_founder_groups, "group constraints after lsei\n")
-        }
       }
-      
-      # Solve constrained least squares with proper bounds
-      cat("Constraint matrix E:\n")
-      print(E)
-      cat("Constraint values F:\n")
-      print(F)
-      
-      tryCatch({
-        # G = diag(n_founders) sets lower bounds (>= 0.0003)
-        # H = matrix(rep(0.0003, n_founders)) sets minimum frequency
-        result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
-                      G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
-        
-        cat("✓ lsei succeeded!\n")
-        # Show frequency estimates for this window
-        cat("Frequency estimates:\n")
-        for (i in seq_along(founders)) {
-          cat("  ", founders[i], ":", sprintf("%.4f", result$X[i]), "\n")
-        }
-        
-        # Accumulate constraints for next (larger) window
-        # Build constraints based on lsei results and clustering
-        current_constraints <- NULL
-        current_constraint_values <- NULL
-        
-        cat("Building constraints for next window:\n")
-        for (cluster_id in unique_clusters) {
-          cluster_founders <- which(founder_clusters == cluster_id)
-          if (length(cluster_founders) > 1) {
-            # Create constraint row for this group
-            constraint_row <- rep(0, n_founders)
-            constraint_row[cluster_founders] <- 1
-            
-            # Calculate the actual group frequency from lsei result
-            group_freq <- sum(result$X[cluster_founders])
-            
-            cat("  Group", cluster_id, "(", paste(names(founder_clusters[founder_clusters == cluster_id]), collapse = ", "), "): ", 
-                sprintf("%.4f", group_freq), " (constraint: sum = ", sprintf("%.4f", group_freq), ")\n")
-            
-            current_constraints <- rbind(current_constraints, constraint_row)
-            current_constraint_values <- c(current_constraint_values, group_freq)
-          } else {
-            # Single founder: lock their exact frequency
-            founder_name <- names(founder_clusters[founder_clusters == cluster_id])
-            founder_freq <- result$X[cluster_founders]
-            
-            cat("  Group", cluster_id, "(", founder_name, "): ", 
-                sprintf("%.4f", founder_freq), " (locked: ", founder_name, " = ", sprintf("%.4f", founder_freq), ")\n")
-            
-            # Create constraint: this founder = their exact frequency
-            constraint_row <- rep(0, n_founders)
-            constraint_row[cluster_founders] <- 1
-            
-            current_constraints <- rbind(current_constraints, constraint_row)
-            current_constraint_values <- c(current_constraint_values, founder_freq)
-          }
-        }
-        
-        # Update accumulated constraints for next window
-        if (!is.null(current_constraints)) {
-          accumulated_constraints <- current_constraints
-          accumulated_constraint_values <- current_constraint_values
-          cat("✓ Accumulated", nrow(current_constraints), "group constraints for next window\n")
-        } else {
-          # If no constraints (e.g., all founders in 1 group), reset to NULL
-          # This prevents carrying forward meaningless constraints
-          accumulated_constraints <- NULL
-          accumulated_constraint_values <- NULL
-          cat("✓ No meaningful constraints to accumulate, resetting for next window\n")
-        }
-        
-        # Store result for this h_cutoff (store when we succeed)
-        final_results[, hc_idx] <- result$X
-        
-        # Check if all founders are separated
-        if (n_groups == length(founders)) {
-          cat("✓ All founders separated! Stopping for this h_cutoff.\n")
-          break
-        }
-        
-      }, error = function(e) {
-        cat("✗ Estimation failed:", e$message, "\n")
-        cat("Group frequencies (from clustering only):\n")
-        
-        # Show group frequencies based on clustering (without lsei)
-        # All groups should sum to 1.0, so each group gets equal share
-        n_groups_total <- length(unique_clusters)
-        group_freq <- 1.0 / n_groups_total
-        
-        for (cluster_id in unique_clusters) {
-          cluster_founders <- names(founder_clusters[founder_clusters == cluster_id])
-          if (length(cluster_founders) > 1) {
-            cat("  Group", cluster_id, "(", paste(cluster_founders, collapse = ", "), "): ", 
-                sprintf("%.4f", group_freq), " total (", sprintf("%.4f", group_freq/length(cluster_founders)), " each)\n")
-          } else {
-            cat("  Group", cluster_id, "(", paste(cluster_founders, collapse = ", "), "): ", 
-                sprintf("%.4f", group_freq), "\n")
-          }
-        }
-      })
-    } else {
-      cat("No valid SNPs in window\n")
+    }
+    
+    if (verbose) {
+      cat("  === Completed h_cutoff", hc, "===\n")
     }
   }
   
-  cat("=== Completed h_cutoff", hc, "===\n")
+  # Progress indicator
+  if (pos_idx %% 100 == 0) {
+    cat("Progress:", pos_idx, "/", length(scan_positions), "positions completed\n")
+  }
 }
 
-# Output final results table
-cat("\n\n=== FINAL RESULTS TABLE ===\n")
-cat("Haplotype Frequency Estimates vs H_cutoff\n")
-cat("Sample:", test_sample, "\n")
-cat("Window:", window_start, "-", window_end, "bp\n\n")
-
-# Print table
-cat("Founder\t", paste(h_cutoffs, collapse = "\t"), "\n", sep = "")
-for (i in seq_along(founders)) {
-  cat(founders[i], "\t", paste(sprintf("%.4f", final_results[i, ]), collapse = "\t"), "\n", sep = "")
+# Convert results to data frame
+if (length(results_list) > 0) {
+  results_df <- bind_rows(results_list)
+  
+  # Save results
+  output_file <- paste0(mydir, "/adaptive_window_results_", mychr, ".RDS")
+  saveRDS(results_df, output_file)
+  
+  cat("\n=== SCANNING COMPLETE ===\n")
+  cat("Results saved to:", output_file, "\n")
+  cat("Total estimates:", nrow(results_df), "\n")
+  cat("Output format: chr | pos | sample | h_cutoff | founder | freq\n")
+  
+  # Show summary
+  cat("\nSummary by h_cutoff:\n")
+  summary_stats <- results_df %>%
+    group_by(h_cutoff) %>%
+    summarize(
+      n_estimates = n(),
+      mean_freq = mean(freq, na.rm = TRUE),
+      sd_freq = sd(freq, na.rm = TRUE)
+    ) %>%
+    arrange(h_cutoff)
+  
+  print(summary_stats)
+  
+} else {
+  cat("\nNo successful estimates obtained!\n")
 }
-
-cat("\n=== Done ===\n")
