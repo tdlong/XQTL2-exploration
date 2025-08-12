@@ -123,6 +123,8 @@ colnames(final_results) <- h_cutoffs
     accumulated_constraint_values <- NULL
   
   # Run adaptive window algorithm for this h_cutoff
+  previous_n_groups <- 0  # Track clustering progress
+  
   for (window_idx in seq_along(window_sizes)) {
     current_window_size <- window_sizes[window_idx]
     cat("\n--- Window size:", current_window_size/1000, "kb ---\n")
@@ -183,11 +185,20 @@ colnames(final_results) <- h_cutoffs
       n_groups <- length(unique(founder_clusters))
       cat("Founder groups:", n_groups, "\n")
       
+      # Check if clustering improved (more groups = better separation)
+      if (window_idx > 1 && n_groups <= previous_n_groups) {
+        cat("Clustering not improved (", n_groups, " groups vs ", previous_n_groups, "), skipping to next window\n")
+        next
+      }
+      
       # Show group composition
       for (group_id in unique(founder_clusters)) {
         group_founders <- names(founder_clusters[founder_clusters == group_id])
         cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
       }
+      
+      # Update previous_n_groups for next iteration
+      previous_n_groups <- n_groups
       
       # Build constraint matrix with accumulated constraints from smaller windows
       n_founders <- ncol(founder_matrix)
