@@ -201,13 +201,15 @@ colnames(final_results) <- h_cutoffs
         cat("Added", nrow(accumulated_constraints), "accumulated constraints\n")
       }
       
+      # Define unique_clusters outside the if/else block
+      unique_clusters <- unique(founder_clusters)
+      
       # For the first window, we don't add group constraints yet
       # We need to run lsei first to get the actual frequency estimates
       if (window_idx == 1) {
         cat("First window: No group constraints yet, just sum to 1\n")
       } else {
         # Add current window group constraints (only for groups with multiple founders)
-        unique_clusters <- unique(founder_clusters)
         multi_founder_groups <- 0
         for (cluster_id in unique_clusters) {
           cluster_founders <- which(founder_clusters == cluster_id)
