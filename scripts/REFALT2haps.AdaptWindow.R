@@ -221,17 +221,16 @@ for (hc_idx in seq_along(h_cutoffs)) {
         cat("First window: No group constraints yet, just sum to 1\n")
       } else {
         # Add current window group constraints (only for groups with multiple founders)
+        # BUT: We can't add constraints without values, so we'll do this after lsei
         multi_founder_groups <- 0
         for (cluster_id in unique_clusters) {
           cluster_founders <- which(founder_clusters == cluster_id)
           if (length(cluster_founders) > 1) {
-            constraint_row <- rep(0, n_founders)
-            constraint_row[cluster_founders] <- 1
-            E <- rbind(E, constraint_row)
-            # NOTE: We can't set the constraint value here because we don't have the lsei result yet
-            # This will be handled in the constraint accumulation after lsei
             multi_founder_groups <- multi_founder_groups + 1
           }
+        }
+        if (multi_founder_groups > 0) {
+          cat("Will add", multi_founder_groups, "group constraints after lsei\n")
         }
       }
       
@@ -298,7 +297,11 @@ for (hc_idx in seq_along(h_cutoffs)) {
           accumulated_constraint_values <- current_constraint_values
           cat("✓ Accumulated", nrow(current_constraints), "group constraints for next window\n")
         } else {
-          cat("✓ No constraints to accumulate (all founders separated)\n")
+          # If no constraints (e.g., all founders in 1 group), reset to NULL
+          # This prevents carrying forward meaningless constraints
+          accumulated_constraints <- NULL
+          accumulated_constraint_values <- NULL
+          cat("✓ No meaningful constraints to accumulate, resetting for next window\n")
         }
         
         # Store result for this h_cutoff (store when we succeed)
