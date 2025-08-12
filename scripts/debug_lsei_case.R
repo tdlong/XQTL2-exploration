@@ -186,29 +186,124 @@ if (nrow(founder_matrix) > 0) {
   cat("G (bounds) dimensions:", dim(G), "\n")
   cat("H (bound values) length:", length(H), "\n\n")
   
-  tryCatch({
-    result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
-                  G = G, H = H)
-    
-    cat("✓ lsei succeeded!\n")
+  # Test lsei with convergence checking
+  lsei_result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, G = G, H = H)
+
+  cat("\n=== lsei Result Details ===\n")
+  cat("lsei succeeded:", !is.null(lsei_result), "\n")
+  cat("Result class:", class(lsei_result), "\n")
+  cat("Result names:", names(lsei_result), "\n")
+
+  # Check for convergence indicators
+  if ("convergence" %in% names(lsei_result)) {
+    cat("Convergence code:", lsei_result$convergence, "\n")
+    cat("Convergence message:", lsei_result$message, "\n")
+  }
+
+  if ("iterations" %in% names(lsei_result)) {
+    cat("Iterations:", lsei_result$iterations, "\n")
+  }
+
+  if ("residualNorm" %in% names(lsei_result)) {
+    cat("Residual norm:", lsei_result$residualNorm, "\n")
+  }
+
+  # Extract the solution vector
+  if ("X" %in% names(lsei_result)) {
+    haplotype_freqs <- lsei_result$X
+    cat("\n✓ lsei succeeded!\n")
     cat("Result X (haplotype frequencies):\n")
     for (i in seq_along(founders)) {
-      cat("  ", founders[i], ":", sprintf("%.6f", result$X[i]), "\n")
+      cat("   ", founders[i], ": ", sprintf("%.6f", haplotype_freqs[i]), "\n")
     }
-    cat("\n")
+  } else {
+    cat("\n❌ lsei failed to return solution vector\n")
+    print(lsei_result)
+    stop("lsei did not return expected result")
+  }
+
+  cat("\n=== Matrix Validation ===\n")
+  cat("A matrix class:", class(founder_matrix), "\n")
+  cat("A matrix mode:", mode(founder_matrix), "\n")
+  cat("A matrix storage mode:", storage.mode(founder_matrix), "\n")
+  cat("A matrix dimensions:", dim(founder_matrix), "\n")
+  cat("A matrix has NAs:", any(is.na(founder_matrix)), "\n")
+  cat("A matrix has Infs:", any(is.infinite(founder_matrix)), "\n")
+
+  cat("\nB vector class:", class(sample_freqs), "\n")
+  cat("B vector mode:", mode(sample_freqs), "\n")
+  cat("B vector length:", length(sample_freqs), "\n")
+  cat("B vector has NAs:", any(is.na(sample_freqs)), "\n")
+  cat("B vector has Infs:", any(is.infinite(sample_freqs)), "\n")
+
+  # Check if matrices are actually numeric
+  cat("\nA is numeric:", is.numeric(founder_matrix), "\n")
+  cat("B is numeric:", is.numeric(sample_freqs), "\n")
+
+  # Check for any extreme values
+  cat("\nA matrix range:", range(founder_matrix), "\n")
+  cat("B vector range:", range(sample_freqs), "\n")
+
+  # Check matrix condition
+  cat("\nA matrix condition number:", kappa(founder_matrix), "\n")
+
+  # Test alternative solver
+  cat("\n=== Testing Alternative Solver (solve.QP) ===\n")
+  tryCatch({
+    # Convert to quadratic programming problem
+    library(quadprog)
     
-    cat("=== Validation ===\n")
-    cat("Sum of frequencies:", sum(result$X), "\n")
-    cat("Min frequency:", min(result$X), "\n")
-    cat("Max frequency:", max(result$X), "\n")
-    cat("All >= 0.0003:", all(result$X >= 0.0003), "\n")
-    cat("Sum ≈ 1.0:", abs(sum(result$X) - 1.0) < 0.001, "\n")
+    # D = A^T A, d = A^T b
+    D <- t(founder_matrix) %*% founder_matrix
+    d <- t(founder_matrix) %*% sample_freqs
+    
+    # Constraints: sum = 1, all >= 0.0003
+    Amat <- rbind(
+      rep(1, n_founders),  # sum = 1
+      diag(n_founders)      # all >= 0.0003
+    )
+    bvec <- c(1, rep(0.0003, n_founders))
+    
+    qp_result <- solve.QP(D, d, Amat, bvec, meq = 1)
+    
+    cat("✓ solve.QP succeeded!\n")
+    cat("QP solution:\n")
+    for (i in seq_along(founders)) {
+      cat("   ", founders[i], ": ", sprintf("%.6f", qp_result$solution[i]), "\n")
+    }
+    cat("QP iterations:", qp_result$iterations, "\n")
+    cat("QP Lagrange multipliers:", qp_result$Lagrangian, "\n")
     
   }, error = function(e) {
-    cat("✗ lsei failed:", e$message, "\n")
-    cat("Error details:", e, "\n")
+    cat("❌ solve.QP failed:", e$message, "\n")
   })
-  
+
+  cat("\n=== Validation ===\n")
+  sum_freqs <- sum(haplotype_freqs)
+  cat("Sum of frequencies:", sum_freqs, "\n")
+  cat("Min frequency:", min(haplotype_freqs), "\n")
+  cat("Max frequency:", max(haplotype_freqs), "\n")
+  cat("All >= 0.0003:", all(haplotype_freqs >= 0.0003), "\n")
+  cat("Sum ≈ 1.0:", abs(sum_freqs - 1) < 0.001, "\n")
+
+  # Check constraint satisfaction
+  cat("\n=== Constraint Satisfaction ===\n")
+  # Sum constraint
+  sum_constraint <- sum(haplotype_freqs)
+  cat("Sum constraint (should be 1):", sum_constraint, "\n")
+
+  # Bounds constraints
+  bounds_satisfied <- all(haplotype_freqs >= 0.0003)
+  cat("Lower bounds satisfied:", bounds_satisfied, "\n")
+  if (!bounds_satisfied) {
+    cat("Violated bounds:\n")
+    for (i in seq_along(founders)) {
+      if (haplotype_freqs[i] < 0.0003) {
+        cat("   ", founders[i], ": ", haplotype_freqs[i], " < 0.0003\n")
+      }
+    }
+  }
+
 } else {
   cat("✗ No valid data for analysis\n")
 }
