@@ -119,38 +119,12 @@ for (i in seq_along(window_sizes)) {
     # Convert to matrix for clustering
     founder_matrix <- as.matrix(founder_matrix)
     
-    # Cluster founders based on similarity
-    founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = h_cutoff)
-    
-    # Count groups and show composition
-    n_groups <- length(unique(founder_clusters))
-    cat("Founder groups:", n_groups, "\n")
-    
-    for (group_id in unique(founder_clusters)) {
-      group_founders <- names(founder_clusters[founder_clusters == group_id])
-      cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
-    }
-    
-    # Build constraint matrix
+    # Build simple constraint matrix (sum to 1 + individual bounds)
     n_founders <- ncol(founder_matrix)
     E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
     F <- 1.0
     
-    # Add group constraints for each cluster (only if multiple groups)
-    unique_clusters <- unique(founder_clusters)
-    if (n_groups > 1) {
-      for (cluster_id in unique_clusters) {
-        cluster_founders <- which(founder_clusters == cluster_id)
-        if (length(cluster_founders) > 1) {
-          constraint_row <- rep(0, n_founders)
-          constraint_row[cluster_founders] <- 1
-          E <- rbind(E, constraint_row)
-          F <- c(F, 1.0)
-        }
-      }
-    }
-    
-    cat("Constraints: Sum to 1 +", nrow(E)-1, "group constraints\n")
+    cat("Constraints: Sum to 1 + individual bounds (0.0003 to 1.0)\n")
     
     # Solve constrained least squares with proper bounds
     tryCatch({

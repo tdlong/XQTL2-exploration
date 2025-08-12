@@ -189,17 +189,17 @@ for (hc_idx in seq_along(h_cutoffs)) {
       E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
       F <- 1.0
       
-      # Add group constraints for each cluster (only if multiple groups)
+      # Add group constraints for each cluster (only for groups with multiple founders)
       unique_clusters <- unique(founder_clusters)
-      if (n_groups > 1) {
-        for (cluster_id in unique_clusters) {
-          cluster_founders <- which(founder_clusters == cluster_id)
-          if (length(cluster_founders) > 1) {
-            constraint_row <- rep(0, n_founders)
-            constraint_row[cluster_founders] <- 1
-            E <- rbind(E, constraint_row)
-            F <- c(F, 1.0)
-          }
+      multi_founder_groups <- 0
+      for (cluster_id in unique_clusters) {
+        cluster_founders <- which(founder_clusters == cluster_id)
+        if (length(cluster_founders) > 1) {
+          constraint_row <- rep(0, n_founders)
+          constraint_row[cluster_founders] <- 1
+          E <- rbind(E, constraint_row)
+          F <- c(F, 1.0)
+          multi_founder_groups <- multi_founder_groups + 1
         }
       }
       
