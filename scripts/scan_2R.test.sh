@@ -9,7 +9,7 @@
 #SBATCH --error=scan_2R_%j.err
 
 # Load required modules
-module load R/4.2.0
+module load R/4.4.2
 
 # Set working directory and parameters
 CHR="chr2R"
