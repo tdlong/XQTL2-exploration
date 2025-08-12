@@ -98,7 +98,7 @@ if (nrow(window_snps) == 0) {
 }
 
 # Test different h_cutoffs (simplified for debugging)
-h_cutoffs <- c(2, 10, 100)  # Low, middle, high
+h_cutoffs <- c(2)  # Just test smallest cutoff for debugging
 window_sizes <- c(10000, 25000, 50000, 100000, 200000, 500000, 1000000)
 
 cat("Testing h_cutoffs:", paste(h_cutoffs, collapse = ", "), "\n")
@@ -201,28 +201,40 @@ colnames(final_results) <- h_cutoffs
         cat("Added", nrow(accumulated_constraints), "accumulated constraints\n")
       }
       
-      # Add current window group constraints (only for groups with multiple founders)
-      unique_clusters <- unique(founder_clusters)
-      multi_founder_groups <- 0
-      for (cluster_id in unique_clusters) {
-        cluster_founders <- which(founder_clusters == cluster_id)
-        if (length(cluster_founders) > 1) {
-          constraint_row <- rep(0, n_founders)
-          constraint_row[cluster_founders] <- 1
-          E <- rbind(E, constraint_row)
-          # NOTE: We can't set the constraint value here because we don't have the lsei result yet
-          # This will be handled in the constraint accumulation after lsei
-          multi_founder_groups <- multi_founder_groups + 1
+      # For the first window, we don't add group constraints yet
+      # We need to run lsei first to get the actual frequency estimates
+      if (window_idx == 1) {
+        cat("First window: No group constraints yet, just sum to 1\n")
+      } else {
+        # Add current window group constraints (only for groups with multiple founders)
+        unique_clusters <- unique(founder_clusters)
+        multi_founder_groups <- 0
+        for (cluster_id in unique_clusters) {
+          cluster_founders <- which(founder_clusters == cluster_id)
+          if (length(cluster_founders) > 1) {
+            constraint_row <- rep(0, n_founders)
+            constraint_row[cluster_founders] <- 1
+            E <- rbind(E, constraint_row)
+            # NOTE: We can't set the constraint value here because we don't have the lsei result yet
+            # This will be handled in the constraint accumulation after lsei
+            multi_founder_groups <- multi_founder_groups + 1
+          }
         }
       }
       
       # Solve constrained least squares with proper bounds
+      cat("Constraint matrix E:\n")
+      print(E)
+      cat("Constraint values F:\n")
+      print(F)
+      
       tryCatch({
         # G = diag(n_founders) sets lower bounds (>= 0.0003)
         # H = matrix(rep(0.0003, n_founders)) sets minimum frequency
         result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
                       G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
         
+        cat("✓ lsei succeeded!\n")
         # Show frequency estimates for this window
         cat("Frequency estimates:\n")
         for (i in seq_along(founders)) {
@@ -230,10 +242,11 @@ colnames(final_results) <- h_cutoffs
         }
         
         # Accumulate constraints for next (larger) window
-        # Only add constraints for groups that still have multiple founders
+        # Build constraints based on lsei results and clustering
         current_constraints <- NULL
         current_constraint_values <- NULL
         
+        cat("Building constraints for next window:\n")
         for (cluster_id in unique_clusters) {
           cluster_founders <- which(founder_clusters == cluster_id)
           if (length(cluster_founders) > 1) {
@@ -244,8 +257,25 @@ colnames(final_results) <- h_cutoffs
             # Calculate the actual group frequency from lsei result
             group_freq <- sum(result$X[cluster_founders])
             
+            cat("  Group", cluster_id, "(", paste(names(founder_clusters[founder_clusters == cluster_id]), collapse = ", "), "): ", 
+                sprintf("%.4f", group_freq), " (constraint: sum = ", sprintf("%.4f", group_freq), ")\n")
+            
             current_constraints <- rbind(current_constraints, constraint_row)
             current_constraint_values <- c(current_constraint_values, group_freq)
+          } else {
+            # Single founder: lock their exact frequency
+            founder_name <- names(founder_clusters[founder_clusters == cluster_id])
+            founder_freq <- result$X[cluster_founders]
+            
+            cat("  Group", cluster_id, "(", founder_name, "): ", 
+                sprintf("%.4f", founder_freq), " (locked: ", founder_name, " = ", sprintf("%.4f", founder_freq), ")\n")
+            
+            # Create constraint: this founder = their exact frequency
+            constraint_row <- rep(0, n_founders)
+            constraint_row[cluster_founders] <- 1
+            
+            current_constraints <- rbind(current_constraints, constraint_row)
+            current_constraint_values <- c(current_constraint_values, founder_freq)
           }
         }
         
@@ -253,7 +283,9 @@ colnames(final_results) <- h_cutoffs
         if (!is.null(current_constraints)) {
           accumulated_constraints <- current_constraints
           accumulated_constraint_values <- current_constraint_values
-          cat("Accumulated", nrow(current_constraints), "group constraints for next window\n")
+          cat("✓ Accumulated", nrow(current_constraints), "group constraints for next window\n")
+        } else {
+          cat("✓ No constraints to accumulate (all founders separated)\n")
         }
         
         # Store result for this h_cutoff (store when we succeed)
@@ -266,7 +298,24 @@ colnames(final_results) <- h_cutoffs
         }
         
       }, error = function(e) {
-        cat("Error in estimation\n")
+        cat("✗ Estimation failed:", e$message, "\n")
+        cat("Group frequencies (from clustering only):\n")
+        
+        # Show group frequencies based on clustering (without lsei)
+        # All groups should sum to 1.0, so each group gets equal share
+        n_groups_total <- length(unique_clusters)
+        group_freq <- 1.0 / n_groups_total
+        
+        for (cluster_id in unique_clusters) {
+          cluster_founders <- names(founder_clusters[founder_clusters == cluster_id])
+          if (length(cluster_founders) > 1) {
+            cat("  Group", cluster_id, "(", paste(cluster_founders, collapse = ", "), "): ", 
+                sprintf("%.4f", group_freq), " total (", sprintf("%.4f", group_freq/length(cluster_founders)), " each)\n")
+          } else {
+            cat("  Group", cluster_id, "(", paste(cluster_founders, collapse = ", "), "): ", 
+                sprintf("%.4f", group_freq), "\n")
+          }
+        }
       })
     } else {
       cat("No valid SNPs in window\n")
