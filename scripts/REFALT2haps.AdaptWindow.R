@@ -87,8 +87,9 @@ build_constraint_matrix <- function(founder_groups, founder_names, previous_cons
 #' @param sample_data SNP data for one sample
 #' @param window_size Current window size being processed
 #' @param previous_constraints Constraints from smaller windows
+#' @param current_h_cutoff Current h_cutoff value being tested
 #' @return List with Groups, Haps, Err, Names
-estimate_single_sample_haplotype_adaptive <- function(sample_data, window_size, previous_constraints = NULL) {
+estimate_single_sample_haplotype_adaptive <- function(sample_data, window_size, previous_constraints = NULL, current_h_cutoff = NULL) {
   # Extract founder matrix and sample frequencies
   founder_matrix <- sample_data %>% select(matches(founders))
   sample_freqs <- sample_data$freq
@@ -101,8 +102,12 @@ estimate_single_sample_haplotype_adaptive <- function(sample_data, window_size, 
   # Convert to matrix for clustering and optimization
   founder_matrix <- as.matrix(founder_matrix)
   
-  # Use higher h_cutoff for initial grouping (20x the parameter value)
-  adaptive_h_cutoff <- h_cutoff * 20
+  # Use the current h_cutoff if provided, otherwise use default
+  if (is.null(current_h_cutoff)) {
+    adaptive_h_cutoff <- h_cutoff * 2  # More reasonable multiplier
+  } else {
+    adaptive_h_cutoff <- current_h_cutoff
+  }
   
   # Cluster founders based on similarity
   founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = adaptive_h_cutoff)
@@ -171,103 +176,121 @@ estimate_single_sample_haplotype_adaptive <- function(sample_data, window_size, 
 #' @return List with results from all window sizes
 run_adaptive_window_test <- function(snp_data, chromosome, test_pos, test_window_size) {
   
+  # Define h_cutoffs to test
+  h_cutoffs_to_test <- c(1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0)
+  
   # Define window sizes to try (in base pairs)
   window_sizes <- c(10000, 25000, 50000, 100000, 200000, 500000, test_window_size)
   
-  # Initialize results storage
-  all_results <- list()
-  previous_constraints <- NULL
+  # Initialize results storage for all h_cutoffs
+  all_h_cutoff_results <- list()
   
-  cat("Starting adaptive window haplotype estimation...\n")
+  cat("Testing adaptive window algorithm with different h_cutoffs\n")
+  cat("H_cutoffs to test:", paste(h_cutoffs_to_test, collapse = ", "), "\n")
   cat("Window sizes to try:", paste(window_sizes, collapse = " → "), "bp\n")
   cat("Test window centered at position:", test_pos, "\n\n")
   
-  for (window_idx in seq_along(window_sizes)) {
-    current_window_size <- window_sizes[window_idx]
-    cat("\n--- Processing window size:", current_window_size, "bp ---\n")
+  # Test each h_cutoff
+  for (hc_idx in seq_along(h_cutoffs_to_test)) {
+    current_h_cutoff <- h_cutoffs_to_test[hc_idx]
+    cat("\n=== Testing h_cutoff:", current_h_cutoff, "===\n")
     
-    # Create single test window centered at test position
-    cat("TEST MODE: Single window at position", test_pos, "±", current_window_size, "bp\n")
+    # Initialize results storage for this h_cutoff
+    all_results <- list()
+    previous_constraints <- NULL
     
-    # Create single test window
-    spots <- data.frame(
-      CHROM = chromosome,
-      pos = test_pos,
-      start = test_pos - current_window_size,
-      end = test_pos + current_window_size
-    )
-    
-    # Ensure window doesn't extend beyond chromosome boundaries
-    min_pos <- min(snp_data$POS)
-    max_pos <- max(snp_data$POS)
-    if (spots$start < min_pos || spots$end > max_pos) {
-      cat("Warning: Test window extends beyond chromosome boundaries. Skipping.\n")
-      next
-    }
-    
-    # Filter SNPs in this window for founders and samples of interest
-    window_snps <- snp_data %>%
-      filter(CHROM == spots$CHROM &
-             POS > spots$start &
-             POS < spots$end &
-             (name %in% founders | name %in% names_in_bam)) %>%
-      select(-c(CHROM, N)) %>%
-      pivot_wider(names_from = name, values_from = freq) %>%
-      pivot_longer(!c("POS", matches(founders)), 
-                  names_to = "sample", values_to = "freq") %>%
-      select(-POS)
-    
-    if (nrow(window_snps) == 0) {
-      cat("Warning: No SNPs found in window. Skipping.\n")
-      next
-    }
-    
-    # Estimate haplotypes for each sample with current constraints
-    cat("Estimating haplotypes with current constraints...\n")
-    sample_haplotypes <- window_snps %>%
-      group_by(sample) %>%
-      nest() %>%
-      mutate(
-        haplotypes = map(data, estimate_single_sample_haplotype_adaptive, 
-                        current_window_size, previous_constraints)
-      ) %>%
-      select(-data) %>%
-      unnest_wider(haplotypes)
-    
-    # Store results for this window size
-    all_results[[as.character(current_window_size)]] <- sample_haplotypes
-    
-    # Extract constraint information for next round
-    if (nrow(sample_haplotypes) > 0) {
-      # Get constraint info from first sample (assuming all samples have similar structure)
-      first_sample <- sample_haplotypes$ConstraintInfo[[1]]
-      if (!is.null(first_sample)) {
-        previous_constraints <- first_sample
-        cat("✓ Constraints updated for next window size\n")
+    # Run adaptive window algorithm for this h_cutoff
+    for (window_idx in seq_along(window_sizes)) {
+      current_window_size <- window_sizes[window_idx]
+      cat("\n--- Processing window size:", current_window_size, "bp (h_cutoff:", current_h_cutoff, ") ---\n")
+      
+      # Create single test window centered at test position
+      spots <- data.frame(
+        CHROM = chromosome,
+        start = test_pos - current_window_size/2,
+        end = test_pos + current_window_size/2
+      )
+      
+      # Ensure window doesn't extend beyond chromosome boundaries
+      min_pos <- min(snp_data$POS)
+      max_pos <- max(snp_data$POS)
+      if (spots$start < min_pos || spots$end > max_pos) {
+        cat("Warning: Test window extends beyond chromosome boundaries. Skipping.\n")
+        next
+      }
+      
+      # Filter SNPs in this window for founders and samples of interest
+      window_snps <- snp_data %>%
+        filter(CHROM == spots$CHROM &
+               POS > spots$start &
+               POS < spots$end &
+               (name %in% founders | name %in% names_in_bam)) %>%
+        select(-c(CHROM, N)) %>%
+        pivot_wider(names_from = name, values_from = freq) %>%
+        pivot_longer(!c("POS", matches(founders)), 
+                    names_to = "sample", values_to = "freq") %>%
+        select(-POS)
+      
+      if (nrow(window_snps) == 0) {
+        cat("Warning: No SNPs found in window. Skipping.\n")
+        next
+      }
+      
+      # Estimate haplotypes for each sample with current constraints
+      cat("Estimating haplotypes with current constraints...\n")
+      sample_haplotypes <- window_snps %>%
+        group_by(sample) %>%
+        nest() %>%
+        mutate(
+          haplotypes = map(data, estimate_single_sample_haplotype_adaptive, 
+                          current_window_size, previous_constraints, current_h_cutoff)
+        ) %>%
+        select(-data) %>%
+        unnest_wider(haplotypes)
+      
+      # Store results for this window size
+      all_results[[as.character(current_window_size)]] <- sample_haplotypes
+      
+      # Extract constraint information for next round
+      if (nrow(sample_haplotypes) > 0) {
+        # Get constraint info from first sample (assuming all samples have similar structure)
+        first_sample <- sample_haplotypes$ConstraintInfo[[1]]
+        if (!is.null(first_sample)) {
+          previous_constraints <- first_sample
+          cat("✓ Constraints updated for next window size\n")
+          
+          # Show current founder groupings
+          cat("Current founder groups:\n")
+          for (group_id in unique(first_sample$founder_groups)) {
+            group_founders <- names(first_sample$founder_groups[first_sample$founder_groups == group_id])
+            cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
+          }
+        }
+      }
+      
+      # Check if we've achieved complete founder separation
+      if (!is.null(previous_constraints)) {
+        n_groups <- length(unique(previous_constraints$founder_groups))
+        cat("Current number of founder groups:", n_groups, "out of", length(founders), "founders\n")
         
-        # Show current founder groupings
-        cat("Current founder groups:\n")
-        for (group_id in unique(first_sample$founder_groups)) {
-          group_founders <- names(first_sample$founder_groups[first_sample$founder_groups == group_id])
-          cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
+        if (n_groups == length(founders)) {
+          cat("✓ All founders are in separate groups. Adaptive algorithm complete for h_cutoff", current_h_cutoff, "\n")
+          break  # Stop when we have 8 groups for 8 founders
         }
       }
     }
     
-    # Check if all founders are in size-1 groups
-    if (!is.null(previous_constraints)) {
-      group_sizes <- sapply(previous_constraints$founder_groups, function(x) length(unique(x)))
-      if (all(group_sizes == 1)) {
-        cat("✓ All founders are in size-1 groups. Stopping early.\n")
-        break
-      }
-    }
+    # Store results for this h_cutoff
+    all_h_cutoff_results[[as.character(current_h_cutoff)]] <- all_results
+    
+    cat("\n=== Completed h_cutoff", current_h_cutoff, "===\n")
+    cat("Processed", length(all_results), "window sizes\n")
   }
   
   cat("\n=== Adaptive window estimation complete ===\n")
-  cat("Processed", length(all_results), "window sizes\n")
+  cat("Tested", length(h_cutoffs_to_test), "h_cutoff values\n")
   
-  return(all_results)
+  return(all_h_cutoff_results)
 }
 
 # =============================================================================
@@ -340,13 +363,16 @@ cat("✓ Adaptive window results saved to:", fileout, "\n")
 
 # Show summary of results
 cat("\n=== RESULTS SUMMARY ===\n")
-for (window_size in names(adaptive_results)) {
-  result <- adaptive_results[[window_size]]
-  if (nrow(result) > 0) {
-    first_sample <- result$ConstraintInfo[[1]]
-    if (!is.null(first_sample)) {
-      n_groups <- length(unique(first_sample$founder_groups))
-      cat("Window size", window_size, "bp:", n_groups, "founder groups\n")
+for (h_cutoff_key in names(adaptive_results)) {
+  h_cutoff_results <- adaptive_results[[h_cutoff_key]]
+  for (window_size in names(h_cutoff_results)) {
+    result <- h_cutoff_results[[window_size]]
+    if (nrow(result) > 0) {
+      first_sample <- result$ConstraintInfo[[1]]
+      if (!is.null(first_sample)) {
+        n_groups <- length(unique(first_sample$founder_groups))
+        cat("h_cutoff", h_cutoff_key, "Window size", window_size, "bp:", n_groups, "founder groups\n")
+      }
     }
   }
 }
