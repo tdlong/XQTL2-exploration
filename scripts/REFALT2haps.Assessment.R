@@ -8,7 +8,6 @@
 # Usage: Rscript scripts/REFALT2haps.Assessment.R chr parfile mydir start_pos end_pos
 
 library(tidyverse)
-library(lazy_dt)
 library(limSolve)
 library(patchwork)
 

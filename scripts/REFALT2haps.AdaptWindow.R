@@ -8,7 +8,6 @@
 # Usage: Rscript scripts/REFALT2haps.AdaptWindow.R chr parfile mydir test_pos test_window_size
 
 library(tidyverse)
-library(lazy_dt)
 library(limSolve)
 
 # Get command line arguments
@@ -279,7 +278,7 @@ cat("Loading and preprocessing data...\n")
 
 # Load and preprocess REF/ALT count data
 cat("Loading REF/ALT data...\n")
-df <- lazy_dt(read.table(filein, header = TRUE))
+df <- read.table(filein, header = TRUE)
 
 # Transform REF/ALT counts to frequencies
 cat("Converting counts to frequencies...\n")
