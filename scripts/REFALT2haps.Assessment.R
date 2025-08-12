@@ -134,9 +134,12 @@ for (i in seq_along(window_sizes)) {
       }
     }
     
-    # Solve constrained least squares
+    # Solve constrained least squares with proper bounds
     tryCatch({
-      result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F)
+      # G = diag(n_founders) sets lower bounds (>= 0.0003)
+      # H = matrix(rep(0.0003, n_founders)) sets minimum frequency
+      result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F,
+                    G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
       results[, i] <- result$X
     }, error = function(e) {
       results[, i] <- rep(NA, length(founders))

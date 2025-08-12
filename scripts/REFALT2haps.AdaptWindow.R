@@ -201,9 +201,12 @@ for (hc_idx in seq_along(h_cutoffs)) {
         }
       }
       
-      # Solve constrained least squares
+      # Solve constrained least squares with proper bounds
       tryCatch({
-        result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F)
+        # G = diag(n_founders) sets lower bounds (>= 0.0003)
+        # H = matrix(rep(0.0003, n_founders)) sets minimum frequency
+        result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
+                      G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
         
         # Show frequency estimates for this window
         cat("Frequency estimates:\n")
@@ -211,10 +214,8 @@ for (hc_idx in seq_along(h_cutoffs)) {
           cat("  ", founders[i], ":", sprintf("%.4f", result$X[i]), "\n")
         }
         
-        # Store final result for this h_cutoff
-        if (window_idx == length(window_sizes)) {
-          final_results[, hc_idx] <- result$X
-        }
+        # Store result for this h_cutoff (store when we succeed)
+        final_results[, hc_idx] <- result$X
         
         # Check if all founders are separated
         if (n_groups == length(founders)) {
