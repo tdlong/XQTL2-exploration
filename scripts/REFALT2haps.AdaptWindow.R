@@ -12,16 +12,19 @@ library(limSolve)
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 5) {
-  cat("Usage: Rscript REFALT2haps.AdaptWindow.R chr parfile mydir test_pos test_window_size\n")
-  cat("Example: Rscript REFALT2haps.AdaptWindow.R chr3R helpfiles/haplotype_parameters.R process/test 10000000 2000000\n")
+  cat("Usage: Rscript REFALT2haps.AdaptWindow.R chr parfile mydir start_pos end_pos\n")
+  cat("Example: Rscript REFALT2haps.AdaptWindow.R chr2L helpfiles/haplotype_parameters.R process/test 18000000 20000000\n")
   quit(status = 1)
 }
 
 mychr <- args[1]
 parfile <- args[2]
 mydir <- args[3]
-test_pos <- as.numeric(args[4])
-test_window_size <- as.numeric(args[5])
+start_pos <- as.numeric(args[4])
+end_pos <- as.numeric(args[5])
+
+# Calculate test position (midpoint of the region)
+test_pos <- (start_pos + end_pos) / 2
 
 # Source the parameter file
 source(parfile)
@@ -207,7 +210,8 @@ colnames(final_results) <- h_cutoffs
           constraint_row <- rep(0, n_founders)
           constraint_row[cluster_founders] <- 1
           E <- rbind(E, constraint_row)
-          F <- c(F, 1.0)
+          # NOTE: We can't set the constraint value here because we don't have the lsei result yet
+          # This will be handled in the constraint accumulation after lsei
           multi_founder_groups <- multi_founder_groups + 1
         }
       }
