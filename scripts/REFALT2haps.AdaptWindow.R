@@ -289,6 +289,21 @@ for (pos_idx in seq_along(scan_positions)) {
               if (verbose) {
                 cat("    ❌ Bad estimation space: ", n_snps, " SNPs for ", n_founders, " founders (need at least ", n_founders * 3, ")\n")
               }
+              # Record NAs for this failed case instead of skipping entirely
+              for (founder_idx in seq_along(founders)) {
+                founder_name <- founders[founder_idx]
+                results_list[[length(results_list) + 1]] <- list(
+                  chr = mychr,
+                  pos = test_pos,
+                  sample = sample_name,
+                  h_cutoff = hc,
+                  founder = founder_name,
+                  freq = NA
+                )
+              }
+              if (verbose) {
+                cat("    ✓ Recorded NAs for failed case, moving to next window size\n")
+              }
               next  # Skip to next window size
             }
             
@@ -298,6 +313,21 @@ for (pos_idx in seq_along(scan_positions)) {
               if (condition_num > 1e10) {
                 if (verbose) {
                   cat("    ❌ Bad estimation space: Matrix condition number too high (", format(condition_num, scientific = TRUE), ")\n")
+                }
+                # Record NAs for this failed case
+                for (founder_idx in seq_along(founders)) {
+                  founder_name <- founders[founder_idx]
+                  results_list[[length(results_list) + 1]] <- list(
+                    chr = mychr,
+                    pos = test_pos,
+                    sample = sample_name,
+                    h_cutoff = hc,
+                    founder = founder_name,
+                    freq = NA
+                  )
+                }
+                if (verbose) {
+                  cat("    ✓ Recorded NAs for failed case, moving to next window size\n")
                 }
                 next  # Skip to next window size
               }
@@ -310,6 +340,21 @@ for (pos_idx in seq_along(scan_positions)) {
               if (effective_rank < n_founders * 0.7) {
                 if (verbose) {
                   cat("    ❌ Bad estimation space: Effective rank too low (", effective_rank, " for ", n_founders, " founders)\n")
+                }
+                # Record NAs for this failed case
+                for (founder_idx in seq_along(founders)) {
+                  founder_name <- founders[founder_idx]
+                  results_list[[length(results_list) + 1]] <- list(
+                    chr = mychr,
+                    pos = test_pos,
+                    sample = sample_name,
+                    h_cutoff = hc,
+                    founder = founder_name,
+                    freq = NA
+                  )
+                }
+                if (verbose) {
+                  cat("    ✓ Recorded NAs for failed case, moving to next window size\n")
                 }
                 next  # Skip to next window size
               }
