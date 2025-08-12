@@ -110,12 +110,14 @@ final_results <- matrix(NA, nrow = length(founders), ncol = length(h_cutoffs))
 rownames(final_results) <- founders
 colnames(final_results) <- h_cutoffs
 
-# Test each h_cutoff
-for (hc_idx in seq_along(h_cutoffs)) {
-  hc <- h_cutoffs[hc_idx]
-  cat("\n=== Testing h_cutoff:", hc, "===\n")
-  
-  previous_constraints <- NULL
+  # Test each h_cutoff
+  for (hc_idx in seq_along(h_cutoffs)) {
+    hc <- h_cutoffs[hc_idx]
+    cat("\n=== Testing h_cutoff:", hc, "===\n")
+    
+    # Initialize constraints for this h_cutoff
+    accumulated_constraints <- NULL
+    accumulated_constraint_values <- NULL
   
   # Run adaptive window algorithm for this h_cutoff
   for (window_idx in seq_along(window_sizes)) {
@@ -184,12 +186,19 @@ for (hc_idx in seq_along(h_cutoffs)) {
         cat("  Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
       }
       
-      # Build constraint matrix
+      # Build constraint matrix with accumulated constraints from smaller windows
       n_founders <- ncol(founder_matrix)
       E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
       F <- 1.0
       
-      # Add group constraints for each cluster (only for groups with multiple founders)
+      # Add accumulated constraints from previous (smaller) windows
+      if (!is.null(accumulated_constraints)) {
+        E <- rbind(E, accumulated_constraints)
+        F <- c(F, accumulated_constraint_values)
+        cat("Added", nrow(accumulated_constraints), "accumulated constraints\n")
+      }
+      
+      # Add current window group constraints (only for groups with multiple founders)
       unique_clusters <- unique(founder_clusters)
       multi_founder_groups <- 0
       for (cluster_id in unique_clusters) {
@@ -214,6 +223,33 @@ for (hc_idx in seq_along(h_cutoffs)) {
         cat("Frequency estimates:\n")
         for (i in seq_along(founders)) {
           cat("  ", founders[i], ":", sprintf("%.4f", result$X[i]), "\n")
+        }
+        
+        # Accumulate constraints for next (larger) window
+        # Only add constraints for groups that still have multiple founders
+        current_constraints <- NULL
+        current_constraint_values <- NULL
+        
+        for (cluster_id in unique_clusters) {
+          cluster_founders <- which(founder_clusters == cluster_id)
+          if (length(cluster_founders) > 1) {
+            # Create constraint row for this group
+            constraint_row <- rep(0, n_founders)
+            constraint_row[cluster_founders] <- 1
+            
+            # Calculate the actual group frequency from lsei result
+            group_freq <- sum(result$X[cluster_founders])
+            
+            current_constraints <- rbind(current_constraints, constraint_row)
+            current_constraint_values <- c(current_constraint_values, group_freq)
+          }
+        }
+        
+        # Update accumulated constraints for next window
+        if (!is.null(current_constraints)) {
+          accumulated_constraints <- current_constraints
+          accumulated_constraint_values <- current_constraint_values
+          cat("Accumulated", nrow(current_constraints), "group constraints for next window\n")
         }
         
         # Store result for this h_cutoff (store when we succeed)
