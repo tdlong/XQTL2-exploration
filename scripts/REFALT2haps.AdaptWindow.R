@@ -156,10 +156,21 @@ for (pos_idx in seq_along(scan_positions)) {
                POS < window_end &
                (name %in% founders | name %in% non_founder_samples)) %>%
         select(-c(CHROM, N)) %>%
-        pivot_wider(names_from = name, values_from = freq) %>%
-        pivot_longer(!c("POS", matches(founders)), 
-                    names_to = "sample", values_to = "freq") %>%
-        select(-POS)
+        pivot_wider(names_from = name, values_from = freq)
+      
+      # Get non-founder sample columns (exclude POS and founder columns)
+      founder_cols <- names(window_snps_current)[names(window_snps_current) %in% founders]
+      non_founder_cols <- names(window_snps_current)[!names(window_snps_current) %in% c("POS", founder_cols)]
+      
+      if (length(non_founder_cols) > 0) {
+        window_snps_current <- window_snps_current %>%
+          pivot_longer(all_of(non_founder_cols), 
+                      names_to = "sample", values_to = "freq") %>%
+          select(-POS)
+      } else {
+        # No non-founder samples found, create empty data frame
+        window_snps_current <- data.frame(sample = character(), freq = numeric())
+      }
       
       # Count SNPs in this window
       n_snps <- df3 %>%
