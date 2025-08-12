@@ -97,8 +97,8 @@ if (nrow(window_snps) == 0) {
   stop("No SNPs found in window!")
 }
 
-# Test different h_cutoffs (simplified for debugging)
-h_cutoffs <- c(2)  # Just test smallest cutoff for debugging
+# Test different h_cutoffs
+h_cutoffs <- c(2, 4, 6, 8, 10, 20, 40)  # Test range of cutoffs
 window_sizes <- c(10000, 25000, 50000, 100000, 200000, 500000, 1000000)
 
 cat("Testing h_cutoffs:", paste(h_cutoffs, collapse = ", "), "\n")
@@ -113,10 +113,10 @@ final_results <- matrix(NA, nrow = length(founders), ncol = length(h_cutoffs))
 rownames(final_results) <- founders
 colnames(final_results) <- h_cutoffs
 
-  # Test each h_cutoff
-  for (hc_idx in seq_along(h_cutoffs)) {
-    hc <- h_cutoffs[hc_idx]
-    cat("\n=== Testing h_cutoff:", hc, "===\n")
+# Test each h_cutoff
+for (hc_idx in seq_along(h_cutoffs)) {
+  hc <- h_cutoffs[hc_idx]
+  cat("\n=== Testing h_cutoff:", hc, "===\n")
     
     # Initialize constraints for this h_cutoff
     accumulated_constraints <- NULL
