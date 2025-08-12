@@ -212,30 +212,43 @@ cp process/Oct28_24/df3.chr3R.RDS process/test/
 Rscript scripts/REFALT2haps.AdaptWindow.R chr3R helpfiles/haplotype_parameters.R "process/test" 10000000 2000000
 ```
 
+### Parameter Assessment
+
+To understand how window size and h_cutoff affect haplotype estimation at a specific position, use the comprehensive assessment script:
+
+```bash
+# Assess parameter sensitivity for chr2L 18Mb-20Mb region
+Rscript scripts/REFALT2haps.Assessment.R chr2L helpfiles/haplotype_parameters.R "process/test" 18000000 20000000
+```
+
+**What this does:**
+- **Fixed window analysis** - Tests 10kb, 20kb, 50kb, 100kb, 200kb, 500kb, 1000kb windows using **default h_cutoff**
+- **Adaptive algorithm analysis** - Tests how different h_cutoffs affect clustering behavior and group formation
+- **Midpoint focus** - Estimates haplotype frequencies at the center of your specified region
+- **Comprehensive integration** - Shows both parameter effects and algorithm behavior
+- **Region-aware** - Automatically limits window sizes to stay within your test region
+- **Visual output** - Creates five-panel diagnostic plots
+
+**Output:**
+- **`comprehensive_assessment_chr2L_19000000.png`** - Five-panel plot showing:
+  - Founder frequencies vs window size (fixed h_cutoff)
+  - Founder frequencies vs h_cutoff (adaptive algorithm)
+  - Number of SNPs vs window size
+  - Adaptive algorithm: founder frequencies vs h_cutoff
+  - Adaptive algorithm: clustering behavior vs h_cutoff (groups and group sizes)
+- **`comprehensive_assessment_chr2L_19000000.RDS`** - Complete analysis data for further exploration
+
+**Parameters:**
+- `chr2L` - chromosome to analyze
+- `helpfiles/haplotype_parameters.R` - your parameter file
+- `"process/test"` - output directory
+- `18000000 20000000` - start and end positions (18Mb-20Mb)
+
 **Required Input Files:**
 - **`RefAlt.{chromosome}.txt`** - REF/ALT allele counts (from `bam2bcf2REFALT.sh`)
 - **`df3.{chromosome}.RDS`** - Processed SNP data (from `REFALT2haps.Andreas.sh`)
 
 **Note:** Run the production pipeline first to generate these input files, then copy them to your test directory.
-
-**What this does:**
-- **Single window testing** - focuses on one genomic region instead of full chromosome
-- **Progressive window expansion** - 10kb → 25kb → 50kb → 100kb → 200kb → 500kb → 2Mb
-- **Constraint building** - uses results from smaller windows to constrain larger ones
-- **Founder grouping refinement** - tracks how founder clusters evolve across window sizes
-- **Much faster** than full chromosome analysis for testing
-
-**Parameters:**
-- `chr3R` - chromosome to test
-- `helpfiles/haplotype_parameters.R` - your parameter file
-- `"process/test"` - output directory
-- `10000000` - center position (10Mb)
-- `2000000` - maximum window size (2Mb)
-
-**Output:**
-- **`R.haps.chr3R.adaptive.RDS`** - Complete results from all window sizes
-- **Console output** showing constraint building and founder grouping progress
-- **Detailed logging** of how constraints evolve across window sizes
 
 ## Run the scan (15min) -- the old way
 ```bash
@@ -442,5 +455,3 @@ Rscript scripts/plot_heterozygosity.R process/heterozygosity_analysis/het.table.
 - Uses clean, publication-ready styling
 - Saves plots as high-resolution PNG files
 - Provides sample lists for verification
-
-
