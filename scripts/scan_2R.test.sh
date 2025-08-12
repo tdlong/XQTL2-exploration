@@ -37,26 +37,54 @@ fi
 echo "✓ Input files verified"
 echo ""
 
-# Run Fixed Window Assessment (quiet mode)
-echo "=== Running Fixed Window Assessment ==="
-echo "Command: Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR"
-Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR
-if [ $? -eq 0 ]; then
-    echo "✓ Fixed Window Assessment completed successfully"
+# Check if haplotype results already exist
+FIXED_RESULTS="$MYDIR/fixed_window_results_$CHR.RDS"
+ADAPTIVE_RESULTS="$MYDIR/adaptive_window_results_$CHR.RDS"
+
+# Run Fixed Window Assessment (if results don't exist)
+if [ -f "$FIXED_RESULTS" ]; then
+    echo "=== Fixed Window Assessment Results Already Exist ==="
+    echo "Skipping fixed window estimation: $FIXED_RESULTS"
+    echo "Delete this file to force re-run"
 else
-    echo "✗ Fixed Window Assessment failed"
-    exit 1
+    echo "=== Running Fixed Window Assessment ==="
+    echo "Command: Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR"
+    Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR
+    if [ $? -eq 0 ]; then
+        echo "✓ Fixed Window Assessment completed successfully"
+    else
+        echo "✗ Fixed Window Assessment failed"
+        exit 1
+    fi
 fi
 echo ""
 
-# Run Adaptive Window Analysis (quiet mode)
-echo "=== Running Adaptive Window Analysis ==="
-echo "Command: Rscript scripts/REFALT2haps.AdaptWindow.R $CHR $PARFILE $MYDIR"
-Rscript scripts/REFALT2haps.AdaptWindow.R $CHR $PARFILE $MYDIR
-if [ $? -eq 0 ]; then
-    echo "✓ Adaptive Window Analysis completed successfully"
+# Run Adaptive Window Analysis (if results don't exist)
+if [ -f "$ADAPTIVE_RESULTS" ]; then
+    echo "=== Adaptive Window Analysis Results Already Exist ==="
+    echo "Skipping adaptive window estimation: $ADAPTIVE_RESULTS"
+    echo "Delete this file to force re-run"
 else
-    echo "✗ Adaptive Window Analysis failed"
+    echo "=== Running Adaptive Window Analysis ==="
+    echo "Command: Rscript scripts/REFALT2haps.AdaptWindow.R $CHR $PARFILE $MYDIR"
+    Rscript scripts/REFALT2haps.AdaptWindow.R $CHR $PARFILE $MYDIR
+    if [ $? -eq 0 ]; then
+        echo "✓ Adaptive Window Analysis completed successfully"
+    else
+        echo "✗ Adaptive Window Analysis failed"
+        exit 1
+    fi
+fi
+echo ""
+
+# Run Evaluation Script
+echo "=== Running Haplotype Estimator Evaluation ==="
+echo "Command: Rscript scripts/evaluate_haplotype_estimators.R $CHR $PARFILE $MYDIR"
+Rscript scripts/evaluate_haplotype_estimators.R $CHR $PARFILE $MYDIR
+if [ $? -eq 0 ]; then
+    echo "✓ Evaluation completed successfully"
+else
+    echo "✗ Evaluation failed"
     exit 1
 fi
 echo ""
@@ -73,6 +101,18 @@ if [ -f "$MYDIR/adaptive_window_results_$CHR.RDS" ]; then
     echo "✓ Adaptive window results: $MYDIR/adaptive_window_results_$CHR.RDS"
 else
     echo "✗ Adaptive window results not found"
+fi
+
+if [ -f "$MYDIR/evaluation_table_$CHR.RDS" ]; then
+    echo "✓ Evaluation table: $MYDIR/evaluation_table_$CHR.RDS"
+else
+    echo "✗ Evaluation table not found"
+fi
+
+if [ -f "$MYDIR/mse_results_$CHR.RDS" ]; then
+    echo "✓ MSE results: $MYDIR/mse_results_$CHR.RDS"
+else
+    echo "✗ MSE results not found"
 fi
 echo ""
 
