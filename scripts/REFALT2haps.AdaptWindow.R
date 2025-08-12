@@ -94,8 +94,8 @@ if (nrow(window_snps) == 0) {
   stop("No SNPs found in window!")
 }
 
-# Test different h_cutoffs
-h_cutoffs <- c(2, 4, 6, 8, 10, 15, 20, 30, 40, 50, 100)
+# Test different h_cutoffs (simplified for debugging)
+h_cutoffs <- c(2, 10, 100)  # Low, middle, high
 window_sizes <- c(10000, 25000, 50000, 100000, 200000, 500000, 1000000)
 
 cat("Testing h_cutoffs:", paste(h_cutoffs, collapse = ", "), "\n")
