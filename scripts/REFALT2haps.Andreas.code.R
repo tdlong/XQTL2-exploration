@@ -43,7 +43,46 @@ est_hap2 = function(sampdf){
         Y = Y[good]
         founder_mat = founder_mat[good,] 
         m_founder_mat = as.matrix(founder_mat)
-        Groups = cutree(hclust(dist(t(m_founder_mat))),h=h_cutoff)
+        
+        # Sanity checks for bad estimation space
+        n_snps <- nrow(m_founder_mat)
+        n_founders <- ncol(m_founder_mat)
+        
+        # Check 1: Too few SNPs relative to founders (rule of thumb: need at least 3x)
+        if (n_snps < n_founders * 3) {
+                warning("Bad estimation space: ", n_snps, " SNPs for ", n_founders, " founders (need at least ", n_founders * 3, ")")
+                return(list(Groups = rep(1, n_founders), 
+                           Haps = rep(NA, n_founders), 
+                           Err = matrix(NA, n_founders, n_founders), 
+                           Names = names(founder_mat)))
+        }
+        
+        # Check 2: Matrix condition number (numerical stability)
+        if (n_snps >= n_founders) {
+                condition_num <- kappa(m_founder_mat)
+                if (condition_num > 1e10) {
+                        warning("Bad estimation space: Matrix condition number too high (", format(condition_num, scientific = TRUE), ")")
+                        return(list(Groups = rep(1, n_founders), 
+                                   Haps = rep(NA, n_founders), 
+                                   Err = matrix(NA, n_founders, n_founders), 
+                                   Names = names(founder_mat)))
+                }
+        }
+        
+        # Check 3: Effective rank (how many founders are actually distinguishable)
+        if (n_snps >= n_founders) {
+                svd_result <- svd(m_founder_mat)
+                effective_rank <- sum(svd_result$d > 1e-6)
+                if (effective_rank < n_founders * 0.7) {
+                        warning("Bad estimation space: Effective rank too low (", effective_rank, " for ", n_founders, " founders)")
+                        return(list(Groups = rep(1, n_founders), 
+                                   Haps = rep(NA, n_founders), 
+                                   Err = matrix(NA, n_founders, n_founders), 
+                                   Names = names(founder_mat)))
+                }
+        }
+        
+        Groups = cuttree(hclust(dist(t(m_founder_mat))),h=h_cutoff)
         d = ncol(m_founder_mat)         
         out = lsei(A=m_founder_mat,B=Y, E=t(matrix(rep(1,d))),F=1,G=diag(d),H=matrix(rep(0.0003,d)),verbose=TRUE,fulloutput=TRUE)
         Haps = out$X

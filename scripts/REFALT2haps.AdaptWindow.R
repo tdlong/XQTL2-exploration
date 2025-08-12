@@ -280,6 +280,45 @@ for (pos_idx in seq_along(scan_positions)) {
               print(F)
             }
             
+            # Sanity checks for bad estimation space
+            n_snps <- nrow(founder_matrix)
+            n_founders <- ncol(founder_matrix)
+            
+            # Check 1: Too few SNPs relative to founders (rule of thumb: need at least 3x)
+            if (n_snps < n_founders * 3) {
+              if (verbose) {
+                cat("    ❌ Bad estimation space: ", n_snps, " SNPs for ", n_founders, " founders (need at least ", n_founders * 3, ")\n")
+              }
+              next  # Skip to next window size
+            }
+            
+            # Check 2: Matrix condition number (numerical stability)
+            if (n_snps >= n_founders) {
+              condition_num <- kappa(founder_matrix)
+              if (condition_num > 1e10) {
+                if (verbose) {
+                  cat("    ❌ Bad estimation space: Matrix condition number too high (", format(condition_num, scientific = TRUE), ")\n")
+                }
+                next  # Skip to next window size
+              }
+            }
+            
+            # Check 3: Effective rank (how many founders are actually distinguishable)
+            if (n_snps >= n_founders) {
+              svd_result <- svd(founder_matrix)
+              effective_rank <- sum(svd_result$d > 1e-6)
+              if (effective_rank < n_founders * 0.7) {
+                if (verbose) {
+                  cat("    ❌ Bad estimation space: Effective rank too low (", effective_rank, " for ", n_founders, " founders)\n")
+                }
+                next  # Skip to next window size
+              }
+            }
+            
+            if (verbose) {
+              cat("    ✓ Estimation space looks good (", n_snps, " SNPs, condition = ", format(kappa(founder_matrix), scientific = TRUE), ")\n")
+            }
+            
             tryCatch({
               result <- lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
                             G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
