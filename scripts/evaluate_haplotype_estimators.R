@@ -58,8 +58,20 @@ df <- read.table(refalt_file, header = TRUE)
 
 # Transform REF/ALT counts to frequencies
 cat("Converting counts to frequencies...\n")
+cat("Columns in REFALT data:", paste(names(df), collapse = ", "), "\n")
+cat("Number of columns:", ncol(df), "\n")
+
+# Check if we have the expected structure
+if (ncol(df) < 3) {
+  stop("REFALT file has insufficient columns. Expected: CHROM, POS, and sample columns")
+}
+
+# Get sample columns (exclude CHROM and POS)
+sample_cols <- names(df)[!names(df) %in% c("CHROM", "POS")]
+cat("Sample columns:", paste(sample_cols, collapse = ", "), "\n")
+
 df2 <- df %>%
-  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  pivot_longer(all_of(sample_cols), names_to = "lab", values_to = "count") %>%
   mutate(
     RefAlt = str_sub(lab, 1, 3),
     name = str_sub(lab, 5)
@@ -92,6 +104,9 @@ valid_snps <- good_snps %>%
   left_join(df2, multiple = "all")
 
 cat("✓ Valid SNPs for evaluation:", nrow(valid_snps %>% distinct(CHROM, POS)), "\n")
+cat("Columns in valid_snps:", paste(names(valid_snps), collapse = ", "), "\n")
+cat("Sample of valid_snps data:\n")
+print(head(valid_snps, 3))
 
 # Function to interpolate haplotype frequencies to SNP positions
 interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, founders) {
