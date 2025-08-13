@@ -116,6 +116,17 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
   
   # Check if we have any valid results
   if (nrow(haplotype_results) == 0) {
+    cat("  Warning: No haplotype results in euchromatin region\n")
+    return(list())
+  }
+  
+  # Check if all frequencies are NA
+  all_na_check <- haplotype_results %>%
+    filter(!is.na(freq)) %>%
+    nrow()
+  
+  if (all_na_check == 0) {
+    cat("  Warning: All haplotype frequencies are NA for this sample\n")
     return(list())
   }
   
@@ -172,12 +183,20 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
           next
         }
         
+        # Convert to numeric and check for valid data
+        left_freqs_numeric <- as.numeric(left_freqs)
+        right_freqs_numeric <- as.numeric(right_freqs)
+        
+        if (all(is.na(left_freqs_numeric)) || all(is.na(right_freqs_numeric))) {
+          next
+        }
+        
         # Interpolation weight
         alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
         
         # Linear interpolation: H{snp} = α*H{left} + (1-α)*H{right}
-        interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
-        interpolated_results[[as.character(snp_pos)]] <- interpolated_freqs
+        interpolated_freqs <- alpha * left_freqs_numeric + (1 - alpha) * right_freqs_numeric
+        interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
       }
     }
   }
