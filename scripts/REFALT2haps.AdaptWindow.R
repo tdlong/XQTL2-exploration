@@ -5,6 +5,10 @@
 # =============================================================================
 # Script to test adaptive window algorithm across entire chromosome
 # Usage: Rscript scripts/REFALT2haps.AdaptWindow.R chr parfile mydir [verbose]
+#
+# FIXED: Now only records final, best estimate per position instead of 
+#        recording intermediate results from each window size iteration
+# =============================================================================
 
 library(tidyverse)
 library(limSolve)
@@ -435,20 +439,9 @@ for (pos_idx in seq_along(scan_positions)) {
                 }
               }
               
-              # Store results for this position/h_cutoff/window combination
-              for (founder_idx in seq_along(founders)) {
-                founder_name <- founders[founder_idx]
-                freq_estimate <- result$X[founder_idx]
-                
-                results_list[[length(results_list) + 1]] <- list(
-                  chr = mychr,
-                  pos = test_pos,
-                  sample = sample_name,
-                  h_cutoff = hc,
-                  founder = founder_name,
-                  freq = freq_estimate
-                )
-              }
+              # Store the best result for this position/h_cutoff (only the final, best estimate)
+              best_result <- result
+              best_n_groups <- n_groups
               
               # Check if all founders are separated
               if (n_groups == length(founders)) {
@@ -464,6 +457,46 @@ for (pos_idx in seq_along(scan_positions)) {
               }
             })
           }
+        }
+      }
+      
+      # Record the final, best result for this position/h_cutoff combination
+      if (exists("best_result") && !is.null(best_result)) {
+        for (founder_idx in seq_along(founders)) {
+          founder_name <- founders[founder_idx]
+          freq_estimate <- best_result$X[founder_idx]
+          
+          results_list[[length(results_list) + 1]] <- list(
+            chr = mychr,
+            pos = test_pos,
+            sample = sample_name,
+            h_cutoff = hc,
+            founder = founder_name,
+            freq = freq_estimate
+          )
+        }
+        
+        if (verbose) {
+          cat("  ✓ Recorded final result with", best_n_groups, "founder groups\n")
+        }
+        
+        # Clean up
+        rm(best_result, best_n_groups)
+      } else {
+        # If no successful estimation, record NAs
+        if (verbose) {
+          cat("  ⚠️  No successful estimation, recording NAs\n")
+        }
+        for (founder_idx in seq_along(founders)) {
+          founder_name <- founders[founder_idx]
+          results_list[[length(results_list) + 1]] <- list(
+            chr = mychr,
+            pos = test_pos,
+            sample = sample_name,
+            h_cutoff = hc,
+            founder = founder_name,
+            freq = NA
+          )
         }
       }
     }
