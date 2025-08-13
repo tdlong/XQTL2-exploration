@@ -1,10 +1,12 @@
 #!/bin/bash
+#SBATCH -A tdlong_lab     
+#SBATCH -p standard
 #SBATCH --job-name=snp_imputation_parallel
 #SBATCH --output=logs/snp_imputation_%A_%a.out
 #SBATCH --error=logs/snp_imputation_%A_%a.err
 #SBATCH --time=24:00:00
-#SBATCH --mem=32G
-#SBATCH --cpus-per-task=4
+#SBATCH --mem=6G
+#SBATCH --cpus-per-task=1
 #SBATCH --array=1-12
 
 # SNP Imputation Parallel Script
@@ -13,7 +15,7 @@
 # 7-12: Adaptive h_cutoffs (2, 4, 6, 8, 10, 20)
 
 # Load modules
-module load R/4.2.0
+module load R/4.4.2
 
 # Set variables
 CHR="chr2R"
