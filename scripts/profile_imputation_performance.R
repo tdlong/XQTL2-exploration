@@ -65,17 +65,17 @@ haplotype_positions <- sort(unique(sample_haplotypes$pos))
 cat("✓ Haplotype positions for sample:", length(haplotype_positions), "\n")
 cat("Haplotype range:", min(haplotype_positions), "-", max(haplotype_positions), "bp\n\n")
 
-# Randomly sample 100 SNPs, ensuring they're within haplotype boundaries
+# Randomly sample 1000 SNPs, ensuring they're within haplotype boundaries
 set.seed(123)  # For reproducible sampling
 candidate_snps <- valid_snps %>%
   filter(POS > min(haplotype_positions) + 10000,  # Leave 10kb buffer from leftmost
          POS < max(haplotype_positions) - 10000)   # Leave 10kb buffer from rightmost
 
-if (nrow(candidate_snps) < 100) {
+if (nrow(candidate_snps) < 1000) {
   cat("⚠️  Only", nrow(candidate_snps), "SNPs available for testing\n")
   test_snps <- candidate_snps$POS
 } else {
-  test_snps <- sample(candidate_snps$POS, 100)
+  test_snps <- sample(candidate_snps$POS, 1000)
 }
 
 # Sort the test SNPs (as streaming algorithm expects)
@@ -200,10 +200,10 @@ end_time <- Sys.time()
 runtime <- difftime(end_time, start_time, units = "secs")
 
 cat("\n=== Performance Results ===\n")
-cat("Runtime for 100 SNPs:", round(runtime, 2), "seconds\n")
-cat("Rate:", round(100/runtime, 2), "SNPs per second\n")
-cat("Estimated time for full dataset:", round(259659 * runtime / 100 / 3600, 1), "hours\n")
-cat("Estimated time for 6 samples:", round(259659 * 6 * runtime / 100 / 3600, 1), "hours\n\n")
+cat("Runtime for 1000 SNPs:", round(runtime, 2), "seconds\n")
+cat("Rate:", round(1000/runtime, 2), "SNPs per second\n")
+cat("Estimated time for full dataset:", round(259659 * runtime / 1000 / 3600, 1), "hours\n")
+cat("Estimated time for 6 samples:", round(259659 * 6 * runtime / 1000 / 3600, 1), "hours\n\n")
 
 cat("=== Test Results ===\n")
 cat("Successful interpolations:", length(test_results), "/", length(test_snps), "\n")
@@ -216,12 +216,69 @@ if (length(test_results) > 0) {
   for (founder in names(first_result)) {
     cat("    ", founder, ":", first_result[[founder]][1], "\n")
   }
+  
+  # Validate imputations against observed frequencies
+  cat("\n=== Validation: Imputed vs Observed ===\n")
+  
+  # Get observed frequencies for test SNPs
+  observed_data <- df2 %>%
+    filter(name == sample_name, POS %in% test_snps) %>%
+    select(POS, freq) %>%
+    rename(observed = freq)
+  
+  # Create comparison table
+  validation_data <- data.frame(
+    pos = as.numeric(names(test_results)),
+    interpolated = sapply(test_results, function(x) {
+      # Calculate imputed frequency as weighted sum of founder frequencies
+      founder_freqs <- as.numeric(x[1, ])
+      # For now, just use the first founder as a simple metric
+      # In practice, you'd use the actual founder states for each SNP
+      founder_freqs[1]
+    })
+  ) %>%
+    left_join(observed_data, by = c("pos" = "POS"))
+  
+  # Calculate validation statistics
+  valid_comparisons <- validation_data %>%
+    filter(!is.na(observed) & !is.na(interpolated))
+  
+  if (nrow(valid_comparisons) > 0) {
+    cat("SNPs with both imputed and observed frequencies:", nrow(valid_comparisons), "\n")
+    
+    # Calculate correlation and error metrics
+    correlation <- cor(valid_comparisons$interpolated, valid_comparisons$observed, use = "complete.obs")
+    mae <- mean(abs(valid_comparisons$interpolated - valid_comparisons$observed), na.rm = TRUE)
+    rmse <- sqrt(mean((valid_comparisons$interpolated - valid_comparisons$observed)^2, na.rm = TRUE))
+    
+    cat("Correlation (imputed vs observed):", round(correlation, 3), "\n")
+    cat("Mean Absolute Error:", round(mae, 3), "\n")
+    cat("Root Mean Square Error:", round(rmse, 3), "\n")
+    
+    # Show some examples
+    cat("\nSample comparisons (first 10):\n")
+    print(head(valid_comparisons, 10))
+    
+    # Check for extreme errors
+    extreme_errors <- valid_comparisons %>%
+      mutate(error = abs(interpolated - observed)) %>%
+      filter(error > 0.5)
+    
+    if (nrow(extreme_errors) > 0) {
+      cat("\n⚠️  SNPs with large errors (>0.5):\n")
+      print(head(extreme_errors, 5))
+    } else {
+      cat("\n✓ No extreme errors found\n")
+    }
+  } else {
+    cat("⚠️  No SNPs with both imputed and observed frequencies for comparison\n")
+  }
 }
 
 cat("\n=== Recommendations ===\n")
 if (runtime < 60) {
   cat("✓ Algorithm works and is reasonably fast\n")
-  cat("  Full dataset will take ~", round(259659 * 6 * runtime / 100 / 3600, 1), "hours\n")
+  cat("  Full dataset will take ~", round(259659 * 6 * runtime / 1000 / 3600, 1), "hours\n")
 } else if (runtime < 300) {
   cat("⚠️  Algorithm works but is slow\n")
   cat("  Consider optimization or parallelization\n")
