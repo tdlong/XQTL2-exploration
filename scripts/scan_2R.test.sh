@@ -2,8 +2,8 @@
 #SBATCH --job-name=chr2R_scan
 #SBATCH -A tdlong_lab
 #SBATCH -p highmem
-#SBATCH --cpus-per-task=3
-#SBATCH --mem=30G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=6G
 #SBATCH --time=24:00:00
 #SBATCH --output=scan_2R_%j.out
 #SBATCH --error=scan_2R_%j.err
@@ -77,14 +77,14 @@ else
 fi
 echo ""
 
-# Run Evaluation Script
-echo "=== Running Haplotype Estimator Evaluation ==="
-echo "Command: Rscript scripts/evaluate_haplotype_estimators.R $CHR $PARFILE $MYDIR"
-Rscript scripts/evaluate_haplotype_estimators.R $CHR $PARFILE $MYDIR
+# Run SNP Imputation Script
+echo "=== Running Euchromatic SNP Imputation ==="
+echo "Command: Rscript scripts/euchromatic_SNP_imputation.R $CHR $PARFILE $MYDIR"
+Rscript scripts/euchromatic_SNP_imputation.R $CHR $PARFILE $MYDIR
 if [ $? -eq 0 ]; then
-    echo "✓ Evaluation completed successfully"
+    echo "✓ SNP Imputation completed successfully"
 else
-    echo "✗ Evaluation failed"
+    echo "✗ SNP Imputation failed"
     exit 1
 fi
 echo ""
@@ -103,16 +103,10 @@ else
     echo "✗ Adaptive window results not found"
 fi
 
-if [ -f "$MYDIR/evaluation_table_$CHR.RDS" ]; then
-    echo "✓ Evaluation table: $MYDIR/evaluation_table_$CHR.RDS"
+if [ -f "$MYDIR/snp_imputation_euchromatin_$CHR.RDS" ]; then
+    echo "✓ SNP imputation results: $MYDIR/snp_imputation_euchromatin_$CHR.RDS"
 else
-    echo "✗ Evaluation table not found"
-fi
-
-if [ -f "$MYDIR/mse_results_$CHR.RDS" ]; then
-    echo "✓ MSE results: $MYDIR/mse_results_$CHR.RDS"
-else
-    echo "✗ MSE results not found"
+    echo "✗ SNP imputation results not found"
 fi
 echo ""
 
