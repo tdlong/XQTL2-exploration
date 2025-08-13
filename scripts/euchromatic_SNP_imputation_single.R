@@ -62,7 +62,7 @@ cat("Haplotype estimates:", nrow(haplotype_results), "\n\n")
 
 # Load observed SNP data
 cat("Loading observed SNP data...\n")
-refalt_file <- file.path(output_dir, paste0("REFALT_", chr, ".RDS"))
+refalt_file <- file.path(output_dir, paste0("df3.", chr, ".RDS"))
 if (!file.exists(refalt_file)) {
   stop("REFALT data file not found: ", refalt_file)
 }

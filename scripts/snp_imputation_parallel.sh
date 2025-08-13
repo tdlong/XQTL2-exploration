@@ -77,7 +77,7 @@ else
 fi
 
 # Check if REFALT data exists
-refalt_file="${MYDIR}/REFALT_${CHR}.RDS"
+refalt_file="${MYDIR}/df3.${CHR}.RDS"
 if [ ! -f "$refalt_file" ]; then
     echo "❌ REFALT data not found: $refalt_file"
     exit 1
