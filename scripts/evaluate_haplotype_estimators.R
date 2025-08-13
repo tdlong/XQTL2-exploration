@@ -110,6 +110,12 @@ print(head(valid_snps, 3))
 
 # Function to interpolate haplotype frequencies to SNP positions
 interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, founders) {
+  # Debug: Check the structure of haplotype_results
+  cat("Debug: haplotype_results columns:", paste(names(haplotype_results), collapse = ", "), "\n")
+  cat("Debug: haplotype_results structure:\n")
+  print(str(haplotype_results))
+  cat("Debug: Expected founders:", paste(founders, collapse = ", "), "\n")
+  
   # Get unique positions where we have haplotype estimates
   haplotype_positions <- unique(haplotype_results$pos)
   haplotype_positions <- sort(haplotype_positions)
@@ -127,30 +133,46 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
       haplotype_freqs <- haplotype_results %>%
         filter(pos == snp_pos) %>%
         select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq) %>%
-        select(all_of(founders))
+        pivot_wider(names_from = founder, values_from = freq)
       
-      interpolated_results[[as.character(snp_pos)]] <- haplotype_freqs
+      # Debug: Check what columns we actually have after pivot_wider
+      cat("Debug: After pivot_wider, columns:", paste(names(haplotype_freqs), collapse = ", "), "\n")
+      
+      # Only select founder columns that actually exist
+      existing_founders <- intersect(founders, names(haplotype_freqs))
+      if (length(existing_founders) > 0) {
+        haplotype_freqs <- haplotype_freqs %>% select(all_of(existing_founders))
+        interpolated_results[[as.character(snp_pos)]] <- haplotype_freqs
+      } else {
+        cat("Warning: No founder columns found for position", snp_pos, "\n")
+      }
     } else {
       # Linear interpolation
       left_freqs <- haplotype_results %>%
         filter(pos == left_pos) %>%
         select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq) %>%
-        select(all_of(founders))
+        pivot_wider(names_from = founder, values_from = freq)
       
       right_freqs <- haplotype_results %>%
         filter(pos == right_pos) %>%
         select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq) %>%
-        select(all_of(founders))
+        pivot_wider(names_from = founder, values_from = freq)
       
-      # Interpolation weight
-      alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
-      
-      # Linear interpolation: H{snp} = α*H{left} + (1-α)*H{right}
-      interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
-      interpolated_results[[as.character(snp_pos)]] <- interpolated_freqs
+      # Only select founder columns that actually exist
+      existing_founders <- intersect(founders, names(left_freqs))
+      if (length(existing_founders) > 0) {
+        left_freqs <- left_freqs %>% select(all_of(existing_founders))
+        right_freqs <- right_freqs %>% select(all_of(existing_founders))
+        
+        # Interpolation weight
+        alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
+        
+        # Linear interpolation: H{snp} = α*H{left} + (1-α)*H{right}
+        interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
+        interpolated_results[[as.character(snp_pos)]] <- interpolated_freqs
+      } else {
+        cat("Warning: No founder columns found for interpolation at position", snp_pos, "\n")
+      }
     }
   }
   
