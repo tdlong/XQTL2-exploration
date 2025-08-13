@@ -92,7 +92,7 @@ cat("=== Testing Streaming Algorithm ===\n")
 start_time <- Sys.time()
 
 # Simplified streaming algorithm for profiling
-interpolate_subset <- function(haplotype_results, snp_positions, founders) {
+interpolate_subset <- function(haplotype_results, snp_positions, founders, founder_order) {
   cat("  Starting interpolation for", length(snp_positions), "SNP positions\n")
   
   # Filter to euchromatin only
@@ -195,7 +195,7 @@ existing_founders <- existing_founders[order(match(existing_founders, founder_or
 
 # Run the test
 founders <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
-test_results <- interpolate_subset(sample_haplotypes, test_snps, founders)
+test_results <- interpolate_subset(sample_haplotypes, test_snps, founders, founder_order)
 
 end_time <- Sys.time()
 runtime <- difftime(end_time, start_time, units = "secs")
