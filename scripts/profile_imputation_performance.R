@@ -214,20 +214,39 @@ founder_data <- df2 %>%
 
 # Check founder order in haplotype data
 cat("=== Checking Founder Order Consistency ===\n")
-haplotype_cols <- names(sample_haplotypes %>% select(-c(chr, pos, sample, window_size)))
-cat("Haplotype data columns:", paste(haplotype_cols, collapse = ", "), "\n")
+cat("Haplotype data structure: long format with columns:", paste(names(sample_haplotypes), collapse = ", "), "\n")
+
+# Get actual founder names from haplotype data
+haplotype_founders <- unique(sample_haplotypes$founder)
+cat("Founders in haplotype data:", paste(haplotype_founders, collapse = ", "), "\n")
 
 # Check founder order in SNP data
 founder_names_in_data <- unique(founder_data$name)
 cat("Founder names in SNP data:", paste(founder_names_in_data, collapse = ", "), "\n")
 
 # Verify order consistency
-if (identical(haplotype_cols, founder_order)) {
-  cat("✓ Founder order is consistent between haplotype and SNP data\n")
+if (identical(sort(haplotype_founders), sort(founder_names_in_data))) {
+  cat("✓ Founder names are consistent between haplotype and SNP data\n")
 } else {
-  cat("⚠️  FOUNDER ORDER MISMATCH!\n")
+  cat("⚠️  FOUNDER NAME MISMATCH!\n")
+  cat("  Haplotype founders:", paste(sort(haplotype_founders), collapse = ", "), "\n")
+  cat("  SNP data founders:", paste(sort(founder_names_in_data), collapse = ", "), "\n")
+}
+
+# Check if order is different
+if (identical(haplotype_founders, founder_order)) {
+  cat("✓ Haplotype founder order matches expected order\n")
+} else {
+  cat("⚠️  HAPLOTYPE FOUNDER ORDER MISMATCH!\n")
   cat("  Expected:", paste(founder_order, collapse = ", "), "\n")
-  cat("  Haplotype:", paste(haplotype_cols, collapse = ", "), "\n")
+  cat("  Haplotype:", paste(haplotype_founders, collapse = ", "), "\n")
+}
+
+if (identical(founder_names_in_data, founder_order)) {
+  cat("✓ SNP data founder order matches expected order\n")
+} else {
+  cat("⚠️  SNP DATA FOUNDER ORDER MISMATCH!\n")
+  cat("  Expected:", paste(founder_order, collapse = ", "), "\n")
   cat("  SNP data:", paste(founder_names_in_data, collapse = ", "), "\n")
 }
 cat("\n")
@@ -263,8 +282,8 @@ for (i in 1:nrow(validation_table)) {
   # Get observed frequency and read depth
   obs_data <- observed_data %>% filter(POS == snp_pos)
   if (nrow(obs_data) > 0) {
-    validation_table$observed_freq[i] <- obs_data$freq
-    validation_table$total_read_depth_at_SNP[i] <- obs_data$total_read_depth
+    validation_table$observed_freq[i] <- obs_data$observed_freq[1]  # Use first match, ensure it's a single value
+    validation_table$total_read_depth_at_SNP[i] <- obs_data$total_read_depth[1]  # Use first match, ensure it's a single value
   }
   
   # Get founder states for this SNP
@@ -277,7 +296,7 @@ for (i in 1:nrow(validation_table)) {
       founder_state <- founder_states %>% filter(name == founder) %>% pull(freq)
       if (length(founder_state) > 0) {
         col_name <- paste0("founder_", founder, "_state")
-        validation_table[i, col_name] <- founder_state
+        validation_table[i, col_name] <- founder_state[1]  # Ensure single value
       }
     }
   }
