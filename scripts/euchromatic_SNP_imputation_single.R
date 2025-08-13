@@ -70,6 +70,14 @@ if (!file.exists(refalt_file)) {
 df2 <- read_rds(refalt_file)
 cat("✓ REFALT data loaded:", nrow(df2), "rows\n")
 
+# Debug: inspect data structure
+cat("Data structure:\n")
+cat("Columns:", paste(names(df2), collapse = ", "), "\n")
+cat("Column types:", paste(sapply(df2, class), collapse = ", "), "\n")
+cat("First few rows:\n")
+print(head(df2, 3))
+cat("\n")
+
 # Convert counts to frequencies
 cat("Converting counts to frequencies...\n")
 df2 <- df2 %>%
