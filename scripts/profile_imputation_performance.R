@@ -193,6 +193,9 @@ existing_founders <- existing_founders[order(match(existing_founders, founder_or
   return(interpolated_results)
 }
 
+# Define consistent founder order (must be before function call)
+founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+
 # Run the test
 founders <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
 test_results <- interpolate_subset(sample_haplotypes, test_snps, founders, founder_order)
@@ -208,9 +211,6 @@ founder_data <- df2 %>%
   filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8"),
          POS %in% test_snps) %>%
   select(POS, name, freq, N)
-
-# Define consistent founder order
-founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
 
 # Check founder order in haplotype data
 cat("=== Checking Founder Order Consistency ===\n")
