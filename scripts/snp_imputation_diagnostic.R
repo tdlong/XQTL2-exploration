@@ -358,6 +358,11 @@ interpolate_haplotype_frequencies_streaming <- function(haplotype_results, snp_p
   # Sort SNP positions
   snp_positions <- sort(snp_positions)
   
+  cat("    DEBUG: Haplotype positions range:", min(haplotype_positions), "-", max(haplotype_positions), "bp\n")
+  cat("    DEBUG: SNP positions range:", min(snp_positions), "-", max(snp_positions), "bp\n")
+  cat("    DEBUG: First few haplotype positions:", paste(head(haplotype_positions, 5), collapse=", "), "\n")
+  cat("    DEBUG: First few SNP positions:", paste(head(snp_positions, 5), collapse=", "), "\n")
+  
   # Initialize results
   interpolated_results <- list()
   
@@ -377,11 +382,14 @@ interpolate_haplotype_frequencies_streaming <- function(haplotype_results, snp_p
     # Check if we have a valid interval
     if (current_left_idx > length(haplotype_positions) || 
         current_right_idx > length(haplotype_positions)) {
+      cat("    DEBUG: SNP", snp_pos, "beyond haplotype range\n")
       next  # SNP is beyond haplotype range
     }
     
     left_pos <- haplotype_positions[current_left_idx]
     right_pos <- haplotype_positions[current_right_idx]
+    
+    cat("    DEBUG: SNP", snp_pos, "-> interval [", left_pos, ",", right_pos, "]\n")
     
     # Get founder columns that exist
     existing_founders <- intersect(founders, names(haplotype_freqs))
@@ -401,6 +409,7 @@ interpolate_haplotype_frequencies_streaming <- function(haplotype_results, snp_p
     
     # If both sides are all NA, skip
     if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { 
+      cat("    DEBUG: Both sides NA for SNP", snp_pos, "\n")
       next 
     }
     
@@ -426,8 +435,10 @@ interpolate_haplotype_frequencies_streaming <- function(haplotype_results, snp_p
     }
     
     interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
+    cat("    DEBUG: Successfully interpolated SNP", snp_pos, "\n")
   }
   
+  cat("    DEBUG: Total interpolated:", length(interpolated_results), "SNPs\n")
   return(interpolated_results)
 }
 
