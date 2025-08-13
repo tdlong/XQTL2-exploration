@@ -249,9 +249,9 @@ cat("=== Performance Testing ===\n")
 all_samples <- unique(valid_snps$name)
 non_founder_samples <- all_samples[!all_samples %in% founders]
 
-# Test with first 2 samples and first 1000 SNP positions
+# Test with first 2 samples and first 10 SNP positions
 test_samples <- non_founder_samples[1:2]
-test_snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS) %>% head(1000)
+test_snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS) %>% head(10)
 
 cat("Testing with", length(test_samples), "samples and", length(test_snp_positions), "SNP positions\n\n")
 
