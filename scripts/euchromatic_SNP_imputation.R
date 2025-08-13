@@ -187,6 +187,7 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
         left_freqs_numeric <- as.numeric(left_freqs)
         right_freqs_numeric <- as.numeric(right_freqs)
         
+        # If either side is all NA, skip this position (will result in NA for this SNP)
         if (all(is.na(left_freqs_numeric)) || all(is.na(right_freqs_numeric))) {
           next
         }
@@ -195,7 +196,30 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
         alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
         
         # Linear interpolation: H{snp} = α*H{left} + (1-α)*H{right}
-        interpolated_freqs <- alpha * left_freqs_numeric + (1 - alpha) * right_freqs_numeric
+        # Handle mixed NA/numeric cases by treating NAs as 0 for arithmetic, then setting result to NA
+        interpolated_freqs <- rep(NA, length(existing_founders))
+        
+        for (i in seq_along(existing_founders)) {
+          left_val <- left_freqs_numeric[i]
+          right_val <- right_freqs_numeric[i]
+          
+          # If both values are NA, result is NA
+          if (is.na(left_val) && is.na(right_val)) {
+            interpolated_freqs[i] <- NA
+          }
+          # If one value is NA, use the other value
+          else if (is.na(left_val)) {
+            interpolated_freqs[i] <- right_val
+          }
+          else if (is.na(right_val)) {
+            interpolated_freqs[i] <- left_val
+          }
+          # If both values are numeric, do interpolation
+          else {
+            interpolated_freqs[i] <- alpha * left_val + (1 - alpha) * right_val
+          }
+        }
+        
         interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
       }
     }
