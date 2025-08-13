@@ -231,7 +231,7 @@ interpolate_haplotype_frequencies_timed <- function(haplotype_results, snp_posit
   
   interpolation_time <- difftime(Sys.time(), start_time, units = "secs")
   cat("    Interpolation completed:", interpolation_count, "positions in", round(interpolation_time, 2), "seconds\n")
-  cat("    Rate:", round(interpolation_count / interpolation_time, 1), "positions/second\n")
+  cat("    Rate:", round(interpolation_count / as.numeric(interpolation_time), 1), "positions/second\n")
   
   return(interpolated_results)
 }
@@ -249,11 +249,26 @@ cat("=== Performance Testing ===\n")
 all_samples <- unique(valid_snps$name)
 non_founder_samples <- all_samples[!all_samples %in% founders]
 
-# Test with first 2 samples and first 10 SNP positions
+# Test with first 2 samples and SNP positions that have haplotype estimates
 test_samples <- non_founder_samples[1:2]
-test_snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS) %>% head(10)
 
-cat("Testing with", length(test_samples), "samples and", length(test_snp_positions), "SNP positions\n\n")
+# Get haplotype positions and find SNPs that are within range
+haplotype_positions <- fixed_results %>%
+  filter(sample == test_samples[1], pos >= euchromatin_start, pos <= euchromatin_end) %>%
+  pull(pos) %>%
+  unique() %>%
+  sort()
+
+# Find SNPs that are within the haplotype range
+test_snp_positions <- valid_snps %>%
+  distinct(CHROM, POS) %>%
+  filter(POS >= min(haplotype_positions), POS <= max(haplotype_positions)) %>%
+  pull(POS) %>%
+  head(10)
+
+cat("Testing with", length(test_samples), "samples and", length(test_snp_positions), "SNP positions\n")
+cat("Haplotype position range:", min(haplotype_positions), "-", max(haplotype_positions), "bp\n")
+cat("SNP position range:", min(test_snp_positions), "-", max(test_snp_positions), "bp\n\n")
 
 # Get unique window sizes and h_cutoffs
 fixed_window_sizes <- unique(fixed_results$window_size)
