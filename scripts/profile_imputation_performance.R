@@ -201,9 +201,9 @@ runtime <- difftime(end_time, start_time, units = "secs")
 
 cat("\n=== Performance Results ===\n")
 cat("Runtime for 1000 SNPs:", round(runtime, 2), "seconds\n")
-cat("Rate:", round(1000/runtime, 2), "SNPs per second\n")
-cat("Estimated time for full dataset:", round(259659 * runtime / 1000 / 3600, 1), "hours\n")
-cat("Estimated time for 6 samples:", round(259659 * 6 * runtime / 1000 / 3600, 1), "hours\n\n")
+cat("Rate:", round(1000/as.numeric(runtime), 2), "SNPs per second\n")
+cat("Estimated time for full dataset:", round(259659 * as.numeric(runtime) / 1000 / 3600, 1), "hours\n")
+cat("Estimated time for 6 samples:", round(259659 * 6 * as.numeric(runtime) / 1000 / 3600, 1), "hours\n\n")
 
 cat("=== Test Results ===\n")
 cat("Successful interpolations:", length(test_results), "/", length(test_snps), "\n")
@@ -276,10 +276,10 @@ if (length(test_results) > 0) {
 }
 
 cat("\n=== Recommendations ===\n")
-if (runtime < 60) {
+if (as.numeric(runtime) < 60) {
   cat("✓ Algorithm works and is reasonably fast\n")
-  cat("  Full dataset will take ~", round(259659 * 6 * runtime / 1000 / 3600, 1), "hours\n")
-} else if (runtime < 300) {
+  cat("  Full dataset will take ~", round(259659 * 6 * as.numeric(runtime) / 1000 / 3600, 1), "hours\n")
+} else if (as.numeric(runtime) < 300) {
   cat("⚠️  Algorithm works but is slow\n")
   cat("  Consider optimization or parallelization\n")
 } else {
