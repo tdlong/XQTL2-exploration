@@ -108,7 +108,7 @@ valid_snps <- good_snps %>%
 
 cat("✓ Valid euchromatic SNPs for evaluation:", nrow(valid_snps %>% distinct(CHROM, POS)), "\n")
 
-# Function to interpolate haplotype frequencies to SNP positions
+# Function to interpolate haplotype frequencies to SNP positions using streaming algorithm
 interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, founders) {
   # Filter to euchromatin only
   haplotype_results <- haplotype_results %>%
@@ -130,99 +130,84 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
     return(list())
   }
   
-  # Get unique positions where we have haplotype estimates
-  haplotype_positions <- unique(haplotype_results$pos)
-  haplotype_positions <- sort(haplotype_positions)
+  # Convert to wide format once
+  haplotype_freqs <- haplotype_results %>%
+    pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
+  
+  # Get unique haplotype positions (sorted)
+  haplotype_positions <- sort(unique(haplotype_freqs$pos))
+  
+  # Sort SNP positions
+  snp_positions <- sort(snp_positions)
   
   # Initialize results
   interpolated_results <- list()
   
+  # Initialize interval tracking
+  current_left_idx <- 1
+  current_right_idx <- 2
+  
+  # Process each SNP sequentially
   for (snp_pos in snp_positions) {
-    # Find nearest haplotype estimates (left and right)
-    left_pos <- max(haplotype_positions[haplotype_positions <= snp_pos])
-    right_pos <- min(haplotype_positions[haplotype_positions >= snp_pos])
-    
-    # Check if we have valid positions
-    if (is.infinite(left_pos) || is.infinite(right_pos)) {
-      next
+    # Find the haplotype interval containing this SNP
+    while (current_right_idx <= length(haplotype_positions) && 
+           haplotype_positions[current_right_idx] < snp_pos) {
+      current_left_idx <- current_right_idx
+      current_right_idx <- current_right_idx + 1
     }
     
-    if (left_pos == right_pos) {
-      # SNP is exactly at a haplotype estimate position
-      haplotype_freqs <- haplotype_results %>%
-        filter(pos == snp_pos) %>%
-        select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq)
+    # Check if we have a valid interval
+    if (current_left_idx > length(haplotype_positions) || 
+        current_right_idx > length(haplotype_positions)) {
+      next  # SNP is beyond haplotype range
+    }
+    
+    left_pos <- haplotype_positions[current_left_idx]
+    right_pos <- haplotype_positions[current_right_idx]
+    
+    # Get founder columns that exist
+    existing_founders <- intersect(founders, names(haplotype_freqs))
+    
+    # Extract frequencies for left and right positions
+    left_freqs <- haplotype_freqs %>% 
+      filter(pos == left_pos) %>% 
+      select(all_of(existing_founders))
+    
+    right_freqs <- haplotype_freqs %>% 
+      filter(pos == right_pos) %>% 
+      select(all_of(existing_founders))
+    
+    # Convert to numeric vectors
+    left_freqs_numeric <- as.numeric(left_freqs[1, ])
+    right_freqs_numeric <- as.numeric(right_freqs[1, ])
+    
+    # If both sides are all NA, skip
+    if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { 
+      next 
+    }
+    
+    # Interpolation weight
+    alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
+    
+    # Vectorized interpolation
+    interpolated_freqs <- rep(NA, length(existing_founders))
+    
+    for (i in seq_along(existing_founders)) {
+      left_val <- left_freqs_numeric[i]
+      right_val <- right_freqs_numeric[i]
       
-      # Only select founder columns that actually exist
-      existing_founders <- intersect(founders, names(haplotype_freqs))
-      if (length(existing_founders) > 0) {
-        haplotype_freqs <- haplotype_freqs %>% select(all_of(existing_founders))
-        interpolated_results[[as.character(snp_pos)]] <- haplotype_freqs
-      }
-    } else {
-      # Linear interpolation
-      left_freqs <- haplotype_results %>%
-        filter(pos == left_pos) %>%
-        select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq)
-      
-      right_freqs <- haplotype_results %>%
-        filter(pos == right_pos) %>%
-        select(founder, freq) %>%
-        pivot_wider(names_from = founder, values_from = freq)
-      
-      # Only select founder columns that actually exist
-      existing_founders <- intersect(founders, names(left_freqs))
-      if (length(existing_founders) > 0) {
-        left_freqs <- left_freqs %>% select(all_of(existing_founders))
-        right_freqs <- right_freqs %>% select(all_of(existing_founders))
-        
-        # Check if we have numeric data for interpolation
-        if (all(is.na(left_freqs)) || all(is.na(right_freqs))) {
-          next
-        }
-        
-        # Convert to numeric and check for valid data
-        left_freqs_numeric <- as.numeric(left_freqs)
-        right_freqs_numeric <- as.numeric(right_freqs)
-        
-        # If either side is all NA, skip this position (will result in NA for this SNP)
-        if (all(is.na(left_freqs_numeric)) || all(is.na(right_freqs_numeric))) {
-          next
-        }
-        
-        # Interpolation weight
-        alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
-        
-        # Linear interpolation: H{snp} = α*H{left} + (1-α)*H{right}
-        # Handle mixed NA/numeric cases by treating NAs as 0 for arithmetic, then setting result to NA
-        interpolated_freqs <- rep(NA, length(existing_founders))
-        
-        for (i in seq_along(existing_founders)) {
-          left_val <- left_freqs_numeric[i]
-          right_val <- right_freqs_numeric[i]
-          
-          # If both values are NA, result is NA
-          if (is.na(left_val) && is.na(right_val)) {
-            interpolated_freqs[i] <- NA
-          }
-          # If one value is NA, use the other value
-          else if (is.na(left_val)) {
-            interpolated_freqs[i] <- right_val
-          }
-          else if (is.na(right_val)) {
-            interpolated_freqs[i] <- left_val
-          }
-          # If both values are numeric, do interpolation
-          else {
-            interpolated_freqs[i] <- alpha * left_val + (1 - alpha) * right_val
-          }
-        }
-        
-        interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
+      if (is.na(left_val) && is.na(right_val)) {
+        interpolated_freqs[i] <- NA
+      } else if (is.na(left_val)) {
+        interpolated_freqs[i] <- right_val
+      } else if (is.na(right_val)) {
+        interpolated_freqs[i] <- left_val
+      } else {
+        interpolated_freqs[i] <- alpha * left_val + (1 - alpha) * right_val
       }
     }
+    
+    interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
   }
   
   return(interpolated_results)
