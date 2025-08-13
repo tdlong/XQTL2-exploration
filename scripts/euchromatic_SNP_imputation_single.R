@@ -78,19 +78,8 @@ cat("First few rows:\n")
 print(head(df2, 3))
 cat("\n")
 
-# Convert counts to frequencies
-cat("Converting counts to frequencies...\n")
-df2 <- df2 %>%
-  pivot_longer(cols = -c(CHROM, POS), names_to = "lab", values_to = "count") %>%
-  separate(lab, into = c("RefAlt", "name"), sep = "_", extra = "merge") %>%
-  select(-lab) %>%
-  pivot_wider(names_from = RefAlt, values_from = count) %>%
-  mutate(
-    freq = REF / (REF + ALT),
-    N = REF + ALT
-  ) %>%
-  select(-c("REF", "ALT")) %>%
-  as_tibble()
+# Data is already processed - no need to convert counts to frequencies
+cat("Data already in correct format - skipping transformation\n")
 
 # Filter for high-quality SNPs
 cat("Filtering for high-quality SNPs...\n")
