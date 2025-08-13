@@ -48,6 +48,14 @@ observed_data <- df2 %>%
   select(POS, freq) %>%
   rename(observed = freq)
 
+# Get founder genotypes for SNPs
+founder_data <- df2 %>%
+  filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8"),
+         POS >= euchromatin_start, 
+         POS <= euchromatin_end) %>%
+  select(POS, name, freq) %>%
+  pivot_wider(names_from = name, values_from = freq, names_prefix = "founder_")
+
 # Sample a few SNPs for detailed debugging
 set.seed(123)
 test_snps <- sample(observed_data$POS, 5)
@@ -125,23 +133,71 @@ for (i in seq_along(test_snps)) {
           " (left:", round(left_val, 4), "right:", round(right_val, 4), ")\n")
     }
     
-    # Calculate imputed frequency (simple average for now)
-    interpolated_freqs <- left_freqs %>%
-      left_join(right_freqs, by = "founder", suffix = c("_left", "_right")) %>%
-      mutate(
-        interpolated = case_when(
-          is.na(freq_left) & is.na(freq_right) ~ NA_real_,
-          is.na(freq_left) ~ freq_right,
-          is.na(freq_right) ~ freq_left,
-          TRUE ~ alpha * freq_left + (1 - alpha) * freq_right
-        )
-      )
+    # Get founder states (genotypes) for this SNP
+    founder_states <- founder_data %>%
+      filter(POS == snp_pos) %>%
+      select(-POS)
     
-    # For now, just use first founder as example
-    if (nrow(interpolated_freqs) > 0) {
-      first_founder_interp <- interpolated_freqs$interpolated[1]
-      cat("First founder interpolated frequency:", round(first_founder_interp, 4), "\n")
-      cat("Error vs observed:", round(abs(first_founder_interp - observed_freq), 4), "\n")
+    if (nrow(founder_states) > 0) {
+      cat("\nFounder states (genotypes) at this SNP:\n")
+      for (founder in c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) {
+        founder_col <- paste0("founder_", founder)
+        if (founder_col %in% names(founder_states)) {
+          state <- founder_states[[founder_col]][1]
+          cat("  ", founder, ":", state, "\n")
+        } else {
+          cat("  ", founder, ": NA\n")
+        }
+      }
+      
+      # Calculate complete imputed frequency
+      cat("\nComplete imputation calculation:\n")
+      total_imputed <- 0
+      
+      for (founder in c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) {
+        # Get interpolated haplotype frequency from the loop above
+        founder_interp <- NA
+        for (j in 1:nrow(left_freqs)) {
+          if (left_freqs$founder[j] == founder) {
+            left_val <- left_freqs$freq[j]
+            right_val <- right_freqs %>% filter(founder == !!founder) %>% pull(freq)
+            if (length(right_val) == 0) right_val <- NA
+            
+            if (is.na(left_val) && is.na(right_val)) {
+              founder_interp <- NA
+            } else if (is.na(left_val)) {
+              founder_interp <- right_val
+            } else if (is.na(right_val)) {
+              founder_interp <- left_val
+            } else {
+              founder_interp <- alpha * left_val + (1 - alpha) * right_val
+            }
+            break
+          }
+        }
+        
+        # Get founder state (genotype)
+        founder_col <- paste0("founder_", founder)
+        founder_state <- if (founder_col %in% names(founder_states)) {
+          founder_states[[founder_col]][1]
+        } else {
+          NA
+        }
+        
+        if (!is.na(founder_interp) && !is.na(founder_state)) {
+          contribution <- founder_interp * founder_state
+          total_imputed <- total_imputed + contribution
+          cat("  ", founder, ": ", round(founder_interp, 4), " × ", founder_state, " = ", round(contribution, 4), "\n")
+        } else {
+          cat("  ", founder, ": ", round(founder_interp, 4), " × ", founder_state, " = NA\n")
+        }
+      }
+      
+      cat("  Total imputed frequency:", round(total_imputed, 4), "\n")
+      cat("  Observed frequency:", round(observed_freq, 4), "\n")
+      cat("  Error:", round(abs(total_imputed - observed_freq), 4), "\n")
+    } else {
+      cat("❌ No founder state data found for this SNP\n")
     }
     
   } else {
