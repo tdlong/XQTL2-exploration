@@ -2,6 +2,13 @@
 
 # Euchromatic SNP Imputation - Single Estimator
 # This script processes one haplotype estimator at a time for parallel processing
+# 
+# CRITICAL FIX APPLIED: Founder order mismatch in SNP imputation calculation
+# - Founder states from pivot_wider were in wrong order (AB8, B1, B2, ...)
+# - Haplotype frequencies were in correct order (B1, B2, B3, ..., AB8)
+# - This caused systematic calculation errors and -0.016 correlation
+# - Fixed by reordering founder states before calculation
+#
 # Usage: Rscript euchromatic_SNP_imputation_single.R <chr> <param_file> <output_dir> <estimator>
 
 # Load required libraries
@@ -104,13 +111,17 @@ cat("✓ Valid euchromatic SNPs for evaluation:", nrow(valid_snps %>% distinct(C
 
 # Function to interpolate haplotype frequencies to SNP positions using streaming algorithm
 interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, founders) {
+  cat("    DEBUG: Starting interpolation for", length(snp_positions), "SNP positions\n")
+  
   # Filter to euchromatin only
   haplotype_results <- haplotype_results %>%
     filter(pos >= euchromatin_start & pos <= euchromatin_end)
   
+  cat("    DEBUG: Haplotype results after euchromatin filter:", nrow(haplotype_results), "rows\n")
+  
   # Check if we have any valid results
   if (nrow(haplotype_results) == 0) {
-    cat("  Warning: No haplotype results in euchromatin region\n")
+    cat("    Warning: No haplotype results in euchromatin region\n")
     return(list())
   }
   
@@ -119,8 +130,10 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
     filter(!is.na(freq)) %>%
     nrow()
   
+  cat("    DEBUG: Non-NA haplotype frequencies:", all_na_check, "rows\n")
+  
   if (all_na_check == 0) {
-    cat("  Warning: All haplotype frequencies are NA for this sample\n")
+    cat("    Warning: All haplotype frequencies are NA for this sample\n")
     return(list())
   }
   
@@ -128,11 +141,21 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
   haplotype_freqs <- haplotype_results %>%
     pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
   
+  cat("    DEBUG: Wide format haplotype data:", nrow(haplotype_freqs), "rows\n")
+  cat("    DEBUG: Wide format columns:", paste(names(haplotype_freqs), collapse = ", "), "\n")
+  
   # Get unique haplotype positions (sorted)
   haplotype_positions <- sort(unique(haplotype_freqs$pos))
   
+  cat("    DEBUG: Unique haplotype positions:", length(haplotype_positions), "\n")
+  cat("    DEBUG: First few haplotype positions:", paste(head(haplotype_positions, 5), collapse = ", "), "\n")
+  cat("    DEBUG: Last few haplotype positions:", paste(tail(haplotype_positions, 5), collapse = ", "), "\n")
+  
   # Sort SNP positions
   snp_positions <- sort(snp_positions)
+  
+  cat("    DEBUG: First few SNP positions:", paste(head(snp_positions, 5), collapse = ", "), "\n")
+  cat("    DEBUG: Last few SNP positions:", paste(tail(snp_positions, 5), collapse = ", "), "\n")
   
   # Initialize results
   interpolated_results <- list()
@@ -204,6 +227,7 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
     interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
   }
   
+  cat("    DEBUG: Total interpolated SNPs:", length(interpolated_results), "\n")
   return(interpolated_results)
 }
 
@@ -289,8 +313,14 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       
       if (length(snp_founder_states) == 0) next
       
-      # Calculate imputed frequency
-      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states)
+      # CRITICAL FIX: Reorder founder states to match haplotype frequency order
+      # The pivot_wider creates columns in data order (AB8, B1, B2, ...) 
+      # but we need them in expected order (B1, B2, B3, ..., AB8)
+      founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+      snp_founder_states_reordered <- snp_founder_states[match(founders, founder_order)]
+      
+      # Calculate imputed frequency with correctly ordered founder states
+      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states_reordered)
       
       # Store result
       results_list[[length(results_list) + 1]] <- list(

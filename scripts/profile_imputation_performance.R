@@ -316,12 +316,18 @@ for (i in 1:nrow(validation_table)) {
     haplotype_freqs <- test_results[[as.character(snp_pos)]]
     
     if (nrow(haplotype_freqs) > 0 && nrow(founder_states) > 0) {
+      # CRITICAL FIX: Reorder founder states to match haplotype frequency order
+      # pivot_wider creates columns in data order (AB8, B1, B2, ...) 
+      # but haplotype_freqs are in expected order (B1, B2, B3, ..., AB8)
+      founder_states_reordered <- founder_states[, founder_order, drop = FALSE]
+      
       # Calculate imputed frequency: sum(haplotype_freq × founder_state)
       imputed_freq <- 0
-      for (founder in founders) {
-        if (founder %in% names(haplotype_freqs) && founder %in% names(founder_states)) {
+      for (founder_idx in seq_along(founder_order)) {
+        founder <- founder_order[founder_idx]
+        if (founder %in% names(haplotype_freqs) && founder %in% names(founder_states_reordered)) {
           haplo_freq <- haplotype_freqs[[founder]][1]
-          founder_state <- founder_states[[founder]][1]
+          founder_state <- founder_states_reordered[[founder]][1]
           
           if (!is.na(haplo_freq) && !is.na(founder_state)) {
             imputed_freq <- imputed_freq + (haplo_freq * founder_state)
