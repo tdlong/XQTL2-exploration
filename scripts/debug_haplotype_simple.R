@@ -130,7 +130,7 @@ for (i in seq_along(test_positions)) {
     cat("  Founder columns found:", ncol(founder_data) - 1, "of", length(founders), "\n")
   }
   
-  if (ncol(founder_data) < length(founders) + 2) {
+  if (ncol(founder_data) < length(founders) + 1) {
     if (show_details) {
       cat("  ❌ Missing founders\n")
     }
