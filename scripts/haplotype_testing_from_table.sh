@@ -169,17 +169,21 @@ echo "Method: $METHOD"
 echo "Parameter: $PARAM"
 echo ""
 
+# Create results subdirectory
+RESULTS_DIR="$OUTDIR/haplotype_results"
+mkdir -p "$RESULTS_DIR"
+
 if [ "$METHOD" = "fixed" ]; then
   echo "Running fixed window estimation with ${PARAM}kb window..."
-  Rscript scripts/REFALT2haps.FixedWindow.Single.R "$CHR" "$PARFILE" "$OUTDIR" "$PARAM"
+  Rscript scripts/REFALT2haps.FixedWindow.Single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$PARAM"
   STATUS=$?
-  HAPLOTYPE_FILE="$OUTDIR/fixed_window_${PARAM}kb_results_${CHR}.RDS"
+  HAPLOTYPE_FILE="$RESULTS_DIR/fixed_window_${PARAM}kb_results_${CHR}.RDS"
   ESTIMATOR="fixed_${PARAM}kb"
 else
   echo "Running adaptive window estimation with h_cutoff = $PARAM..."
-  Rscript scripts/REFALT2haps.AdaptWindow.Single.R "$CHR" "$PARFILE" "$OUTDIR" "$PARAM"
+  Rscript scripts/REFALT2haps.AdaptWindow.Single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$PARAM"
   STATUS=$?
-  HAPLOTYPE_FILE="$OUTDIR/adaptive_window_h${PARAM}_results_${CHR}.RDS"
+  HAPLOTYPE_FILE="$RESULTS_DIR/adaptive_window_h${PARAM}_results_${CHR}.RDS"
   ESTIMATOR="adaptive_h${PARAM}"
 fi
 
@@ -214,12 +218,12 @@ if [ "$RUN_IMPUTATION" = "yes" ]; then
   # No additional processed data required
   
   echo "Running SNP imputation for $ESTIMATOR..."
-  Rscript scripts/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$OUTDIR" "$ESTIMATOR"
+  Rscript scripts/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$ESTIMATOR"
   IMPUTATION_STATUS=$?
   
   if [ $IMPUTATION_STATUS -eq 0 ]; then
     echo "✓ SNP imputation completed successfully"
-    echo "Output: $OUTDIR/snp_imputation_${ESTIMATOR}_${CHR}.RDS"
+    echo "Output: $RESULTS_DIR/snp_imputation_${ESTIMATOR}_${CHR}.RDS"
   else
     echo "✗ SNP imputation failed"
     exit 1

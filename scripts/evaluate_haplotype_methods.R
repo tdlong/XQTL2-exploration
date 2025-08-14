@@ -120,7 +120,9 @@ cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n
 # =============================================================================
 
 load_imputation_results <- function(estimator, output_dir, chr) {
-  imputation_file <- file.path(output_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
+  # Look in the haplotype_results subdirectory
+  results_dir <- file.path(output_dir, "haplotype_results")
+  imputation_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
   
   if (!file.exists(imputation_file)) {
     cat("  ⚠️  Imputation file not found:", imputation_file, "\n")
@@ -310,20 +312,24 @@ combined_plot <- (p1 + p2) / (p3) / (p4) +
 # Save results
 # =============================================================================
 
+# Create results subdirectory if it doesn't exist
+results_dir <- file.path(output_dir, "haplotype_results")
+dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
+
 # Save summary statistics
-summary_file <- file.path(output_dir, paste0("haplotype_evaluation_summary_", chr, ".RDS"))
+summary_file <- file.path(results_dir, paste0("haplotype_evaluation_summary_", chr, ".RDS"))
 saveRDS(overall_summary, summary_file)
 
 # Save detailed metrics
-detailed_file <- file.path(output_dir, paste0("haplotype_evaluation_detailed_", chr, ".RDS"))
+detailed_file <- file.path(results_dir, paste0("haplotype_evaluation_detailed_", chr, ".RDS"))
 saveRDS(overall_metrics, detailed_file)
 
 # Save regional analysis
-regional_file <- file.path(output_dir, paste0("haplotype_evaluation_regional_", chr, ".RDS"))
+regional_file <- file.path(results_dir, paste0("haplotype_evaluation_regional_", chr, ".RDS"))
 saveRDS(regional_metrics, regional_file)
 
 # Save plot
-plot_file <- file.path(output_dir, paste0("haplotype_evaluation_plots_", chr, ".png"))
+plot_file <- file.path(results_dir, paste0("haplotype_evaluation_plots_", chr, ".png"))
 ggsave(plot_file, combined_plot, width = 16, height = 12, dpi = 300)
 
 # =============================================================================

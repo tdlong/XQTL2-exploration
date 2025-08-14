@@ -62,17 +62,15 @@ cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end,
 cat("Loading haplotype estimation results...\n")
 if (grepl("^fixed_", estimator)) {
   # Fixed window estimator
-  window_size <- as.numeric(gsub("fixed_", "", gsub("kb", "000", estimator)))
-  haplotype_file <- file.path(output_dir, paste0("fixed_window_results_", chr, ".RDS"))
-  haplotype_results <- read_rds(haplotype_file) %>%
-    filter(window_size == !!window_size)
-  cat("✓ Fixed window results loaded for", window_size, "bp window\n")
+  window_size_kb <- as.numeric(gsub("fixed_", "", gsub("kb", "", estimator)))
+  haplotype_file <- file.path(output_dir, paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
+  haplotype_results <- read_rds(haplotype_file)
+  cat("✓ Fixed window results loaded for", window_size_kb, "kb window\n")
 } else if (grepl("^adaptive_h", estimator)) {
   # Adaptive window estimator
   h_cutoff <- as.numeric(gsub("adaptive_h", "", estimator))
-  haplotype_file <- file.path(output_dir, paste0("adaptive_window_results_", chr, ".RDS"))
-  haplotype_results <- read_rds(haplotype_file) %>%
-    filter(h_cutoff == !!h_cutoff)
+  haplotype_file <- file.path(output_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
+  haplotype_results <- read_rds(haplotype_file)
   cat("✓ Adaptive window results loaded for h_cutoff =", h_cutoff, "\n")
 } else {
   stop("Invalid estimator format. Must be 'fixed_<size>kb' or 'adaptive_h<number>'")
@@ -82,7 +80,8 @@ cat("Haplotype estimates:", nrow(haplotype_results), "\n\n")
 
 # Load observed SNP data from REFALT files
 cat("Loading observed SNP data from REFALT files...\n")
-refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+# REFALT files are in the parent directory, not the results subdirectory
+refalt_file <- file.path(dirname(output_dir), paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
   stop("REFALT data file not found: ", refalt_file)
 }
