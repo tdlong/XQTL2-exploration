@@ -300,11 +300,18 @@ if (length(results_list) > 0) {
   cat("Output file:", output_file, "\n")
   cat("File size:", file.size(output_file), "bytes\n")
   
-  # Calculate success rate
+  # Calculate success rate (only count non-NA estimates as successful)
   total_positions <- length(scan_positions) * length(non_founder_samples)
-  success_rate <- nrow(results_df) / total_positions * 100
   
-  cat("\nSuccess rate:", round(success_rate, 1), "% (", nrow(results_df), "of", total_positions, "position/sample combinations)\n")
+  # Count successful estimates (where at least one founder frequency is not NA)
+  successful_estimates <- results_df %>%
+    filter(!is.na(founder_frequencies[[1]])) %>%
+    nrow()
+  
+  success_rate <- successful_estimates / total_positions * 100
+  
+  cat("\nSuccess rate:", round(success_rate, 1), "% (", successful_estimates, "of", total_positions, "position/sample combinations)\n")
+  cat("Total results (including NA):", nrow(results_df), "\n")
   cat("Positions scanned:", length(scan_positions), "\n")
   cat("Samples processed:", length(non_founder_samples), "\n")
   
@@ -313,10 +320,11 @@ if (length(results_list) > 0) {
   sample_counts <- results_df %>%
     group_by(sample) %>%
     summarize(
-      n_estimates = n(),
-      success_rate = n() / length(scan_positions) * 100
+      total_results = n(),
+      successful_estimates = sum(!is.na(founder_frequencies[[1]])),
+      success_rate = successful_estimates / length(scan_positions) * 100
     ) %>%
-    arrange(desc(n_estimates))
+    arrange(desc(successful_estimates))
   print(sample_counts)
   
 } else {
