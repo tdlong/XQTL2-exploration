@@ -100,9 +100,14 @@ for (i in 1:nrow(expected_files)) {
     # Load the file
     results <- readRDS(file_path)
     
-    # Identify founder columns (exclude chr, pos, sample)
-    non_founder_cols <- c("chr", "pos", "sample")
-    founder_cols <- names(results)[!names(results) %in% non_founder_cols]
+    # Debug: Show actual data structure
+    cat("  Data structure: ", nrow(results), "rows, columns:", paste(names(results), collapse = ", "), "\n")
+    cat("  First few rows:\n")
+    print(head(results, 2))
+    
+    # Identify founder columns (only B1, B2, B3, B4, B5, B6, B7, AB8)
+    founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+    founder_cols <- founder_cols[founder_cols %in% names(results)]
     
     cat("  Founder columns found:", paste(founder_cols, collapse = ", "), "\n")
     
@@ -111,14 +116,25 @@ for (i in 1:nrow(expected_files)) {
     successful_rows <- sum(rowSums(!is.na(results[founder_cols])) > 0)
     success_rate <- successful_rows / total_rows * 100
     
-    # Calculate sample-level statistics
-    sample_stats <- results %>%
-      group_by(sample) %>%
-      summarize(
-        total_positions = n(),
-        successful_positions = sum(rowSums(!is.na(select(., all_of(founder_cols)))) > 0),
-        success_rate = successful_positions / total_positions * 100
+    # Check if there's a sample column, if not, assume one sample per file
+    if ("sample" %in% names(results)) {
+      # Calculate sample-level statistics
+      sample_stats <- results %>%
+        group_by(sample) %>%
+        summarize(
+          total_positions = n(),
+          successful_positions = sum(rowSums(!is.na(select(., all_of(founder_cols)))) > 0),
+          success_rate = successful_positions / total_positions * 100
+        )
+    } else {
+      # No sample column - treat as single sample
+      sample_stats <- data.frame(
+        sample = "unknown",
+        total_positions = total_rows,
+        successful_positions = successful_rows,
+        success_rate = success_rate
       )
+    }
     
     haplotype_summary[[estimator]] <- list(
       method = method,
