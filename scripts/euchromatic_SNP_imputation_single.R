@@ -175,6 +175,19 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
   cat("    DEBUG: Haplotype data:", nrow(haplotype_freqs), "rows\n")
   cat("    DEBUG: Haplotype columns:", paste(names(haplotype_freqs), collapse = ", "), "\n")
   
+  # CRITICAL CHECK: Verify founder column order
+  founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+  existing_founders <- intersect(founder_order, names(haplotype_freqs))
+  cat("    DEBUG: Found founder columns:", paste(existing_founders, collapse = ", "), "\n")
+  
+  if (!all(existing_founders == founder_order[1:length(existing_founders)])) {
+    cat("    WARNING: Founder columns are not in expected order!\n")
+    cat("    Expected:", paste(founder_order[1:length(existing_founders)], collapse = ", "), "\n")
+    cat("    Found:", paste(existing_founders, collapse = ", "), "\n")
+  } else {
+    cat("    ✓ Founder columns are in correct order\n")
+  }
+  
   # Get unique haplotype positions (sorted)
   haplotype_positions <- sort(unique(haplotype_freqs$pos))
   
@@ -418,6 +431,17 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
     founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
     founder_states_wide <- founder_states_wide %>%
       select(CHROM, POS, all_of(founder_order))
+    
+    # CRITICAL CHECK: Verify founder state column order
+    cat("  DEBUG: Founder state columns:", paste(names(founder_states_wide), collapse = ", "), "\n")
+    founder_cols <- names(founder_states_wide)[3:ncol(founder_states_wide)]
+    if (!all(founder_cols == founder_order)) {
+      cat("  WARNING: Founder state columns are not in expected order!\n")
+      cat("  Expected:", paste(founder_order, collapse = ", "), "\n")
+      cat("  Found:", paste(founder_cols, collapse = ", "), "\n")
+    } else {
+      cat("  ✓ Founder state columns are in correct order\n")
+    }
     
     cat("  Processing", length(interpolated_haplotypes), "SNPs with optimized lookup...\n")
     
