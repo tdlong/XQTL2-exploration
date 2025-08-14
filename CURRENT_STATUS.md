@@ -28,8 +28,11 @@ Complete the haplotype estimation and SNP imputation pipeline for the JUICE data
 - ✅ Small test case validated (100% success rate, correct row counts)
 - ✅ Full pipeline running successfully on chr2R
 - ✅ **Fixed window haplotype estimation: COMPLETE** (all 5 files: 20kb, 50kb, 100kb, 200kb, 500kb)
+  - Success rates: 20kb (96.2%), 50kb (99.7%), 100kb+ (100%)
+  - Larger windows perform better, excellent overall performance
 - 🔄 **Adaptive window haplotype estimation: RUNNING** (no files yet - slower than fixed)
 - 🔄 **SNP imputation: RUNNING** (no files yet - slower than haplotype estimation)
+- ✅ **Summary script working**: `summarize_pipeline_results.R` properly analyzes data format
 - 🎯 Pipeline progressing as expected (adaptive slower than fixed, SNP imputation slower than haplotype estimation)
 
 ## **NEXT STEPS**
@@ -47,11 +50,14 @@ Complete the haplotype estimation and SNP imputation pipeline for the JUICE data
    # SNP imputation: ❌ Not yet complete
    ```
    
-2. **Analysis preparation** (on cluster when ready):
+2. **Analyze current results** (on cluster):
    ```bash
-   # Validate haplotype results
-   Rscript scripts/peek_haplotype_results.R process/JUICE/haplotype_results/fixed_window_20kb_results_chr2R.RDS
+   # Get summary of completed fixed window results
+   Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
+   ```
    
+3. **Wait for adaptive windows to complete**, then:
+   ```bash
    # Run method evaluation (when adaptive windows complete)
    Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
    ```
