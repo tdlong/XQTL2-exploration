@@ -55,6 +55,12 @@ Complete the haplotype estimation and SNP imputation pipeline for the JUICE data
 - **Goal**: Compare fixed vs adaptive window methods for haplotype estimation
 - **Ultimate objective**: Determine optimal parameters for genome-wide analysis
 
+## **FUNDAMENTAL RULES** ⚠️
+- **NEVER SKIP POSITIONS**: Every position/sample combination must have a result
+- **Haplotype estimator returns**: Either founder frequency estimates OR NAs
+- **No gaps in data**: If estimation fails, return NA values, don't skip
+- **Complete coverage**: All positions × all samples must be represented in output
+
 ## **PIPELINE COMPONENTS**
 1. **Haplotype Estimation**: Fixed window vs Adaptive window methods
 2. **SNP Imputation**: Interpolate SNP frequencies from haplotype estimates
