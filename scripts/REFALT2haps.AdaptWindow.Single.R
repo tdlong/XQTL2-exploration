@@ -121,8 +121,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = NA,
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)
@@ -148,8 +147,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = NA,
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)
@@ -176,8 +174,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = NA,
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)
@@ -202,8 +199,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = NA,
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)
@@ -244,8 +240,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = length(founder_groups),
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)
@@ -288,8 +283,7 @@ for (pos_idx in seq_along(scan_positions)) {
           sample = sample_name,
           h_cutoff = h_cutoff,
           n_groups = length(founder_groups),
-          n_snps = nrow(sample_data),
-          founder_frequencies = founder_frequencies
+          n_snps = nrow(sample_data)
         )
         
         # Add founder frequencies as named columns
@@ -306,8 +300,7 @@ for (pos_idx in seq_along(scan_positions)) {
           sample = sample_name,
           h_cutoff = h_cutoff,
           n_groups = length(founder_groups),
-          n_snps = nrow(sample_data),
-          founder_frequencies = rep(NA, length(founders))
+          n_snps = nrow(sample_data)
         )
         
         # Add founder frequencies as named columns (all NA)
@@ -325,8 +318,7 @@ for (pos_idx in seq_along(scan_positions)) {
         sample = sample_name,
         h_cutoff = h_cutoff,
         n_groups = length(founder_groups),
-        n_snps = nrow(sample_data),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(sample_data)
       )
       
       # Add founder frequencies as named columns (all NA)

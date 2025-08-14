@@ -246,8 +246,7 @@ for (pos_idx in seq_along(scan_positions)) {
           pos = test_pos,
           sample = sample_name,
           window_size = window_size_bp,
-          n_snps = nrow(window_snps),
-          founder_frequencies = result$X
+          n_snps = nrow(window_snps)
         )
         
         # Add founder frequencies as named columns
@@ -263,8 +262,7 @@ for (pos_idx in seq_along(scan_positions)) {
           pos = test_pos,
           sample = sample_name,
           window_size = window_size_bp,
-          n_snps = nrow(window_snps),
-          founder_frequencies = rep(NA, length(founders))
+          n_snps = nrow(window_snps)
         )
         
         # Add founder frequencies as named columns (all NA)
@@ -281,8 +279,7 @@ for (pos_idx in seq_along(scan_positions)) {
         pos = test_pos,
         sample = sample_name,
         window_size = window_size_bp,
-        n_snps = nrow(window_snps),
-        founder_frequencies = rep(NA, length(founders))
+        n_snps = nrow(window_snps)
       )
       
       # Add founder frequencies as named columns (all NA)
