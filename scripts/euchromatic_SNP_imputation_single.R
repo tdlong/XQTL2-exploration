@@ -40,10 +40,23 @@ source(param_file)
 cat("✓ Parameter file loaded\n")
 cat("Founders:", paste(founders, collapse = ", "), "\n")
 
-# Define euchromatin region
-euchromatin_start <- 5398184
-euchromatin_end <- 24684540
-cat("Euchromatin region:", euchromatin_start, "-", euchromatin_end, "bp\n\n")
+# Define euchromatin boundaries for each chromosome
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
+
+# Get boundaries for this chromosome
+if (!chr %in% names(euchromatin_boundaries)) {
+  stop("Invalid chromosome: ", chr, ". Valid chromosomes: ", paste(names(euchromatin_boundaries), collapse = ", "))
+}
+
+euchromatin_start <- euchromatin_boundaries[[chr]][1]
+euchromatin_end <- euchromatin_boundaries[[chr]][2]
+cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end, "bp\n\n")
 
 # Load haplotype results for this estimator
 cat("Loading haplotype estimation results...\n")

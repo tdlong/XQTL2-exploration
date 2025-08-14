@@ -17,10 +17,17 @@
 # Load modules
 module load R/4.4.2
 
+# Parse command line arguments
+if [ $# -ne 3 ]; then
+    echo "Usage: $0 <chromosome> <parameter_file> <output_directory>"
+    echo "Example: $0 chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE"
+    exit 1
+fi
+
 # Set variables
-CHR="chr2R"
-PARFILE="helpfiles/JUICE/JUICE_haplotype_parameters.R"
-MYDIR="process/JUICE"
+CHR="$1"
+PARFILE="$2"
+MYDIR="$3"
 SCRIPT_DIR="scripts"
 
 # Create logs directory
