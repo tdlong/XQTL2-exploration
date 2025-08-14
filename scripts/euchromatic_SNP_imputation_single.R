@@ -169,12 +169,11 @@ interpolate_haplotype_frequencies <- function(haplotype_results, snp_positions, 
     return(list())
   }
   
-  # Convert to wide format once
-  haplotype_freqs <- haplotype_results %>%
-    pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
+  # Haplotype results are already in wide format with founder columns
+  haplotype_freqs <- haplotype_results
   
-  cat("    DEBUG: Wide format haplotype data:", nrow(haplotype_freqs), "rows\n")
-  cat("    DEBUG: Wide format columns:", paste(names(haplotype_freqs), collapse = ", "), "\n")
+  cat("    DEBUG: Haplotype data:", nrow(haplotype_freqs), "rows\n")
+  cat("    DEBUG: Haplotype columns:", paste(names(haplotype_freqs), collapse = ", "), "\n")
   
   # Get unique haplotype positions (sorted)
   haplotype_positions <- sort(unique(haplotype_freqs$pos))
@@ -313,9 +312,8 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
     sample_haplotypes <- sample_haplotypes %>%
       filter(pos >= 5398184 & pos <= 24684540)
     
-    # Convert to wide format once
-    haplotype_freqs <- sample_haplotypes %>%
-      pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
+    # Haplotype results are already in wide format with founder columns
+    haplotype_freqs <- sample_haplotypes
     
     # Get unique haplotype positions (sorted)
     haplotype_positions <- sort(unique(haplotype_freqs$pos))
