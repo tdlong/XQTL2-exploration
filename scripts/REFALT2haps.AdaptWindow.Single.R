@@ -29,7 +29,8 @@ source(parfile)
 h_cutoff <- h_cutoff_value
 
 # Define file paths
-filein <- paste0(mydir, "/RefAlt.", mychr, ".txt")
+# REFALT files are in the parent directory, not the results subdirectory
+filein <- paste0(dirname(mydir), "/RefAlt.", mychr, ".txt")
 
 cat("=== REFALT2haps Adaptive Window - Single Parameter ===\n")
 cat("Chromosome:", mychr, "\n")

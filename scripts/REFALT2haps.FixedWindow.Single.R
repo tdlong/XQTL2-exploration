@@ -29,7 +29,8 @@ window_size_bp <- window_size_kb * 1000
 source(parfile)
 
 # Define file paths
-filein <- paste0(mydir, "/RefAlt.", mychr, ".txt")
+# REFALT files are in the parent directory, not the results subdirectory
+filein <- paste0(dirname(mydir), "/RefAlt.", mychr, ".txt")
 
 cat("=== REFALT2haps Fixed Window - Single Parameter ===\n")
 cat("Chromosome:", mychr, "\n")
