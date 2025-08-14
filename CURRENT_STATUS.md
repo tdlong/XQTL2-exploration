@@ -18,36 +18,39 @@ Complete the haplotype estimation and SNP imputation pipeline for the JUICE data
   - `scripts/REFALT2haps.AdaptWindow.Single.R`
 - **Fix**: Removed `founder_frequencies` list column, kept individual founder columns
 
+**Founder Frequencies Column Artifact** (Latest fix)
+- **Problem**: `founder_frequencies` column appearing as NA in output files
+- **Root Cause**: Leftover references to `founder_frequencies` in result rows
+- **Fix**: Removed all remaining `founder_frequencies` references from scripts
+
 ## **CURRENT STATUS**
 - ✅ Haplotype estimation scripts are now working correctly
-- 🔄 Need to validate with small test case before running full pipeline
-- 🎯 Big picture: Run haplotype testing for different parameter combinations on chr2R
+- ✅ Small test case validated (100% success rate, correct row counts)
+- ✅ Full pipeline running successfully on chr2R
+- 🔄 Haplotype estimation complete for fixed windows, running for adaptive windows
+- 🔄 SNP imputation running for smaller fixed windows
+- 🎯 Pipeline progressing as expected (adaptive slower than fixed, SNP imputation slower than haplotype estimation)
 
 ## **NEXT STEPS**
-1. **Quick validation test** (SMALL PICTURE):
-   ```bash
-   Rscript scripts/debug_haplotype_simple.R
-   ```
-   - Test 100 positions to verify scripts work correctly
-   - Check output format and success rate
-   - Should take ~1 minute, not hours
+1. **Monitor pipeline progress**:
+   - Haplotype estimation: Fixed windows complete, adaptive windows running
+   - SNP imputation: Running for smaller fixed windows
+   - Expected: Adaptive slower than fixed, SNP imputation slower than haplotype estimation
 
-2. **If validation passes** (BIG PICTURE):
+2. **Once pipeline completes**:
    ```bash
-   sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+   Rscript scripts/peek_haplotype_results.R process/JUICE/haplotype_results/adaptive_window_h4_results_chr2R.RDS
    ```
-   - Run full pipeline for all parameter combinations on chr2R
-   - This is the actual goal
+   - Validate adaptive window results
 
-3. **Validate full results**:
-   ```bash
-   Rscript scripts/peek_haplotype_results.R process/JUICE/haplotype_results/fixed_window_20kb_results_chr2R.RDS
-   ```
-
-4. **Run evaluation script** to compare methods:
+3. **Run evaluation script** to compare methods:
    ```bash
    Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
    ```
+   - Compare fixed vs adaptive window performance
+   - Analyze SNP imputation accuracy
+
+4. **Extend to other chromosomes** once chr2R analysis is complete
 
 ## **BIG PICTURE CONTEXT**
 - **Project**: XQTL2 haplotype inference and SNP imputation
