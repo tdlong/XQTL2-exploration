@@ -100,6 +100,7 @@ Complete the haplotype estimation and SNP imputation pipeline for the JUICE data
 - **Local Access**: Only code, parameters, and small test files are available locally
 - **Script Testing**: Any new R scripts require git add + commit + push → pull on cluster to test
 - **Code Cleanup**: Deprecated scripts should be moved to `scripts/debug_and_testing/` or deleted
+- **Git Workflow**: AI must use single git add/commit/push command for user approval
 
 ## **FUNDAMENTAL RULES** ⚠️
 - **NEVER SKIP POSITIONS**: Every position/sample combination must have a result
