@@ -111,7 +111,27 @@ for (pos_idx in seq_along(scan_positions)) {
       filter(name == sample_name) %>%
       select(POS, freq, N)
     
-    if (nrow(sample_data) < 10) next  # Skip if too few SNPs
+    # Check if we have enough data for estimation
+    if (nrow(sample_data) < 10) {
+      # Return NA for insufficient sample data
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = NA,
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      next
+    }
     
     # Get founder data
     founder_data <- df3 %>%
@@ -119,7 +139,26 @@ for (pos_idx in seq_along(scan_positions)) {
       select(POS, name, freq) %>%
       pivot_wider(names_from = name, values_from = freq)
     
-    if (ncol(founder_data) < length(founders) + 2) next  # Skip if missing founders
+    if (ncol(founder_data) < length(founders) + 2) {
+      # Return NA for missing founders
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = NA,
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      next
+    }
     
     # Prepare founder matrix (exclude POS column)
     founder_matrix <- founder_data %>%
@@ -128,14 +167,52 @@ for (pos_idx in seq_along(scan_positions)) {
     
     # Remove rows with any NA values
     complete_rows <- complete.cases(founder_matrix)
-    if (sum(complete_rows) < 10) next  # Skip if too few complete rows
+    if (sum(complete_rows) < 10) {
+      # Return NA for insufficient complete rows
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = NA,
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      next
+    }
     
     founder_matrix <- founder_matrix[complete_rows, ]
     sample_freqs <- sample_data$freq[match(founder_data$POS[complete_rows], sample_data$POS)]
     
     # Remove NA sample frequencies
     valid_indices <- !is.na(sample_freqs)
-    if (sum(valid_indices) < 10) next  # Skip if too few valid frequencies
+    if (sum(valid_indices) < 10) {
+      # Return NA for insufficient valid frequencies
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = NA,
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      next
+    }
     
     founder_matrix <- founder_matrix[valid_indices, ]
     sample_freqs <- sample_freqs[valid_indices]
@@ -158,8 +235,26 @@ for (pos_idx in seq_along(scan_positions)) {
       }
     }
     
-    # If no groups found or only one group, skip
-    if (length(founder_groups) <= 1) next
+    # If no groups found or only one group, return NA
+    if (length(founder_groups) <= 1) {
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = length(founder_groups),
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      next
+    }
     
     # Create reduced founder matrix by averaging within groups
     reduced_founder_matrix <- matrix(0, nrow = nrow(founder_matrix), ncol = length(founder_groups))
@@ -202,9 +297,43 @@ for (pos_idx in seq_along(scan_positions)) {
         }
         
         results_list[[length(results_list) + 1]] <- result_row
+      } else {
+        # Return NA for lsei error
+        result_row <- list(
+          chr = mychr,
+          pos = test_pos,
+          sample = sample_name,
+          h_cutoff = h_cutoff,
+          n_groups = length(founder_groups),
+          n_snps = nrow(sample_data),
+          founder_frequencies = rep(NA, length(founders))
+        )
+        
+        # Add founder frequencies as named columns (all NA)
+        for (i in seq_along(founders)) {
+          result_row[[founders[i]]] <- NA
+        }
+        
+        results_list[[length(results_list) + 1]] <- result_row
       }
     }, error = function(e) {
-      # Skip this window if there's an error
+      # Return NA for any error
+      result_row <- list(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        n_groups = length(founder_groups),
+        n_snps = nrow(sample_data),
+        founder_frequencies = rep(NA, length(founders))
+      )
+      
+      # Add founder frequencies as named columns (all NA)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- NA
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
     })
   }
 }
@@ -222,11 +351,22 @@ if (length(results_list) > 0) {
   cat("Output file:", output_file, "\n")
   cat("File size:", file.size(output_file), "bytes\n")
   
-  # Show sample summary
+  # Calculate success rate
+  total_positions <- length(scan_positions) * length(non_founder_samples)
+  success_rate <- nrow(results_df) / total_positions * 100
+  
+  cat("\nSuccess rate:", round(success_rate, 1), "% (", nrow(results_df), "of", total_positions, "position/sample combinations)\n")
+  cat("Positions scanned:", length(scan_positions), "\n")
+  cat("Samples processed:", length(non_founder_samples), "\n")
+  
+  # Show sample summary with success rates
   cat("\nEstimates per sample:\n")
   sample_counts <- results_df %>%
     group_by(sample) %>%
-    summarize(n_estimates = n()) %>%
+    summarize(
+      n_estimates = n(),
+      success_rate = n() / length(scan_positions) * 100
+    ) %>%
     arrange(desc(n_estimates))
   print(sample_counts)
   
