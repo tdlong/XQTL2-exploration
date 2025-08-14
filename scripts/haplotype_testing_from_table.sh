@@ -5,7 +5,7 @@
 #SBATCH --output=logs/haplotype_pipeline_%A_%a.out
 #SBATCH --error=logs/haplotype_pipeline_%A_%a.err
 #SBATCH --time=24:00:00
-#SBATCH --mem=8G
+#SBATCH --mem=6G
 #SBATCH --cpus-per-task=1
 #SBATCH --array=1-9
 

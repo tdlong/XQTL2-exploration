@@ -9,10 +9,10 @@ This repository contains the bioinformatics pipeline scripts for XQTL (Experimen
 The scripts are organized into logical subfolders reflecting the pipeline flow:
 
 ### **Main Scripts** (`scripts/`)
-- **Haplotype Estimation**: `REFALT2haps.FixedWindow.R`, `REFALT2haps.AdaptWindow.R`
-- **SNP Imputation**: `euchromatic_SNP_imputation.R`, `euchromatic_SNP_imputation_single.R`
-- **Job Management**: `snp_imputation_parallel.sh`, `identify_adaptive_jobs.sh`, `slurm_cleanup_adaptive.R`
-- **Testing**: `scan_2R.test.sh`
+- **Main Pipeline**: `haplotype_testing_from_table.sh` - Comprehensive wrapper for haplotype estimation and SNP imputation
+- **Haplotype Estimation**: `REFALT2haps.FixedWindow.Single.R`, `REFALT2haps.AdaptWindow.Single.R` - Single-parameter estimators
+- **SNP Imputation**: `euchromatic_SNP_imputation_single.R` - SNP frequency interpolation with founder order fix
+- **Method Evaluation**: `evaluate_haplotype_methods.R` - Comprehensive comparison of different haplotype estimation methods
 
 ### **Pipeline Subfolders**
 - **`raw2bam2REFALT/`** - Early pipeline: Raw data → BAM → REF/ALT counts
@@ -206,69 +206,107 @@ echo -n "names_in_bam=c(" && find $mybams -name "*.bam" -size +$mysize -print0 |
 	sed 's/,$//' && echo ")"
 ```
 
-## Call the haplotypes (30-60min)
-At this step just call the haplotypes for all the samples you have.  We do the GWAS separately.
+## Haplotype Estimation and SNP Imputation (30-60min)
+
+The main pipeline now uses a streamlined approach with a comprehensive wrapper that can test multiple parameter combinations and optionally run SNP imputation.
+
+### Quick Start: Test chr2R with Multiple Parameters
+
+Create a parameter table for testing different approaches:
+
 ```bash
-# define output directory
-# note the libraries needed in REFALT2haps.Andreas.R!!
+# Create parameter table for chr2R testing
+cat > helpfiles/haplotype_params.2R.tsv << 'EOF'
+chr2R	fixed	20
+chr2R	fixed	50
+chr2R	fixed	100
+chr2R	fixed	200
+chr2R	fixed	500
+chr2R	adaptive	4
+chr2R	adaptive	6
+chr2R	adaptive	8
+chr2R	adaptive	10
+EOF
+```
+
+Run the main pipeline (9 array jobs):
+
+```bash
+# Haplotype estimation only
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/haplotype_parameters.R process/Oct28_24
+
+# Haplotype estimation + SNP imputation
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/haplotype_parameters.R process/Oct28_24 yes
+```
+
+### What This Does
+
+**Haplotype Estimation:**
+- **Fixed window analysis** - Tests 20kb, 50kb, 100kb, 200kb, 500kb windows
+- **Adaptive window analysis** - Tests h_cutoff values of 4, 6, 8, 10
+- **Euchromatin filtering** - Automatically filters to euchromatic regions only
+- **Parallel processing** - Each parameter combination runs as a separate array job
+
+**Optional SNP Imputation:**
+- **Interpolation** - Uses haplotype estimates to interpolate SNP frequencies
+- **Founder order fix** - Includes the critical founder order bug fix
+- **Euchromatin focus** - Only imputes SNPs in euchromatic regions
+
+### Output Files
+
+**Haplotype Results:**
+- `fixed_window_*kb_results_chr2R.RDS` - Fixed window haplotype estimates
+- `adaptive_window_h*_results_chr2R.RDS` - Adaptive window haplotype estimates
+
+**SNP Imputation Results (if enabled):**
+- `snp_imputation_fixed_*kb_chr2R.RDS` - Imputed SNP frequencies for fixed windows
+- `snp_imputation_adaptive_h*_chr2R.RDS` - Imputed SNP frequencies for adaptive windows
+
+### Method Evaluation
+
+After running multiple parameter combinations, evaluate which method performs best:
+
+```bash
+# Evaluate all methods on chr2R
+Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/haplotype_parameters.R process/Oct28_24 1000
+```
+
+**What the evaluation does:**
+- **MSE Analysis** - Calculates Mean Squared Error between observed and imputed SNP frequencies
+- **Coverage Metrics** - Measures proportion of positions with valid estimates
+- **Regional Performance** - Analyzes MSE across chromosomal windows (default 1000kb)
+- **Method Comparison** - Generates summary statistics and recommendations
+- **Visualizations** - Creates comprehensive plots comparing all methods
+
+**Evaluation Output:**
+- `haplotype_evaluation_summary_chr2R.RDS` - Overall performance summary
+- `haplotype_evaluation_detailed_chr2R.RDS` - Sample-by-sample metrics
+- `haplotype_evaluation_regional_chr2R.RDS` - Regional performance analysis
+- `haplotype_evaluation_plots_chr2R.png` - Comprehensive comparison plots
+
+**Key Metrics:**
+- **MSE/RMSE** - Accuracy of imputed frequencies
+- **Coverage** - Proportion of positions with estimates
+- **Correlation** - Correlation with observed frequencies
+- **Regional Analysis** - Performance across chromosomal regions
+
+### Euchromatin Boundaries
+
+The pipeline automatically uses the correct euchromatin boundaries for each chromosome:
+- **chr2L**: 82,455 - 22,011,009 bp
+- **chr2R**: 5,398,184 - 24,684,540 bp  
+- **chr3L**: 158,639 - 22,962,476 bp
+- **chr3R**: 4,552,934 - 31,845,060 bp
+- **chrX**: 277,911 - 22,628,490 bp
+
+### Legacy Approach (Still Available)
+
+For legacy compatibility, the old Andreas scripts are still available:
+
+```bash
+# Legacy haplotype estimation
 sbatch scripts/old_REFALT2haps/REFALT2haps.Andreas.sh helpfiles/haplotype_parameters.R "process/Oct28_24"
 ```
-
-## Test Adaptive Window Algorithm
-
-For testing the new adaptive window algorithm on a single genomic region, use the dedicated testing script. **Note:** The test directory needs input files from the production pipeline.
-
-```bash
-# Create test directory (separate from production pipeline)
-mkdir -p process/test
-
-# Copy required input files from production pipeline output
-# These files are generated by the earlier pipeline steps
-cp process/Oct28_24/RefAlt.chr3R.txt process/test/
-# Optional: copy RDS file if available (script will fall back to RefAlt.txt if not found)
-cp process/Oct28_24/df3.chr3R.RDS process/test/
-
-# Test single 2Mb window centered at position 10Mb on chr3R
-Rscript scripts/REFALT2haps.AdaptWindow.R chr3R helpfiles/haplotype_parameters.R "process/test" 10000000 2000000
-```
-
-### Parameter Assessment
-
-To understand how window size and h_cutoff affect haplotype estimation at a specific position, use the comprehensive assessment script:
-
-```bash
-# Assess parameter sensitivity for chr2L 18Mb-20Mb region
-Rscript scripts/REFALT2haps.FixedWindow.R chr2L helpfiles/haplotype_parameters.R "process/test" 18000000 20000000
-```
-
-**What this does:**
-- **Fixed window analysis** - Tests 10kb, 20kb, 50kb, 100kb, 200kb, 500kb, 1000kb windows using **default h_cutoff**
-- **Adaptive algorithm analysis** - Tests how different h_cutoffs affect clustering behavior and group formation
-- **Midpoint focus** - Estimates haplotype frequencies at the center of your specified region
-- **Comprehensive integration** - Shows both parameter effects and algorithm behavior
-- **Region-aware** - Automatically limits window sizes to stay within your test region
-- **Visual output** - Creates five-panel diagnostic plots
-
-**Output:**
-- **`comprehensive_assessment_chr2L_19000000.png`** - Five-panel plot showing:
-  - Founder frequencies vs window size (fixed h_cutoff)
-  - Founder frequencies vs h_cutoff (adaptive algorithm)
-  - Number of SNPs vs window size
-  - Adaptive algorithm: founder frequencies vs h_cutoff
-  - Adaptive algorithm: clustering behavior vs h_cutoff (groups and group sizes)
-- **`comprehensive_assessment_chr2L_19000000.RDS`** - Complete analysis data for further exploration
-
-**Parameters:**
-- `chr2L` - chromosome to analyze
-- `helpfiles/haplotype_parameters.R` - your parameter file
-- `"process/test"` - output directory
-- `18000000 20000000` - start and end positions (18Mb-20Mb)
-
-**Required Input Files:**
-- **`RefAlt.{chromosome}.txt`** - REF/ALT allele counts (from `bam2bcf2REFALT.sh`) - **REQUIRED**
-- **`df3.{chromosome}.RDS`** - Processed SNP data (from `REFALT2haps.Andreas.sh`) - **OPTIONAL** (script will fall back to RefAlt.txt if not found)
-
-**Note:** Run the production pipeline first to generate these input files, then copy them to your test directory. The assessment script will work with just the RefAlt files.
 
 ## Run the scan (15min) -- the old way
 ```bash
