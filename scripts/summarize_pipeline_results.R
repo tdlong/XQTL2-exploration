@@ -282,17 +282,30 @@ if (length(snp_imputation_summary) > 0) {
 
 cat("\n=== RECOMMENDATIONS ===\n")
 
-if (length(haplotype_summary) >= 2) {
+# Check if we have both fixed and adaptive results
+fixed_count <- sum(sapply(haplotype_summary, function(x) x$method == "fixed"))
+adaptive_count <- sum(sapply(haplotype_summary, function(x) x$method == "adaptive"))
+
+if (fixed_count > 0 && adaptive_count > 0) {
   cat("✅ Ready for haplotype method comparison:\n")
   param_file <- "helpfiles/JUICE/JUICE_haplotype_parameters.R"
   cat("  Rscript scripts/evaluate_haplotype_methods.R", chr, param_file, output_dir, "\n")
+} else if (fixed_count > 0 && adaptive_count == 0) {
+  cat("🔄 Fixed windows complete, waiting for adaptive windows:\n")
+  cat("  - Fixed window success rates: ", round(mean(sapply(haplotype_summary, function(x) x$success_rate)), 1), "%\n")
+  cat("  - Adaptive windows still running (", adaptive_count, "/", sum(expected_files$method == "adaptive"), " complete)\n")
+  cat("  - Can analyze fixed windows while waiting\n")
+} else if (length(haplotype_summary) > 0) {
+  cat("🔄 Partial results available:\n")
+  cat("  - Files completed:", length(haplotype_summary), "/", nrow(expected_files), "\n")
+  cat("  - Continue monitoring for remaining files\n")
 }
 
 if (length(haplotype_summary) > 0) {
-  cat("\n✅ Individual file validation:\n")
-  for (estimator in names(haplotype_summary)) {
-    cat("  Rscript scripts/peek_haplotype_results.R", haplotype_summary[[estimator]]$file_path, "\n")
-  }
+  cat("\n✅ Current pipeline status:\n")
+  cat("  - Haplotype estimation:", length(haplotype_summary), "/", nrow(expected_files), "files complete\n")
+  cat("  - SNP imputation:", length(snp_imputation_summary), "/", nrow(expected_files), "files complete\n")
+  cat("  - Average success rate:", round(mean(sapply(haplotype_summary, function(x) x$success_rate)), 1), "%\n")
 }
 
 cat("\n=== DONE ===\n")
