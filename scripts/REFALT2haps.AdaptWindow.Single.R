@@ -356,8 +356,9 @@ if (length(results_list) > 0) {
   total_positions <- length(scan_positions) * length(non_founder_samples)
   
   # Count successful estimates (where at least one founder frequency is not NA)
+  # Check the first founder column (B1) to determine if estimation was successful
   successful_estimates <- results_df %>%
-    filter(!is.na(founder_frequencies[[1]])) %>%
+    filter(!is.na(B1)) %>%
     nrow()
   
   success_rate <- successful_estimates / total_positions * 100
@@ -373,7 +374,7 @@ if (length(results_list) > 0) {
     group_by(sample) %>%
     summarize(
       total_results = n(),
-      successful_estimates = sum(!is.na(founder_frequencies[[1]])),
+      successful_estimates = sum(!is.na(B1)),
       success_rate = successful_estimates / length(scan_positions) * 100
     ) %>%
     arrange(desc(successful_estimates))
