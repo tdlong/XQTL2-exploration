@@ -71,19 +71,110 @@ test_snps <- sort(test_snps)
 cat("=== Testing with 1000 SNPs ===\n")
 cat("SNP range:", min(test_snps), "-", max(test_snps), "bp\n\n")
 
-# OPTIMIZED streaming algorithm for testing (fast like the original)
-cat("Running optimized streaming algorithm...\n")
+# COPY THE EXACT FAST ALGORITHM from profile_imputation_performance.R
+cat("Running the exact fast algorithm from profiling script...\n")
 start_time <- Sys.time()
 
-# Pre-process haplotypes to wide format once (much faster)
+# Filter to euchromatin only
+sample_haplotypes <- sample_haplotypes %>%
+  filter(pos >= euchromatin_start & pos <= euchromatin_end)
+
+cat("  Haplotype results after filter:", nrow(sample_haplotypes), "rows\n")
+
+# Convert to wide format once
 haplotype_freqs <- sample_haplotypes %>%
   pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
 
-# Get unique haplotype positions
+# Get unique haplotype positions (sorted)
 haplotype_positions <- sort(unique(haplotype_freqs$pos))
+cat("  Unique haplotype positions:", length(haplotype_positions), "\n")
 
-# Pre-process founder states once (much faster than filtering every SNP)
-cat("  Pre-processing founder states...\n")
+# Sort SNP positions
+test_snps <- sort(test_snps)
+
+# Initialize results
+interpolated_results <- list()
+
+# Initialize interval tracking (this is the key to speed!)
+current_left_idx <- 1
+current_right_idx <- 2
+
+# Process each SNP sequentially with efficient interval tracking
+for (i in seq_along(test_snps)) {
+  snp_pos <- test_snps[i]
+  
+  if (i %% 100 == 0) {
+    cat("    Processing SNP", i, "/", length(test_snps), "at position", snp_pos, "\n")
+  }
+  
+  # Find the haplotype interval containing this SNP (efficient!)
+  while (current_right_idx <= length(haplotype_positions) && 
+         haplotype_positions[current_right_idx] < snp_pos) {
+    current_left_idx <- current_right_idx
+    current_right_idx <- current_right_idx + 1
+  }
+  
+  # Check if we have a valid interval
+  if (current_left_idx > length(haplotype_positions) || 
+      current_right_idx > length(haplotype_positions)) {
+    next  # SNP is beyond haplotype range
+  }
+  
+  left_pos <- haplotype_positions[current_left_idx]
+  right_pos <- haplotype_positions[current_right_idx]
+  
+  # Get founder columns that exist - ensure consistent order (FOUNDER ORDER FIX!)
+  founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+  existing_founders <- intersect(founder_order, names(haplotype_freqs))
+  existing_founders <- existing_founders[order(match(existing_founders, founder_order))]
+  
+  # Extract frequencies for left and right positions
+  left_freqs <- haplotype_freqs %>% 
+    filter(pos == left_pos) %>% 
+    select(all_of(existing_founders))
+  
+  right_freqs <- haplotype_freqs %>% 
+    filter(pos == right_pos) %>% 
+    select(all_of(existing_founders))
+  
+  # Convert to numeric vectors
+  left_freqs_numeric <- as.numeric(left_freqs[1, ])
+  right_freqs_numeric <- as.numeric(right_freqs[1, ])
+  
+  # If both sides are all NA, skip
+  if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { 
+    next 
+  }
+  
+  # Interpolation weight
+  alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
+  
+  # Vectorized interpolation
+  interpolated_freqs <- rep(NA, length(existing_founders))
+  
+  for (j in seq_along(existing_founders)) {
+    left_val <- left_freqs_numeric[j]
+    right_val <- right_freqs_numeric[j]
+    
+    if (is.na(left_val) && is.na(right_val)) {
+      interpolated_freqs[j] <- NA
+    } else if (is.na(left_val)) {
+      interpolated_freqs[j] <- right_val
+    } else if (is.na(right_val)) {
+      interpolated_freqs[j] <- left_val
+    } else {
+      interpolated_freqs[j] <- alpha * left_val + (1 - alpha) * right_val
+    }
+  }
+  
+  # Store interpolated haplotype frequencies (not SNP frequencies yet)
+  interpolated_results[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
+}
+
+# Now calculate SNP frequencies using the interpolated haplotypes
+cat("  Calculating SNP frequencies from interpolated haplotypes...\n")
+
+# Pre-process founder states once for efficiency
 founder_states_wide <- df2 %>%
   filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
   select(POS, name, freq) %>%
@@ -91,59 +182,33 @@ founder_states_wide <- df2 %>%
   arrange(POS) %>%
   select(POS, B1, B2, B3, B4, B5, B6, B7, AB8)
 
-# Initialize results
-interpolated_results <- list()
-
-# Process each test SNP efficiently
-for (i in seq_along(test_snps)) {
-  snp_pos <- test_snps[i]
+# Calculate imputed SNP frequencies
+snp_results <- list()
+for (snp_pos in names(interpolated_results)) {
+  snp_pos_num <- as.numeric(snp_pos)
   
-  if (i %% 100 == 0) {
-    cat("  Processing SNP", i, "/", length(test_snps), "at position", snp_pos, "\n")
-  }
-  
-  # Find flanking haplotypes
-  left_idx <- max(which(haplotype_positions <= snp_pos))
-  right_idx <- min(which(haplotype_positions >= snp_pos))
-  
-  if (is.infinite(left_idx) || is.infinite(right_idx)) {
-    next
-  }
-  
-  left_pos <- haplotype_positions[left_idx]
-  right_pos <- haplotype_positions[right_idx]
-  
-  # Get haplotype frequencies at flanking positions (efficient lookup)
-  left_freqs <- haplotype_freqs %>%
-    filter(pos == left_pos) %>%
-    select(-c(chr, pos, sample, window_size)) %>%
-    as.numeric()
-  
-  right_freqs <- haplotype_freqs %>%
-    filter(pos == right_pos) %>%
-    select(-c(chr, pos, sample, window_size)) %>%
-    as.numeric()
-  
-  # Interpolate haplotype frequencies
-  alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
-  interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
-  
-  # Get founder states efficiently (no repeated filtering)
+  # Get founder states for this SNP
   founder_states <- founder_states_wide %>%
-    filter(POS == snp_pos) %>%
+    filter(POS == snp_pos_num) %>%
     select(-POS) %>%
     as.numeric()
   
   if (length(founder_states) == 8 && !any(is.na(founder_states))) {
-    # Calculate imputed frequency: sum(haplotype_freq × founder_state)
-    imputed_freq <- sum(interpolated_freqs * founder_states)
+    # Get interpolated haplotype frequencies
+    haplotype_freqs <- interpolated_results[[snp_pos]]
     
-    interpolated_results[[as.character(snp_pos)]] <- list(
-      pos = snp_pos,
+    # Calculate imputed frequency: sum(haplotype_freq × founder_state)
+    imputed_freq <- sum(as.numeric(haplotype_freqs[1, ]) * founder_states)
+    
+    snp_results[[snp_pos]] <- list(
+      pos = snp_pos_num,
       imputed_freq = imputed_freq
     )
   }
 }
+
+# Replace interpolated_results with SNP results
+interpolated_results <- snp_results
 
 end_time <- Sys.time()
 runtime <- difftime(end_time, start_time, units = "secs")
