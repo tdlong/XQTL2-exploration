@@ -48,8 +48,8 @@ if [ -f "$FIXED_RESULTS" ]; then
     echo "Delete this file to force re-run"
 else
     echo "=== Running Fixed Window Assessment ==="
-    echo "Command: Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR"
-    Rscript scripts/REFALT2haps.Assessment.R $CHR $PARFILE $MYDIR
+    echo "Command: Rscript scripts/REFALT2haps.FixedWindow.R $CHR $PARFILE $MYDIR"
+Rscript scripts/REFALT2haps.FixedWindow.R $CHR $PARFILE $MYDIR
     if [ $? -eq 0 ]; then
         echo "✓ Fixed Window Assessment completed successfully"
     else

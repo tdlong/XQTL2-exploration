@@ -3,7 +3,7 @@ library(patchwork)
 library(ggplot2)
 library(RColorBrewer)
 
-source("scripts/XQTL_plotting_functions.R")
+source("scripts/haps2scan/XQTL_plotting_functions.R")
 
 args = commandArgs(trailingOnly=TRUE)
 data_path = as.character(args[1])

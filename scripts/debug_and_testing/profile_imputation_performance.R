@@ -276,58 +276,51 @@ validation_table <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Fill in the table
+# OPTIMIZATION: Vectorized validation table creation instead of slow loops
+cat("  Optimizing validation table creation...\n")
+
+# Join observed data efficiently
+validation_table <- validation_table %>%
+  left_join(observed_data, by = c("pos" = "POS")) %>%
+  rename(observed_freq = observed_freq, total_read_depth_at_SNP = total_read_depth)
+
+# Create wide founder states table once (much faster than repeated filtering)
+cat("  Creating founder states table...\n")
+founder_states_wide <- founder_data %>%
+  pivot_wider(names_from = name, values_from = freq) %>%
+  arrange(POS)
+
+# Join founder states efficiently
+validation_table <- validation_table %>%
+  left_join(founder_states_wide, by = "pos")
+
+# Rename founder state columns to match expected format
+for (founder in founder_order) {
+  if (founder %in% names(validation_table)) {
+    col_name <- paste0("founder_", founder, "_state")
+    validation_table[[col_name]] <- validation_table[[founder]]
+  }
+}
+
+# Calculate imputed frequencies efficiently
+cat("  Calculating imputed frequencies...\n")
+validation_table$imputed_freq <- NA
+
 for (i in 1:nrow(validation_table)) {
   snp_pos <- validation_table$pos[i]
   
-  # Get observed frequency and read depth
-  obs_data <- observed_data %>% filter(POS == snp_pos)
-  if (nrow(obs_data) > 0) {
-    validation_table$observed_freq[i] <- obs_data$observed_freq[1]  # Use first match, ensure it's a single value
-    validation_table$total_read_depth_at_SNP[i] <- obs_data$total_read_depth[1]  # Use first match, ensure it's a single value
-  }
-  
-  # Get founder states for this SNP - REORDER to match haplotype frequency order
-  founder_states <- founder_data %>%
-    filter(POS == snp_pos) %>%
-    select(name, freq)
-  
-  if (nrow(founder_states) > 0) {
-    # Reorder founder states to match the expected founder_order
-    for (founder_idx in seq_along(founder_order)) {
-      founder <- founder_order[founder_idx]
-      founder_state <- founder_states %>% filter(name == founder) %>% pull(freq)
-      if (length(founder_state) > 0) {
-        col_name <- paste0("founder_", founder, "_state")
-        validation_table[i, col_name] <- founder_state[1]  # Ensure single value
-      }
-    }
-  }
-  
-  # Calculate imputed frequency
   if (as.character(snp_pos) %in% names(test_results)) {
-    # Get founder genotypes for this SNP
-    founder_states <- founder_data %>%
-      filter(POS == snp_pos) %>%
-      select(name, freq) %>%
-      pivot_wider(names_from = name, values_from = freq)
-    
     # Get interpolated haplotype frequencies
     haplotype_freqs <- test_results[[as.character(snp_pos)]]
     
-    if (nrow(haplotype_freqs) > 0 && nrow(founder_states) > 0) {
-      # CRITICAL FIX: Reorder founder states to match haplotype frequency order
-      # pivot_wider creates columns in data order (AB8, B1, B2, ...) 
-      # but haplotype_freqs are in expected order (B1, B2, B3, ..., AB8)
-      founder_states_reordered <- founder_states[, founder_order, drop = FALSE]
-      
+    if (nrow(haplotype_freqs) > 0) {
       # Calculate imputed frequency: sum(haplotype_freq × founder_state)
       imputed_freq <- 0
       for (founder_idx in seq_along(founder_order)) {
         founder <- founder_order[founder_idx]
-        if (founder %in% names(haplotype_freqs) && founder %in% names(founder_states_reordered)) {
+        if (founder %in% names(haplotype_freqs)) {
           haplo_freq <- haplotype_freqs[[founder]][1]
-          founder_state <- founder_states_reordered[[founder]][1]
+          founder_state <- validation_table[i, paste0("founder_", founder, "_state")]
           
           if (!is.na(haplo_freq) && !is.na(founder_state)) {
             imputed_freq <- imputed_freq + (haplo_freq * founder_state)

@@ -4,6 +4,27 @@ This repository contains the bioinformatics pipeline scripts for XQTL (Experimen
 
 **Note:** The XQTL analysis and visualization functions have been moved to the [XQTL2.Xplore R package](https://github.com/tdlong/XQTL2.Xplore), which provides comprehensive tools for data analysis and plotting.
 
+## Script Organization
+
+The scripts are organized into logical subfolders reflecting the pipeline flow:
+
+### **Main Scripts** (`scripts/`)
+- **Haplotype Estimation**: `REFALT2haps.FixedWindow.R`, `REFALT2haps.AdaptWindow.R`
+- **SNP Imputation**: `euchromatic_SNP_imputation.R`, `euchromatic_SNP_imputation_single.R`
+- **Job Management**: `snp_imputation_parallel.sh`, `identify_adaptive_jobs.sh`, `slurm_cleanup_adaptive.R`
+- **Testing**: `scan_2R.test.sh`
+
+### **Pipeline Subfolders**
+- **`raw2bam2REFALT/`** - Early pipeline: Raw data → BAM → REF/ALT counts
+  - `fq2bam.sh`, `fq2bam.Oct28.sh`, `bam2bcf2REFALT.sh`
+- **`haps2scan/`** - GWAS scanning and analysis
+  - All `haps2scan.*` scripts, `scan_functions.R`, `XQTL_plotting_functions.R`, `concat_Chromosome_Scans.*`
+- **`old_REFALT2haps/`** - Legacy Andreas scripts
+  - `REFALT2haps.Andreas.*` scripts
+- **`Heterozygosity_tests/`** - Heterozygosity analysis
+  - `plot_heterozygosity.R`, `process_heterozygosity.R`, `bam2bcf2REFALT_het.sh`, `REFALT2HET.awk`
+- **`debug_and_testing/`** - Debugging, testing, and diagnostic scripts (16 files)
+
 ## Current XQTL pipeline
 
 ## Get sequences from core...
@@ -74,7 +95,7 @@ CTGTGCTT	TTGTCAGC	R6age
 # (the number of line in readname mapping file above)
 mkdir data/bam/Oct28_24
 NN=`wc -l helperfiles/readname.mapping.Oct28.txt | cut -f1 -d' '`
-sbatch --array=1-$NN scripts/fq2bam.sh helperfiles/readname.mapping.Oct28.txt data/raw/Oct28_24 data/bam/Oct28_24 
+sbatch --array=1-$NN scripts/raw2bam2REFALT/fq2bam.sh helperfiles/readname.mapping.Oct28.txt data/raw/Oct28_24 data/bam/Oct28_24 
 
 # after it finishes (it could take overnight)
 ls -alh data/bam/Oct28_24
@@ -107,7 +128,7 @@ mkdir process/Oct28_24
 find data/bam/Oct28_24 -name "*.bam" -size +1G > helpfiles/Oct28_24.bams
 cat helpfiles/founder.bams.txt | grep "B" >>helpfiles/Oct28_24.bams
 # now generate the REFALT files
-sbatch scripts/bam2bcf2REFALT.sh helpfiles/Oct28_24.bams process/Oct28_24
+sbatch scripts/raw2bam2REFALT/bam2bcf2REFALT.sh helpfiles/Oct28_24.bams process/Oct28_24
 ```
 
 ## Edit haplotype.parameters.R to reflect your data
@@ -137,8 +158,6 @@ founders=c("B1","B2","B3","B4","B5","B6","B7","AB8")
 # mysize="1G"
 # echo -n "names_in_bam=c(" && find $mybams -name "*.bam" -size +$mysize -print0 |\
 # 	xargs -0 -n1 basename |\
-#	sed 's/.bam//' |\
-#	sort |\
 #	sed 's/.*/"&"/' |\
 #	tr '\n' ',' |\
 #	sed 's/,$//' && echo ")"
@@ -192,7 +211,7 @@ At this step just call the haplotypes for all the samples you have.  We do the G
 ```bash
 # define output directory
 # note the libraries needed in REFALT2haps.Andreas.R!!
-sbatch scripts/REFALT2haps.Andreas.sh helpfiles/haplotype_parameters.R "process/Oct28_24"
+sbatch scripts/old_REFALT2haps/REFALT2haps.Andreas.sh helpfiles/haplotype_parameters.R "process/Oct28_24"
 ```
 
 ## Test Adaptive Window Algorithm
@@ -219,7 +238,7 @@ To understand how window size and h_cutoff affect haplotype estimation at a spec
 
 ```bash
 # Assess parameter sensitivity for chr2L 18Mb-20Mb region
-Rscript scripts/REFALT2haps.Assessment.R chr2L helpfiles/haplotype_parameters.R "process/test" 18000000 20000000
+Rscript scripts/REFALT2haps.FixedWindow.R chr2L helpfiles/haplotype_parameters.R "process/test" 18000000 20000000
 ```
 
 **What this does:**
@@ -257,8 +276,8 @@ Rscript scripts/REFALT2haps.Assessment.R chr2L helpfiles/haplotype_parameters.R 
 # note libraries needed
 # the last argument defines a folder for output (it is created by the script) and is inside the input folder
 # There is a testing parameters file that can be changed for different analyses
-sbatch scripts/haps2scan.Andreas.sh helperfiles/testing.parameters.A.R "process/Oct28_24" "TEST_A"
-sbatch scripts/haps2scan.Andreas.sh helperfiles/testing.parameters.B.R "process/Oct28_24" "TEST_B"
+sbatch scripts/haps2scan/haps2scan.Andreas.sh helperfiles/testing.parameters.A.R "process/Oct28_24" "TEST_A"
+sbatch scripts/haps2scan/haps2scan.Andreas.sh helperfiles/testing.parameters.B.R "process/Oct28_24" "TEST_B"
 ```
 Here is an example of the testing folder, these are painful to make..
 
@@ -298,7 +317,7 @@ TreatmentMapping = data.frame(longTRT=c("Con","Age"),TRT=c("C","Z"))
 The new way seems a little easier.  Like the old way there is a path to the input data and a new folder you define where the output goes (inside the input folder).  But with the new way, instead of a parameter file, you just point to a file that can be read into R via "read.table".  It is best to point to an object saved via "write.table" in R with no other switches.  
 
 ```bash
-sbatch scripts/haps2scan.Apr2025.sh helpfiles/Oct28_24.testA.txt "process/Oct28_24" "TEST_A"
+sbatch scripts/haps2scan/haps2scan.Apr2025.sh helpfiles/Oct28_24.testA.txt "process/Oct28_24" "TEST_A"
 
 ```
 The R dataframe requires certain columns -- their names have to be exact. At a minimum the columns the table requires are: bam, TRT, REP, REPrep (often all "1"), Num, and Proportion. Other columns are allows, but are ignored.
@@ -321,8 +340,8 @@ bam must match the bam file prefixes (that is the readgroups) of previous steps.
 Up until this point all analyses are done chromosome-by-chromosome for speed.  Now we concatenate and generate some summary figures
 ```bash
 # note the path to the results for each scan above
-bash scripts/concat_Chromosome_Scans.Andreas.sh "process/Oct28_24/TEST_A"
-bash scripts/concat_Chromosome_Scans.Andreas.sh "process/Oct28_24/TEST_B"
+bash scripts/haps2scan/concat_Chromosome_Scans.Andreas.sh "process/Oct28_24/TEST_A"
+bash scripts/haps2scan/concat_Chromosome_Scans.Andreas.sh "process/Oct28_24/TEST_B"
 ```
 
 ## Download the two summary files and some summary plots
@@ -411,16 +430,16 @@ find data/bam/June_2025 -name "*.bam" > tester_strains.bams
 cat /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/founder.bams.txt | grep "B" >> tester_strains.bams
 
 # Run the REFALT generation step
-sbatch scripts/bam2bcf2REFALT.sh tester_strains.bams process/heterozygosity_analysis
+sbatch scripts/raw2bam2REFALT/bam2bcf2REFALT.sh tester_strains.bams process/heterozygosity_analysis
 ```
 
 #### Step 2: Run heterozygosity analysis
 
-The heterozygosity analysis uses a dedicated script `bam2bcf2REFALT_het.sh` and the `REFALT2HET.awk` utility script (both located in the `scripts/` folder).
+The heterozygosity analysis uses a dedicated script `bam2bcf2REFALT_het.sh` and the `REFALT2HET.awk` utility script (both located in the `scripts/Heterozygosity_tests/` folder).
 
 ```bash
 # Run the heterozygosity-specific REFALT generation
-sbatch scripts/bam2bcf2REFALT_het.sh tester_strains.bams process/heterozygosity_analysis
+sbatch scripts/Heterozygosity_tests/bam2bcf2REFALT_het.sh tester_strains.bams process/heterozygosity_analysis
 ```
 
 This will generate heterozygosity scores for each sample at each SNP position, outputting files like `nHet.chrX.txt`, `nHet.chr2L.txt`, etc.
@@ -431,7 +450,7 @@ The heterozygosity files are processed using the `process_heterozygosity.R` scri
 
 ```bash
 # Process the heterozygosity files
-Rscript scripts/process_heterozygosity.R process/heterozygosity_analysis/
+Rscript scripts/Heterozygosity_tests/process_heterozygosity.R process/heterozygosity_analysis/
 ```
 
 **What this step does:**
@@ -447,7 +466,7 @@ Generate sliding window heterozygosity plots using the `plot_heterozygosity.R` s
 
 ```bash
 # Create heterozygosity plots
-Rscript scripts/plot_heterozygosity.R process/heterozygosity_analysis/het.table.R
+Rscript scripts/Heterozygosity_tests/plot_heterozygosity.R process/heterozygosity_analysis/het.table.R
 ```
 
 **What this step does:**
