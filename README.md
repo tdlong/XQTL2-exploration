@@ -80,38 +80,32 @@ README.txt
 # put this file in the helperfiles directory
 # note the structure of the raw file names above, depending on how your
 # raw files are named my scripts may need to be modified
-cat helperfiles/readname.mapping.Oct28.txt
-TGGCTATG	TTGTCAGC	R3con
-GTCCTAGA	TTGTCAGC	R3age
-ACTTGCCA	TTGTCAGC	R5con
-TCTTCGTG	TTGTCAGC	R5age
-TCCACTCA	TTGTCAGC	R6con
-CTGTGCTT	TTGTCAGC	R6age
+cat helperfiles/readname.mapping.JUICE.txt
+TGGCTATG	TTGTCAGC	JUICE1
+GTCCTAGA	TTGTCAGC	JUICE2
+ACTTGCCA	TTGTCAGC	JUICE3
+TCTTCGTG	TTGTCAGC	JUICE4
+TCCACTCA	TTGTCAGC	JUICE5
+CTGTGCTT	TTGTCAGC	JUICE6
 
 # now run the alignments (fq -> bam)
 # you may need to define the dir where the raw data is and where you want
-#  to write bams to in the script (data/raw/Oct28_24 below)
+#  to write bams to in the script (data/raw/JUICE below)
 # you will need to make the array job as big as the number of samples being aligned
 # (the number of line in readname mapping file above)
-mkdir data/bam/Oct28_24
-NN=`wc -l helperfiles/readname.mapping.Oct28.txt | cut -f1 -d' '`
-sbatch --array=1-$NN scripts/raw2bam2REFALT/fq2bam.sh helperfiles/readname.mapping.Oct28.txt data/raw/Oct28_24 data/bam/Oct28_24 
+mkdir data/bam/JUICE
+NN=`wc -l helperfiles/readname.mapping.JUICE.txt | cut -f1 -d' '`
+sbatch --array=1-$NN scripts/raw2bam2REFALT/fq2bam.sh helperfiles/readname.mapping.JUICE.txt data/raw/JUICE data/bam/JUICE 
 
 # after it finishes (it could take overnight)
-ls -alh data/bam/Oct28_24
+ls -alh data/bam/JUICE
 
-14G  ... data/.../R1age.bam
-18G  ... data/.../R1con.bam
-16G  ... data/.../R2age.bam
-14G  ... data/.../R2con.bam
-9.0G ... data/.../R3age.bam
-17G  ... data/.../R3con.bam
-14G  ... data/.../R4age.bam
-18G  ... data/.../R4con.bam
-5.1G ... data/.../R5age.bam
-13G  ... data/.../R5con.bam
-5.2G ... data/.../R6age.bam
-13G  ... data/.../R6con.bam
+14G  ... data/.../JUICE1.bam
+18G  ... data/.../JUICE2.bam
+16G  ... data/.../JUICE3.bam
+14G  ... data/.../JUICE4.bam
+9.0G ... data/.../JUICE5.bam
+17G  ... data/.../JUICE6.bam
 ```
 It may be helpful to look at the alignment script above. We align (bwa mem), sort, add readgroups, index.  The readgroups are important.  The file sizes of the bams are also important (as files below about 1G are likely of insufficient coverage or could indicate a failed library prep). 
 
@@ -123,15 +117,15 @@ During this step we create a file ("helpfiles/Oct28_24.bams") that provides path
 # This could take 20+ hours
 # I will put processed stuff here
 mkdir process
-mkdir process/Oct28_24
+mkdir process/JUICE
 # add bam files, then add founders
-find data/bam/Oct28_24 -name "*.bam" -size +1G > helpfiles/Oct28_24.bams
-cat helpfiles/founder.bams.txt | grep "B" >>helpfiles/Oct28_24.bams
+find data/bam/JUICE -name "*.bam" -size +1G > helpfiles/JUICE.bams
+cat helpfiles/founder.bams.txt | grep "B" >>helpfiles/JUICE.bams
 # now generate the REFALT files
-sbatch scripts/raw2bam2REFALT/bam2bcf2REFALT.sh helpfiles/Oct28_24.bams process/Oct28_24
+sbatch scripts/raw2bam2REFALT/bam2bcf2REFALT.sh helpfiles/JUICE.bams process/JUICE
 ```
 
-## Edit haplotype.parameters.R to reflect your data
+## Edit JUICE_haplotype_parameters.R to reflect your data
 This file contains a bunch of information that lets scripts that call haplotypes and run the "GWAS" scan without intervention.  So you will probably spend some time tweaking this file.  If you do sub-analyses (on subsets of your data) your would have multiple version of this file that are passed to scripts. The file is mostly comments!
 ```bash
 ##########	
@@ -154,7 +148,7 @@ founders=c("B1","B2","B3","B4","B5","B6","B7","AB8")
 # the list of sample names to consider, they should match up with the 
 # names given to the earlier fq2bam script, as these are taken from the RGs of the resulting bams
 # the command line below will generate the same list the one's with RAFALT data at an earlier step
-# mybams="data/bam/STARVE"
+# mybams="data/bam/JUICE"
 # mysize="1G"
 # echo -n "names_in_bam=c(" && find $mybams -name "*.bam" -size +$mysize -print0 |\
 # 	xargs -0 -n1 basename |\
@@ -233,10 +227,10 @@ Run the main pipeline (9 array jobs):
 
 ```bash
 # Haplotype estimation only
-sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/haplotype_parameters.R process/Oct28_24
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
 
 # Haplotype estimation + SNP imputation
-sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/haplotype_parameters.R process/Oct28_24 yes
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
 ```
 
 ### What This Does
@@ -268,7 +262,7 @@ After running multiple parameter combinations, evaluate which method performs be
 
 ```bash
 # Evaluate all methods on chr2R
-Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/haplotype_parameters.R process/Oct28_24 1000
+Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE 1000
 ```
 
 **What the evaluation does:**
