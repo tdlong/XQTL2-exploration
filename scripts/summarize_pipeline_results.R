@@ -45,7 +45,9 @@ cat("Time:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n")
 cat("=== LOADING PARAMETER COMBINATIONS ===\n")
 
 # Read the parameter file to know what combinations to expect
-param_file <- file.path("helpfiles", glue("haplotype_params.{chr}.tsv"))
+# Extract chromosome number (e.g., chr2R -> 2R)
+chr_num <- gsub("chr", "", chr)
+param_file <- file.path("helpfiles", glue("haplotype_params.{chr_num}.tsv"))
 if (!file.exists(param_file)) {
   cat("❌ Parameter file not found:", param_file, "\n")
   quit(status = 1)
