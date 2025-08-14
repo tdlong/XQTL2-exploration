@@ -13,7 +13,7 @@ chr <- "chr2R"
 method <- "fixed"
 param <- 20
 param_file <- "helpfiles/JUICE/JUICE_haplotype_parameters.R"
-output_dir <- "process/JUICE"
+output_dir <- "process/JUICE/haplotype_results"
 
 cat("Running haplotype estimation...\n")
 
