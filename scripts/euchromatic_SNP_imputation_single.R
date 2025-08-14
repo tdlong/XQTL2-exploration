@@ -80,15 +80,35 @@ if (grepl("^fixed_", estimator)) {
 
 cat("Haplotype estimates:", nrow(haplotype_results), "\n\n")
 
-# Load observed SNP data
-cat("Loading observed SNP data...\n")
-refalt_file <- file.path(output_dir, paste0("df3.", chr, ".RDS"))
+# Load observed SNP data from REFALT files
+cat("Loading observed SNP data from REFALT files...\n")
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
   stop("REFALT data file not found: ", refalt_file)
 }
 
-df2 <- read_rds(refalt_file)
-cat("✓ REFALT data loaded:", nrow(df2), "rows\n")
+# Load and process REFALT data
+df <- read.table(refalt_file, header = TRUE)
+cat("✓ Raw REFALT data loaded:", nrow(df), "rows\n")
+
+# Transform REF/ALT counts to frequencies (same as haplotype scripts)
+cat("Converting counts to frequencies...\n")
+df2 <- df %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  mutate(
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
+  ) %>%
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    N = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+cat("✓ Processed REFALT data:", nrow(df2), "rows\n")
 
 # Debug: inspect data structure
 cat("Data structure:\n")

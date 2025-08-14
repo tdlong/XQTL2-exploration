@@ -271,6 +271,7 @@ Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haploty
 - **Regional Performance** - Analyzes MSE across chromosomal windows (default 1000kb)
 - **Method Comparison** - Generates summary statistics and recommendations
 - **Visualizations** - Creates comprehensive plots comparing all methods
+- **Data Sources** - Uses raw REFALT files for observed frequencies and imputation results for comparison
 
 **Evaluation Output:**
 - `haplotype_evaluation_summary_chr2R.RDS` - Overall performance summary

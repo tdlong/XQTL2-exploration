@@ -79,16 +79,33 @@ cat("Fixed windows:", paste(fixed_params, "kb", collapse = ", "), "\n")
 cat("Adaptive h_cutoffs:", paste(adaptive_params, collapse = ", "), "\n\n")
 
 # =============================================================================
-# Load observed SNP data
+# Load observed SNP data from REFALT files
 # =============================================================================
 
-cat("Loading observed SNP data...\n")
-refalt_file <- file.path(output_dir, paste0("df3.", chr, ".RDS"))
+cat("Loading observed SNP data from REFALT files...\n")
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
-  stop("Processed REFALT data not found: ", refalt_file)
+  stop("REFALT data not found: ", refalt_file)
 }
 
-observed_data <- read_rds(refalt_file)
+# Load REFALT data
+refalt_data <- read_tsv(refalt_file, col_types = cols(
+  CHROM = col_character(),
+  POS = col_integer(),
+  REF = col_character(),
+  ALT = col_character(),
+  name = col_character(),
+  REF_count = col_integer(),
+  ALT_count = col_integer()
+))
+
+# Calculate observed frequencies
+observed_data <- refalt_data %>%
+  mutate(
+    total_count = REF_count + ALT_count,
+    freq = ALT_count / total_count
+  ) %>%
+  filter(total_count > 0)  # Remove positions with no coverage
 
 # Filter to euchromatin and non-founder samples
 observed_euchromatic <- observed_data %>%

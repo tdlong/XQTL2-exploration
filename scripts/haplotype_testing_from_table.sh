@@ -210,14 +210,8 @@ if [ "$RUN_IMPUTATION" = "yes" ]; then
     exit 1
   fi
   
-  # Check if processed REFALT data exists (needed for SNP imputation)
-  PROCESSED_REFALT="$OUTDIR/df3.$CHR.RDS"
-  if [ ! -f "$PROCESSED_REFALT" ]; then
-    echo "❌ Processed REFALT data not found: $PROCESSED_REFALT"
-    echo "This file is created by the haplotype estimation scripts"
-    echo "Cannot run SNP imputation without processed data"
-    exit 1
-  fi
+  # SNP imputation now works directly with raw REFALT files
+  # No additional processed data required
   
   echo "Running SNP imputation for $ESTIMATOR..."
   Rscript scripts/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$OUTDIR" "$ESTIMATOR"
