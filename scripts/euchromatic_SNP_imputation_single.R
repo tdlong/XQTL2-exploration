@@ -274,10 +274,102 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       next
     }
     
-    # Interpolate haplotype frequencies to SNP positions
-    interpolated_haplotypes <- interpolate_haplotype_frequencies(
-      sample_haplotypes, snp_positions, founders
-    )
+    # OPTIMIZATION: Use the fast streaming algorithm instead of slow interpolation
+    cat("  Running fast streaming algorithm for", length(snp_positions), "SNPs...\n")
+    
+    # Filter to euchromatin only
+    sample_haplotypes <- sample_haplotypes %>%
+      filter(pos >= 5398184 & pos <= 24684540)
+    
+    # Convert to wide format once
+    haplotype_freqs <- sample_haplotypes %>%
+      pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
+    
+    # Get unique haplotype positions (sorted)
+    haplotype_positions <- sort(unique(haplotype_freqs$pos))
+    
+    # Sort SNP positions
+    snp_positions <- sort(snp_positions)
+    
+    # Initialize results
+    interpolated_haplotypes <- list()
+    
+    # Initialize interval tracking (this is the key to speed!)
+    current_left_idx <- 1
+    current_right_idx <- 2
+    
+    # Process each SNP sequentially with efficient interval tracking
+    for (snp_idx in seq_along(snp_positions)) {
+      snp_pos <- snp_positions[snp_idx]
+      
+      # Progress indicator every 1000 SNPs
+      if (snp_idx %% 1000 == 0) {
+        cat("    Processing SNP", snp_idx, "/", length(snp_positions), "at position", snp_pos, "\n")
+      }
+      
+      # Find the haplotype interval containing this SNP (efficient!)
+      while (current_right_idx <= length(haplotype_positions) && 
+             haplotype_positions[current_right_idx] < snp_pos) {
+        current_left_idx <- current_right_idx
+        current_right_idx <- current_right_idx + 1
+      }
+      
+      # Check if we have a valid interval
+      if (current_left_idx > length(haplotype_positions) || 
+          current_right_idx > length(haplotype_positions)) {
+        next  # SNP is beyond haplotype range
+      }
+      
+      left_pos <- haplotype_positions[current_left_idx]
+      right_pos <- haplotype_positions[current_right_idx]
+      
+      # Get founder columns that exist - ensure consistent order (FOUNDER ORDER FIX!)
+      founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+      existing_founders <- intersect(founder_order, names(haplotype_freqs))
+      existing_founders <- existing_founders[order(match(existing_founders, founder_order))]
+      
+      # Extract frequencies for left and right positions
+      left_freqs <- haplotype_freqs %>% 
+        filter(pos == left_pos) %>% 
+        select(all_of(existing_founders))
+      
+      right_freqs <- haplotype_freqs %>% 
+        filter(pos == right_pos) %>% 
+        select(all_of(existing_founders))
+      
+      # Convert to numeric vectors
+      left_freqs_numeric <- as.numeric(left_freqs[1, ])
+      right_freqs_numeric <- as.numeric(right_freqs[1, ])
+      
+      # If both sides are all NA, skip
+      if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { 
+        next 
+      }
+      
+      # Interpolation weight
+      alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
+      
+      # Vectorized interpolation
+      interpolated_freqs <- rep(NA, length(existing_founders))
+      
+      for (j in seq_along(existing_founders)) {
+        left_val <- left_freqs_numeric[j]
+        right_val <- right_freqs_numeric[j]
+        
+        if (is.na(left_val) && is.na(right_val)) {
+          interpolated_freqs[j] <- NA
+        } else if (is.na(left_val)) {
+          interpolated_freqs[j] <- right_val
+        } else if (is.na(right_val)) {
+          interpolated_freqs[j] <- left_val
+        } else {
+          interpolated_freqs[j] <- alpha * left_val + (1 - alpha) * right_val
+        }
+      }
+      
+      # Store interpolated haplotype frequencies
+      interpolated_haplotypes[[as.character(snp_pos)]] <- as.data.frame(t(interpolated_freqs), col.names = existing_founders)
+    }
     
     if (length(interpolated_haplotypes) == 0) {
       cat("  Warning: No interpolated haplotypes for sample", sample_name, "\n")
