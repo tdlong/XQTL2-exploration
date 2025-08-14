@@ -126,6 +126,9 @@ for (pos_idx in seq_along(scan_positions)) {
     # Check if we have enough data for estimation
     if (nrow(window_snps) < 10 || nrow(sample_data) < 5) {
       # Return NA for this window/sample combination
+      if (pos_idx %% 500 == 0) {
+        cat("    DEBUG: Position", test_pos, "sample", sample_name, "insufficient data - window SNPs:", nrow(window_snps), "sample SNPs:", nrow(sample_data), "\n")
+      }
       result_row <- list(
         chr = mychr,
         pos = test_pos,
@@ -230,6 +233,11 @@ for (pos_idx in seq_along(scan_positions)) {
       result <- limSolve::lsei(A = founder_matrix, B = sample_freqs, 
                               E = matrix(1, nrow = 1, ncol = ncol(founder_matrix)), 
                               F = 1, G = diag(ncol(founder_matrix)), H = rep(0, ncol(founder_matrix)))
+      
+      # Debug: Check if lsei succeeded
+      if (pos_idx %% 500 == 0) {
+        cat("    DEBUG: Position", test_pos, "sample", sample_name, "lsei error =", result$IsError, "\n")
+      }
       
       if (result$IsError == 0) {
         # Store results
