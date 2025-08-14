@@ -140,7 +140,7 @@ for (pos_idx in seq_along(scan_positions)) {
       select(POS, name, freq) %>%
       pivot_wider(names_from = name, values_from = freq)
     
-    if (ncol(founder_data) < length(founders) + 2) {
+    if (ncol(founder_data) < length(founders) + 1) {
       # Return NA for missing founders
       result_row <- list(
         chr = mychr,
