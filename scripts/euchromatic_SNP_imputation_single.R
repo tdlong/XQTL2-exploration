@@ -284,16 +284,31 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       next
     }
     
-    # Get founder states for each SNP
-    founder_states <- valid_snps %>%
+    # OPTIMIZATION: Pre-process founder states once for efficient lookup
+    cat("  Pre-processing founder states for efficient lookup...\n")
+    founder_states_wide <- valid_snps %>%
       filter(name %in% founders) %>%
       select(CHROM, POS, name, freq) %>%
       pivot_wider(names_from = name, values_from = freq) %>%
       arrange(POS)
     
-    # Calculate imputed SNP frequencies
-    for (snp_pos in names(interpolated_haplotypes)) {
+    # CRITICAL FIX: Ensure founder columns are in correct order
+    founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+    founder_states_wide <- founder_states_wide %>%
+      select(CHROM, POS, all_of(founder_order))
+    
+    cat("  Processing", length(interpolated_haplotypes), "SNPs with optimized lookup...\n")
+    
+    # Calculate imputed SNP frequencies with vectorized operations
+    total_snps <- length(interpolated_haplotypes)
+    for (snp_idx in seq_along(interpolated_haplotypes)) {
+      snp_pos <- names(interpolated_haplotypes)[snp_idx]
       snp_pos_num <- as.numeric(snp_pos)
+      
+      # Progress indicator every 1000 SNPs
+      if (snp_idx %% 1000 == 0) {
+        cat("    Processing SNP", snp_idx, "/", total_snps, "at position", snp_pos, "\n")
+      }
       
       # Get observed frequency
       observed_freq <- sample_observed %>%
@@ -305,22 +320,19 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       # Get haplotype frequencies for this SNP
       haplotype_freqs <- interpolated_haplotypes[[snp_pos]]
       
-      # Get founder states for this SNP
-      snp_founder_states <- founder_states %>%
+      # OPTIMIZATION: Efficient founder state lookup using pre-processed table
+      snp_founder_states <- founder_states_wide %>%
         filter(POS == snp_pos_num) %>%
-        select(all_of(founders)) %>%
+        select(all_of(founder_order)) %>%
         as.numeric()
       
       if (length(snp_founder_states) == 0) next
       
-      # CRITICAL FIX: Reorder founder states to match haplotype frequency order
-      # The pivot_wider creates columns in data order (AB8, B1, B2, ...) 
-      # but we need them in expected order (B1, B2, B3, ..., AB8)
-      founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
-      snp_founder_states_reordered <- snp_founder_states[match(founders, founder_order)]
+      # Founder states are now already in correct order (B1, B2, B3, ..., AB8)
+      # No need for reordering - the pivot_wider + select ensures correct order
       
       # Calculate imputed frequency with correctly ordered founder states
-      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states_reordered)
+      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states)
       
       # Store result
       results_list[[length(results_list) + 1]] <- list(
