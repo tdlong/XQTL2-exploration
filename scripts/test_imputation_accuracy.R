@@ -63,12 +63,12 @@ valid_snps <- df2 %>%
 
 cat("Valid SNPs for sample:", nrow(valid_snps), "\n\n")
 
-# Test with a small subset first (100 SNPs)
+# Test with 1000 SNPs (like the original profiling script)
 set.seed(123)
-test_snps <- sample(valid_snps$POS, 100)
+test_snps <- sample(valid_snps$POS, 1000)
 test_snps <- sort(test_snps)
 
-cat("=== Testing with 100 SNPs ===\n")
+cat("=== Testing with 1000 SNPs ===\n")
 cat("SNP range:", min(test_snps), "-", max(test_snps), "bp\n\n")
 
 # Simple streaming algorithm for testing
@@ -141,9 +141,12 @@ for (i in seq_along(test_snps)) {
 end_time <- Sys.time()
 runtime <- difftime(end_time, start_time, units = "secs")
 
-cat("\n=== Results ===\n")
-cat("Runtime:", round(as.numeric(runtime), 2), "seconds\n")
-cat("Successfully interpolated SNPs:", length(interpolated_results), "\n\n")
+cat("\n=== Performance Results ===\n")
+cat("Runtime for 1000 SNPs:", round(as.numeric(runtime), 2), "seconds\n")
+cat("Rate:", round(1000/as.numeric(runtime), 2), "SNPs per second\n")
+cat("Successfully interpolated SNPs:", length(interpolated_results), "/", length(test_snps), "\n\n")
+cat("Estimated time for full dataset (259,659 SNPs):", round(259659 * as.numeric(runtime) / 1000 / 3600, 1), "hours\n")
+cat("Estimated time for 6 samples:", round(259659 * 6 * as.numeric(runtime) / 1000 / 3600, 1), "hours\n\n")
 
 # Create simple comparison table
 if (length(interpolated_results) > 0) {
