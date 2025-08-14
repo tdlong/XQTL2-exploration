@@ -19,9 +19,9 @@ cat("Running haplotype estimation...\n")
 
 # Run the haplotype estimation
 if (method == "fixed") {
-  source("scripts/REFALT2haps.FixedWindow.Single.R")
+  system(paste("Rscript scripts/REFALT2haps.FixedWindow.Single.R", chr, param_file, output_dir, param))
 } else {
-  source("scripts/REFALT2haps.AdaptWindow.Single.R")
+  system(paste("Rscript scripts/REFALT2haps.AdaptWindow.Single.R", chr, param_file, output_dir, param))
 }
 
 cat("\n=== HAPLOTYPE ESTIMATION COMPLETE ===\n")
