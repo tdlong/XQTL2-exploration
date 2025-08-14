@@ -71,25 +71,34 @@ test_snps <- sort(test_snps)
 cat("=== Testing with 1000 SNPs ===\n")
 cat("SNP range:", min(test_snps), "-", max(test_snps), "bp\n\n")
 
-# Simple streaming algorithm for testing
-cat("Running simplified streaming algorithm...\n")
+# OPTIMIZED streaming algorithm for testing (fast like the original)
+cat("Running optimized streaming algorithm...\n")
 start_time <- Sys.time()
 
-# Convert haplotypes to wide format
+# Pre-process haplotypes to wide format once (much faster)
 haplotype_freqs <- sample_haplotypes %>%
   pivot_wider(names_from = founder, values_from = freq, values_fill = NA)
 
 # Get unique haplotype positions
 haplotype_positions <- sort(unique(haplotype_freqs$pos))
 
+# Pre-process founder states once (much faster than filtering every SNP)
+cat("  Pre-processing founder states...\n")
+founder_states_wide <- df2 %>%
+  filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
+  select(POS, name, freq) %>%
+  pivot_wider(names_from = name, values_from = freq) %>%
+  arrange(POS) %>%
+  select(POS, B1, B2, B3, B4, B5, B6, B7, AB8)
+
 # Initialize results
 interpolated_results <- list()
 
-# Process each test SNP
+# Process each test SNP efficiently
 for (i in seq_along(test_snps)) {
   snp_pos <- test_snps[i]
   
-  if (i %% 10 == 0) {
+  if (i %% 100 == 0) {
     cat("  Processing SNP", i, "/", length(test_snps), "at position", snp_pos, "\n")
   }
   
@@ -104,7 +113,7 @@ for (i in seq_along(test_snps)) {
   left_pos <- haplotype_positions[left_idx]
   right_pos <- haplotype_positions[right_idx]
   
-  # Get haplotype frequencies at flanking positions
+  # Get haplotype frequencies at flanking positions (efficient lookup)
   left_freqs <- haplotype_freqs %>%
     filter(pos == left_pos) %>%
     select(-c(chr, pos, sample, window_size)) %>%
@@ -119,12 +128,10 @@ for (i in seq_along(test_snps)) {
   alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
   interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
   
-  # Get founder states for this SNP
-  founder_states <- df2 %>%
-    filter(POS == snp_pos, name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
-    select(name, freq) %>%
-    pivot_wider(names_from = name, values_from = freq) %>%
-    select(B1, B2, B3, B4, B5, B6, B7, AB8) %>%
+  # Get founder states efficiently (no repeated filtering)
+  founder_states <- founder_states_wide %>%
+    filter(POS == snp_pos) %>%
+    select(-POS) %>%
     as.numeric()
   
   if (length(founder_states) == 8 && !any(is.na(founder_states))) {
