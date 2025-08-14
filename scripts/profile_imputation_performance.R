@@ -248,6 +248,7 @@ if (identical(founder_names_in_data, founder_order)) {
   cat("⚠️  SNP DATA FOUNDER ORDER MISMATCH!\n")
   cat("  Expected:", paste(founder_order, collapse = ", "), "\n")
   cat("  SNP data:", paste(founder_names_in_data, collapse = ", "), "\n")
+  cat("  → This mismatch will be corrected by reordering founder states during validation\n")
 }
 cat("\n")
 
@@ -286,13 +287,15 @@ for (i in 1:nrow(validation_table)) {
     validation_table$total_read_depth_at_SNP[i] <- obs_data$total_read_depth[1]  # Use first match, ensure it's a single value
   }
   
-  # Get founder states for this SNP
+  # Get founder states for this SNP - REORDER to match haplotype frequency order
   founder_states <- founder_data %>%
     filter(POS == snp_pos) %>%
     select(name, freq)
   
   if (nrow(founder_states) > 0) {
-    for (founder in founders) {
+    # Reorder founder states to match the expected founder_order
+    for (founder_idx in seq_along(founder_order)) {
+      founder <- founder_order[founder_idx]
       founder_state <- founder_states %>% filter(name == founder) %>% pull(freq)
       if (length(founder_state) > 0) {
         col_name <- paste0("founder_", founder, "_state")
