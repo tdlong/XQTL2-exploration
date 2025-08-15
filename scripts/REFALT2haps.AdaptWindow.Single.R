@@ -86,9 +86,22 @@ cat("Non-founder samples:", length(non_founder_samples), "\n")
 cat("Samples:", paste(non_founder_samples, collapse = ", "), "\n\n")
 
 # Define scanning positions (500kb to end-500kb, 10kb steps)
-chromosome_length <- max(df$POS)
+chromosome_length <- max(df$POS, na.rm = TRUE)
+cat("DEBUG: Raw chromosome length:", chromosome_length, "\n")
+cat("DEBUG: POS column range:", range(df$POS, na.rm = TRUE), "\n")
+cat("DEBUG: POS column class:", class(df$POS), "\n")
+
+# Safety check for chromosome length
+if (!is.finite(chromosome_length) || chromosome_length <= 1000000) {
+  cat("ERROR: Invalid chromosome length:", chromosome_length, "\n")
+  cat("Using fallback chromosome length from euchromatin boundaries\n")
+  # Use euchromatin boundaries as fallback
+  chromosome_length <- 24684540  # chr2R euchromatin end
+}
+
 scan_start <- 500000
 scan_end <- chromosome_length - 500000
+cat("DEBUG: Scan range:", scan_start, "to", scan_end, "\n")
 scan_positions <- seq(scan_start, scan_end, by = 10000)
 
 cat("Chromosome length:", chromosome_length, "bp\n")
