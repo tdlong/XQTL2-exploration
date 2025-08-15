@@ -18,11 +18,12 @@ For each window size:
 4. **Cut the tree** at the specified `h_cutoff` using `cutree(hclust_result, h = h_cutoff)`
 5. **Identify founder groups** based on the clustering
 
-### 3. Constraint Accumulation
-The key innovation is carrying forward constraints from smaller windows:
-- **Smaller windows** often provide better founder separation (more groups)
-- **Larger windows** provide more statistical power but may merge groups
-- **Accumulated constraints** from smaller windows are applied to larger windows
+### 3. Smart Constraint Accumulation
+The key innovation is carrying forward constraints only when meaningful changes occur:
+- **Detect meaningful group changes**: Not just count, but check if group composition changed
+- **Skip LSEI when groups unchanged**: Reuse previous constraints and results
+- **Accumulate constraints progressively**: As groups split or reshuffle
+- **Handle reshuffling gracefully**: Tree structure may change with more SNPs
 
 ### 4. Constraint Types
 Two types of constraints are accumulated:
@@ -60,9 +61,9 @@ Where:
 
 ### 6. Convergence Criteria
 The algorithm stops when:
-- **All founders are separated** (n_groups == n_founders)
-- **Clustering doesn't improve** (n_groups <= previous_n_groups)
-- **Maximum window size reached**
+- **All founders are separated** (n_groups == n_founders) - **OPTIMAL OUTCOME**
+- **Maximum window size reached** (500kb) without full separation - **SUBOPTIMAL BUT VALID**
+- **No meaningful group changes** across multiple window sizes
 
 ## Key Parameters
 
@@ -86,7 +87,8 @@ The algorithm stops when:
 
 ### Progressive Improvement
 - **Smaller windows**: Better founder separation, less statistical power
-- **Larger windows**: More statistical power, potentially worse founder separation
+- **Larger windows**: More statistical power, potentially different tree structure
+- **Tree adaptation**: Structure may change (reshuffling) as more SNPs are included
 - **Accumulated constraints**: Preserve good separation from smaller windows
 
 ## Algorithm Advantages
@@ -95,20 +97,28 @@ The algorithm stops when:
 2. **Constraint-preserving**: Good founder separation from small windows is preserved
 3. **Statistically robust**: Larger windows provide more data for estimation
 4. **Parameter-controlled**: h_cutoff allows tuning of grouping aggressiveness
+5. **Resilient**: Handles tree reshuffling gracefully as statistical power increases
 
 ## Implementation Notes
 
 ### Critical Components
 1. **Hierarchical clustering** must be performed at each window
-2. **Constraint accumulation** must preserve group and individual constraints
-3. **LSEI solver** must handle the accumulated constraint matrix
-4. **Progress tracking** must monitor n_groups across windows
+2. **Smart constraint detection** must identify meaningful group changes
+3. **Constraint accumulation** must preserve group and individual constraints
+4. **LSEI solver** must handle the accumulated constraint matrix
+5. **Progress tracking** must monitor group composition across windows
 
 ### Common Pitfalls
-1. **Skipping clustering**: Just using distance-based grouping
-2. **Not accumulating constraints**: Starting fresh at each window
+1. **Redundant constraints**: Adding sum=1 constraint when all founders are grouped
+2. **Unnecessary LSEI calls**: Running solver when groups haven't changed
 3. **Wrong constraint formulation**: Not properly translating groups to constraints
-4. **Ignoring convergence**: Not stopping when all founders are separated
+4. **Ignoring reshuffling**: Not adapting to tree structure changes
+
+### Handling Edge Cases
+1. **No separation achieved**: Return best result from largest window
+2. **Tree reshuffling**: Adapt constraints and continue
+3. **Insufficient SNPs**: Skip window or return NA
+4. **LSEI failures**: Continue to next window size
 
 ## Current Status
 
@@ -137,11 +147,19 @@ This suggests the issue might be:
 3. **Implementation bug**: Something subtle in the constraint accumulation
 4. **Different version run**: The cluster might have run a different version
 
+### Recent Debugging Insights
+The verbose test script revealed:
+1. **The algorithm IS working correctly** - it progresses from 1 group (10kb) to 7 groups (25kb) to 8 groups (50kb)
+2. **A bug exists**: The 10kb window (1 group) adds a redundant constraint (sum=1) which is already enforced
+3. **This redundant constraint** could cause matrix singularity and LSEI failures
+4. **The fix**: Only accumulate constraints when groups meaningfully change, not just when they exist
+
 ## Testing Strategy
 The `scripts/test_working_adaptive.R` script tests this algorithm on a couple of positions with different h_cutoff values to verify that:
 1. Hierarchical clustering is working
 2. Different h_cutoff values produce different results
 3. Constraint accumulation is functioning properly
 4. The algorithm converges appropriately
+5. Redundant constraints are not accumulated
 
 This will help determine if the issue is with the algorithm itself or with the specific data/parameters used on the cluster.

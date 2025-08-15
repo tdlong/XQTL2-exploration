@@ -1,139 +1,250 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## **CURRENT GOAL**
-Complete the haplotype estimation and SNP imputation pipeline for the JUICE dataset, with proper evaluation and validation of different methods.
+## Current Phase: Phase 4 (Method evaluation and comparison) + Debugging Adaptive Window Algorithm
 
-## **CURRENT PHASE**
-**Phase 3: Pipeline Validation and Optimization**
-- ✅ Phase 1: Code organization and cleanup (COMPLETED)
-- ✅ Phase 2: Bug fixes and debugging (COMPLETED)
-- 🔄 Phase 3: Pipeline validation and optimization (IN PROGRESS)
+## Recent Progress (Last 24 hours)
 
-## **WHAT WE JUST FIXED**
-**Row Count Bug** (Latest debugging session)
-- **Problem**: Success rate showing 800% due to incorrect row counting
-- **Root Cause**: `founder_frequencies` list column causing `bind_rows()` to expand into multiple rows
-- **Files Fixed**: 
-  - `scripts/REFALT2haps.FixedWindow.Single.R`
-  - `scripts/REFALT2haps.AdaptWindow.Single.R`
-- **Fix**: Removed `founder_frequencies` list column, kept individual founder columns
+### ✅ Completed Tasks
+1. **Full pipeline execution** - Haplotype estimation and SNP imputation completed for chr2R
+2. **Comprehensive method evaluation** - All 12 estimators (6 fixed + 6 adaptive) evaluated
+3. **Sliding window analysis integration** - Regional performance analysis (250 SNP windows, 50 SNP steps)
+4. **Performance optimization** - Sliding window calculation optimized with vectorized tidyverse operations
+5. **Documentation updates** - ADAPTIVE_WINDOW_ALGORITHM.md created and updated
 
-**Founder Frequencies Column Artifact** (Latest fix)
-- **Problem**: `founder_frequencies` column appearing as NA in output files
-- **Root Cause**: Leftover references to `founder_frequencies` in result rows
-- **Fix**: Removed all remaining `founder_frequencies` references from scripts
+### 🔍 Current Focus: Debugging Adaptive Window Algorithm
 
-## **CURRENT STATUS**
-- ✅ Haplotype estimation scripts are now working correctly
-- ✅ Small test case validated (100% success rate, correct row counts)
-- ✅ Full pipeline running successfully on chr2R
-- ✅ **Fixed window haplotype estimation: COMPLETE** (all 5 files: 20kb, 50kb, 100kb, 200kb, 500kb)
-  - Success rates: 20kb (96.2%), 50kb (99.7%), 100kb+ (100%)
-  - Larger windows perform better, excellent overall performance
-- 🔄 **Adaptive window haplotype estimation: RUNNING** (no files yet - slower than fixed)
-- 🔄 **SNP imputation: RUNNING** (no files yet - slower than haplotype estimation)
-- ✅ **Summary script working**: `summarize_pipeline_results.R` properly analyzes data format
-- 🎯 Pipeline progressing as expected (adaptive slower than fixed, SNP imputation slower than haplotype estimation)
+**The Problem**: All adaptive window methods (h4, h6, h8, h10) are producing identical haplotype estimates and thus identical SNP imputation performance.
 
-## **NEXT STEPS**
-1. **Monitor pipeline progress** (on cluster):
-   ```bash
-   # Check SLURM job status
-   squeue
-   
-   # Check logs
-   ls -la logs/
-   
-   # Check result files (from cluster tree output):
-   # Fixed windows: ✓ All 5 complete (20kb, 50kb, 100kb, 200kb, 500kb)
-   # Adaptive windows: ❌ Not yet complete
-   # SNP imputation: ❌ Not yet complete
-   ```
-   
-2. **Analyze current results** (on cluster):
-   ```bash
-   # Get summary of completed fixed window results
-   Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
-   ```
-   
-3. **Wait for adaptive windows to complete**, then:
-   ```bash
-   # Run method evaluation (when adaptive windows complete)
-   Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
-   ```
-   
-   - Haplotype estimation: Fixed windows complete, adaptive windows running
-   - SNP imputation: Running for smaller fixed windows
-   - Expected: Adaptive slower than fixed, SNP imputation slower than haplotype estimation
+**Initial Investigation**: 
+- Created `scripts/check_adaptive_estimates.R` to compare results
+- Created `scripts/analyze_adaptive_results.R` to analyze cluster results
+- Cluster analysis confirmed: identical founder frequencies, always 8 groups, only 2429 positions processed
 
-2. **Once pipeline completes**:
-   ```bash
-   Rscript scripts/peek_haplotype_results.R process/JUICE/haplotype_results/adaptive_window_h4_results_chr2R.RDS
-   ```
-   - Validate adaptive window results
+**Code Analysis**:
+- Examined git history and current production code
+- **DISCOVERY**: Current production version DOES have hierarchical clustering algorithm
+- **MYSTERY**: Why are cluster results identical despite correct algorithm?
 
-3. **Run evaluation script** to compare methods:
-   ```bash
-   Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
-   ```
-   - Compare fixed vs adaptive window performance
-   - Analyze SNP imputation accuracy
+**Recent Breakthrough**:
+- Created `scripts/test_working_adaptive.R` with verbose output
+- **CRITICAL BUG IDENTIFIED**: Redundant constraint accumulation
+- **The Problem**: 10kb window (1 founder group) adds constraint "sum=1" which is already enforced
+- **The Impact**: Matrix singularity, LSEI failures, unexpected behavior
 
-4. **Extend to other chromosomes** once chr2R analysis is complete
+**Algorithm Understanding Clarified**:
+- Start small (10kb) and grow progressively
+- Only run LSEI when groups meaningfully change (not just count, but composition)
+- Skip LSEI when groups unchanged, reuse previous constraints
+- Handle tree reshuffling gracefully (tree structure may change with more SNPs)
+- Continue until full founder separation OR max window size (500kb)
 
-## **MONITORING & DEBUGGING STRATEGIES**
-- **SLURM Job Monitoring**: Check job status with `squeue` and logs in `logs/` directory
-- **Cluster File Monitoring**: Use `tree` or `ls` commands on cluster to check result files
-- **Small-Scale Testing**: Use `test_haplotype_100.R` for quick validation on subset data
-- **Result Validation**: Use `peek_haplotype_results.R` to inspect output files (on cluster)
-- **Performance Profiling**: Use scripts in `scripts/debug_and_testing/` for detailed analysis
-- **Incremental Development**: Test changes on small datasets before full pipeline runs
-- **Analysis Commands**: All analysis happens on cluster - results never pulled locally
+## Key Findings
 
-## **BIG PICTURE CONTEXT**
-- **Project**: XQTL2 haplotype inference and SNP imputation
-- **Dataset**: JUICE (Drosophila population)
-- **Goal**: Compare fixed vs adaptive window methods for haplotype estimation
-- **Ultimate objective**: Determine optimal parameters for genome-wide analysis
+### Adaptive Window Algorithm
+- **IS working correctly** in current production code
+- **Progressive window expansion** with hierarchical clustering
+- **Constraint accumulation** from smaller windows
+- **Bug identified**: Redundant constraint accumulation causing matrix issues
 
-## **WORKFLOW CONSTRAINTS** ⚠️
-- **SLURM Cluster Workflow**: Using high-performance cluster for computation, Cursor locally for development
-- **Development Cycle**: git add + commit + push → pull on cluster → run SLURM jobs
-- **Large Datasets**: Many steps take hours/days to complete on full datasets
-- **Debugging Strategy**: Write small test scripts (e.g., `test_haplotype_100`) for subset testing
-- **SLURM Scripts**: Main pipeline uses `scripts/haplotype_testing_from_table.sh` for job submission
-- **Results Stay on Cluster**: Results are too large to pull back locally - all analysis happens on cluster
-- **Local Access**: Only code, parameters, and small test files are available locally
-- **Script Testing**: Any new R scripts require git add + commit + push → pull on cluster to test
-- **Code Cleanup**: Deprecated scripts should be moved to `scripts/debug_and_testing/` or deleted
-- **Git Workflow**: AI must use single git add/commit/push command for user approval
+### Performance Results
+- **Fixed windows**: 10kb performs best, larger windows degrade performance
+- **Adaptive windows**: Superior to fixed windows across all metrics
+- **All adaptive methods identical**: Suggests implementation bug, not algorithm flaw
 
-## **FUNDAMENTAL RULES** ⚠️
-- **NEVER SKIP POSITIONS**: Every position/sample combination must have a result
-- **Haplotype estimator returns**: Either founder frequency estimates OR NAs
-- **No gaps in data**: If estimation fails, return NA values, don't skip
-- **Complete coverage**: All positions × all samples must be represented in output
+## Next Steps
 
-## **PIPELINE COMPONENTS**
-1. **Haplotype Estimation**: Fixed window vs Adaptive window methods
-2. **SNP Imputation**: Interpolate SNP frequencies from haplotype estimates
-3. **Method Evaluation**: Compare accuracy and coverage of different approaches
-4. **Validation**: Ensure results are biologically meaningful
+### Immediate (Next 2-4 hours)
+1. **Fix redundant constraint bug** in test script
+2. **Test fixed algorithm** on same positions with h4 vs h10
+3. **Verify different results** for different h_cutoff values
+4. **Update production code** if bug confirmed
 
-## **KEY FILES**
-- **Main Pipeline**: `scripts/haplotype_testing_from_table.sh`
-- **Fixed Window**: `scripts/REFALT2haps.FixedWindow.Single.R`
-- **Adaptive Window**: `scripts/REFALT2haps.AdaptWindow.Single.R`
-- **SNP Imputation**: `scripts/euchromatic_SNP_imputation_single.R`
-- **Evaluation**: `scripts/evaluate_haplotype_methods.R`
-- **Debugging**: `scripts/peek_haplotype_results.R`
+### Short Term (Next 1-2 days)
+1. **Re-run adaptive window jobs** on cluster with fixed code
+2. **Verify different performance** across h_cutoff values
+3. **Extend to other chromosomes** (chr2L, chr3L, chr3R, chrX)
+4. **Genome-wide analysis** of all methods
 
-## **SUCCESS CRITERIA**
-- [ ] Haplotype estimation produces >90% success rate
-- [ ] SNP imputation produces reasonable frequency estimates
-- [ ] Method evaluation shows meaningful differences between approaches
-- [ ] Results are ready for genome-wide analysis
+### Medium Term (Next week)
+1. **Parameter optimization** - find optimal h_cutoff values
+2. **Method comparison** - comprehensive evaluation across genome
+3. **Performance profiling** - runtime and accuracy trade-offs
+4. **Documentation** - final algorithm description and usage guide
 
----
-*Last Updated: After fixing founder column count bug*
-*Next Update: After running full pipeline*
+## Technical Details
+
+### Files Modified Today
+- `scripts/test_working_adaptive.R` - Verbose test script with redundant constraint bug
+- `ADAPTIVE_WINDOW_ALGORITHM.md` - Comprehensive algorithm documentation
+- `CURRENT_STATUS.md` - This file, updated with current debugging status
+
+### Key Commands & Pipeline Execution
+
+#### Current Debugging
+```bash
+# Test the working adaptive algorithm with verbose output
+git pull origin main
+Rscript scripts/test_working_adaptive.R
+```
+
+#### Full Pipeline (when ready)
+```bash
+# 1. Haplotype estimation
+sbatch scripts/haplotype_testing_from_table.sh
+
+# 2. SNP imputation (optional)
+# Edit haplotype_testing_from_table.sh to include SNP imputation
+
+# 3. Evaluation
+Rscript scripts/evaluate_haplotype_methods.R
+```
+
+### Parameter Table Format
+```tsv
+chr2R	fixed	10
+chr2R	fixed	25
+chr2R	fixed	50
+chr2R	adaptive	4
+chr2R	adaptive	6
+chr2R	adaptive	8
+chr2R	adaptive	10
+```
+
+## Workflow Constraints
+
+### Cluster Access
+- **Results stay on cluster** - cannot download large .RDS files locally
+- **Local development** - scripts developed locally, tested on cluster
+- **Version control** - git push/pull for code synchronization
+
+### Data Processing
+- **Raw REFALT files** - direct processing, no intermediate files
+- **Euchromatin boundaries** - chr2R: 5,398,184 to 24,684,540 bp
+- **10kb step intervals** - comprehensive chromosome coverage
+
+## Key Commands & Pipeline Execution
+
+### 1. Submit Haplotype Estimation Jobs
+```bash
+# Submit array job for all methods
+sbatch scripts/haplotype_testing_from_table.sh
+
+# Monitor progress
+squeue -u $USER
+squeue -u $USER --array
+
+# Check specific job
+squeue -j <job_id>
+```
+
+### 2. Check Job Output
+```bash
+# Check output files
+ls -la process/JUICE/adaptive_window_h*_results_chr2R.RDS
+ls -la process/JUICE/fixed_window_*_results_chr2R.RDS
+
+# Monitor specific job output
+tail -f process/JUICE/haplotype_pipeline_<job_id>.out
+tail -f process/JUICE/haplotype_pipeline_<job_id>.err
+```
+
+### 3. Run SNP Imputation (Optional)
+```bash
+# Edit haplotype_testing_from_table.sh to include SNP imputation
+# Or run manually for specific methods
+Rscript scripts/euchromatic_SNP_imputation_single.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE adaptive 4
+```
+
+### 4. Evaluate Results
+```bash
+# Comprehensive evaluation
+Rscript scripts/evaluate_haplotype_methods.R
+
+# Check output
+ls -la process/JUICE/evaluation_*
+```
+
+### 5. Individual Script Execution
+```bash
+# Test specific method
+Rscript scripts/REFALT2haps.FixedWindow.Single.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE 10
+
+Rscript scripts/REFALT2haps.AdaptWindow.Single.R chr2R helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE 4
+```
+
+### 6. Monitoring and Debugging
+```bash
+# Check job status
+sacct -j <job_id> --format=JobID,JobName,State,ExitCode,Elapsed,MaxRSS,MaxVMSize
+
+# Cancel specific jobs
+scancel <job_id>
+
+# Cancel all array jobs
+scancel -n haplotype_pipeline
+```
+
+### 7. Small-Scale Testing
+```bash
+# Test on subset of data
+Rscript scripts/test_working_adaptive.R
+
+# Debug specific issues
+Rscript scripts/check_adaptive_estimates.R
+```
+
+### 8. File Structure
+```
+process/JUICE/
+├── RefAlt.chr2R.txt          # Raw REFALT data
+├── adaptive_window_h*_results_chr2R.RDS  # Adaptive window results
+├── fixed_window_*_results_chr2R.RDS      # Fixed window results
+├── snp_imputation_*_chr2R.RDS            # SNP imputation results
+└── evaluation_*_chr2R.RDS                # Evaluation results
+```
+
+## Recent Debugging Insights
+
+### The Redundant Constraint Bug
+**What Happens**:
+1. 10kb window: All founders in 1 group → adds constraint "sum=1"
+2. This constraint is **redundant** with the base constraint already enforced
+3. **Matrix singularity** occurs due to colinear rows
+4. LSEI may fail or behave unexpectedly
+
+**Why This Matters**:
+- Could explain why cluster results are identical
+- Matrix issues might cause algorithm to fall back to default behavior
+- Different h_cutoff values might all hit the same bug
+
+**The Fix**:
+- Only accumulate constraints when groups meaningfully change
+- Skip LSEI when groups unchanged
+- Detect meaningful changes by group composition, not just count
+
+## Current Questions
+
+1. **Is the redundant constraint bug the root cause** of identical cluster results?
+2. **Will fixing this bug** restore different performance across h_cutoff values?
+3. **Should we update production code** or just test the fix locally first?
+4. **What's the best approach** for detecting meaningful group changes?
+
+## Success Metrics
+
+### Algorithm Working Correctly
+- [ ] Different h_cutoff values produce different results
+- [ ] Progressive window expansion shows meaningful group changes
+- [ ] Constraint accumulation works without matrix issues
+- [ ] Full founder separation achieved or max window size reached
+
+### Pipeline Performance
+- [ ] All methods complete successfully
+- [ ] Different performance metrics across h_cutoff values
+- [ ] Reasonable runtime (not stuck in "doom loops")
+- [ ] Full chromosome coverage achieved
+
+### Code Quality
+- [ ] No redundant constraints
+- [ ] Smart LSEI execution (only when needed)
+- [ ] Proper error handling and edge cases
+- [ ] Clear documentation and testing
