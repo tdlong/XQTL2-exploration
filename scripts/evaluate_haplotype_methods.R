@@ -197,7 +197,7 @@ for (estimator in names(imputation_results)) {
     rename(observed_freq = freq) %>%
     left_join(
       imputed_data %>% 
-        select(pos, sample, imputed_freq = freq),
+        select(pos, sample, imputed_freq = imputed),
       by = c("POS" = "pos", "name" = "sample")
     )
   
