@@ -263,7 +263,27 @@ overall_summary <- overall_metrics %>%
   ) %>%
   arrange(mean_mse)
 
-print(overall_summary)
+# Format the table with better precision and column handling
+cat("\nPerformance Summary (sorted by MSE):\n")
+cat("=", strrep("=", 100), "\n", sep = "")
+cat(sprintf("%-20s %8s %10s %10s %10s %12s %8s\n", 
+            "Estimator", "Coverage", "MSE", "RMSE", "MAE", "Correlation", "Samples"))
+cat(strrep("-", 100), "\n")
+
+for (i in 1:nrow(overall_summary)) {
+  row <- overall_summary[i, ]
+  cat(sprintf("%-20s %8.3f %10.6f %10.6f %10.6f %12.6f %8d\n",
+              row$estimator,
+              row$mean_coverage,
+              row$mean_mse,
+              row$mean_rmse,
+              row$mean_mae,
+              row$mean_correlation,
+              row$n_samples))
+}
+
+cat(strrep("-", 100), "\n")
+cat("\n")
 
 # =============================================================================
 # Create visualizations
@@ -355,6 +375,193 @@ plot_file <- file.path(results_dir, paste0("haplotype_evaluation_plots_", chr, "
 ggsave(plot_file, combined_plot, width = 16, height = 12, dpi = 300)
 
 # =============================================================================
+# Sliding Window Analysis
+# =============================================================================
+
+cat("\n=== SLIDING WINDOW ANALYSIS ===\n")
+
+# Parameters for sliding window
+window_size <- 250  # SNPs per window
+step_size <- 50     # SNPs per step
+
+# Get all unique SNP positions
+all_positions <- observed_data %>%
+  distinct(CHROM, POS) %>%
+  arrange(POS) %>%
+  pull(POS)
+
+cat("Total SNP positions:", length(all_positions), "\n")
+cat("Window size:", window_size, "SNPs\n")
+cat("Step size:", step_size, "SNPs\n")
+
+# Calculate window starts
+window_starts <- seq(1, length(all_positions) - window_size + 1, by = step_size)
+cat("Number of windows:", length(window_starts), "\n\n")
+
+# Function to calculate window performance
+calculate_window_performance <- function(window_start_idx, positions, observed_data, imputed_data) {
+  # Get SNP positions for this window
+  window_positions <- positions[window_start_idx:(window_start_idx + window_size - 1)]
+  
+  # Get observed data for these positions
+  window_observed <- observed_data %>%
+    filter(POS %in% window_positions) %>%
+    select(CHROM, POS, name, freq) %>%
+    rename(observed_freq = freq)
+  
+  # Get imputed data for these positions
+  window_imputed <- imputed_data %>%
+    filter(pos %in% window_positions) %>%
+    select(pos, sample, imputed_freq = imputed)
+  
+  # Merge observed and imputed data
+  window_comparison <- window_observed %>%
+    left_join(
+      window_imputed,
+      by = c("POS" = "pos", "name" = "sample")
+    )
+  
+  # Calculate MSE for this window
+  window_mse <- window_comparison %>%
+    filter(!is.na(imputed_freq)) %>%
+    summarize(
+      mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
+      n_snps = n(),
+      n_samples = n_distinct(name)
+    )
+  
+  # Calculate mean position for this window
+  mean_position <- mean(window_positions)
+  
+  return(list(
+    window_start_idx = window_start_idx,
+    mean_position = mean_position,
+    mse = window_mse$mse,
+    n_snps = window_mse$n_snps,
+    n_samples = window_mse$n_samples
+  ))
+}
+
+# Calculate sliding window performance for all estimators
+cat("Calculating sliding windows for all estimators...\n")
+sliding_window_results <- list()
+
+for (estimator in names(imputation_results)) {
+  cat("Processing", estimator, "...\n")
+  
+  estimator_results <- list()
+  
+  for (i in seq_along(window_starts)) {
+    window_start_idx <- window_starts[i]
+    
+    # Progress indicator
+    if (i %% 100 == 0) {
+      cat("  Window", i, "/", length(window_starts), "\n")
+    }
+    
+    window_perf <- calculate_window_performance(
+      window_start_idx, 
+      all_positions, 
+      observed_data, 
+      imputation_results[[estimator]]
+    )
+    
+    estimator_results[[i]] <- window_perf
+  }
+  
+  # Convert to data frame
+  estimator_df <- bind_rows(estimator_results) %>%
+    mutate(estimator = estimator)
+  
+  sliding_window_results[[estimator]] <- estimator_df
+  
+  cat("  ✓ Completed", estimator, "(", nrow(estimator_df), "windows)\n")
+}
+
+# Combine all results
+all_sliding_results <- bind_rows(sliding_window_results)
+
+cat("\n✓ Sliding window analysis complete\n")
+cat("Total windows analyzed:", nrow(all_sliding_results), "\n\n")
+
+# Create sliding window plot
+cat("Creating sliding window plot...\n")
+
+sliding_plot <- all_sliding_results %>%
+  ggplot(aes(x = mean_position / 1e6, y = sqrt(mse), color = estimator)) +
+  geom_line(alpha = 0.8, linewidth = 0.8) +
+  geom_point(alpha = 0.6, size = 0.5) +
+  labs(
+    title = paste("Sliding Window Performance:", chr),
+    subtitle = paste("250 SNP windows, 50 SNP steps | Euchromatin:", euchromatin_start/1e6, "-", euchromatin_end/1e6, "Mb"),
+    x = "Position (Mb)",
+    y = "√MSE (Root Mean Squared Error)",
+    color = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 8),
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 10)
+  ) +
+  scale_color_viridis_d(option = "plasma")
+
+# Create sliding window summary
+cat("\n=== SLIDING WINDOW SUMMARY ===\n")
+
+window_summary <- all_sliding_results %>%
+  group_by(estimator) %>%
+  summarize(
+    mean_sqrt_mse = mean(sqrt(mse), na.rm = TRUE),
+    median_sqrt_mse = median(sqrt(mse), na.rm = TRUE),
+    sd_sqrt_mse = sd(sqrt(mse), na.rm = TRUE),
+    min_sqrt_mse = min(sqrt(mse), na.rm = TRUE),
+    max_sqrt_mse = max(sqrt(mse), na.rm = TRUE),
+    n_windows = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(mean_sqrt_mse)
+
+# Print formatted sliding window summary
+cat("\nSliding Window Summary (sorted by mean √MSE):\n")
+cat("=", strrep("=", 120), "\n", sep = "")
+cat(sprintf("%-20s %12s %12s %12s %12s %12s %8s\n", 
+            "Estimator", "Mean √MSE", "Median √MSE", "SD √MSE", "Min √MSE", "Max √MSE", "Windows"))
+cat(strrep("-", 120), "\n")
+
+for (i in 1:nrow(window_summary)) {
+  row <- window_summary[i, ]
+  cat(sprintf("%-20s %12.6f %12.6f %12.6f %12.6f %12.6f %8d\n",
+              row$estimator,
+              row$mean_sqrt_mse,
+              row$median_sqrt_mse,
+              row$sd_sqrt_mse,
+              row$min_sqrt_mse,
+              row$max_sqrt_mse,
+              row$n_windows))
+}
+
+cat(strrep("-", 120), "\n")
+cat("\n")
+
+# Save sliding window results
+sliding_file <- file.path(results_dir, paste0("sliding_window_results_", chr, ".RDS"))
+saveRDS(all_sliding_results, sliding_file)
+
+# Save sliding window summary
+sliding_summary_file <- file.path(results_dir, paste0("sliding_window_summary_", chr, ".RDS"))
+saveRDS(window_summary, sliding_summary_file)
+
+# Save sliding window plot
+sliding_plot_file <- file.path(results_dir, paste0("sliding_window_plot_", chr, ".png"))
+ggsave(sliding_plot_file, sliding_plot, width = 14, height = 8, dpi = 300)
+
+cat("Sliding window results:", sliding_file, "\n")
+cat("Sliding window summary:", sliding_summary_file, "\n")
+cat("Sliding window plot:", sliding_plot_file, "\n")
+
+# =============================================================================
 # Print recommendations
 # =============================================================================
 
@@ -383,5 +590,8 @@ cat("Summary statistics:", summary_file, "\n")
 cat("Detailed metrics:", detailed_file, "\n")
 cat("Regional analysis:", regional_file, "\n")
 cat("Evaluation plots:", plot_file, "\n")
+cat("Sliding window results:", sliding_file, "\n")
+cat("Sliding window summary:", sliding_summary_file, "\n")
+cat("Sliding window plot:", sliding_plot_file, "\n")
 
 cat("\n=== EVALUATION COMPLETE ===\n")
