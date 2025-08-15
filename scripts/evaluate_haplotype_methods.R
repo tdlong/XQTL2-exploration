@@ -88,24 +88,46 @@ if (!file.exists(refalt_file)) {
   stop("REFALT data not found: ", refalt_file)
 }
 
-# Load REFALT data
-refalt_data <- read_tsv(refalt_file, col_types = cols(
-  CHROM = col_character(),
-  POS = col_integer(),
-  REF = col_character(),
-  ALT = col_character(),
-  name = col_character(),
-  REF_count = col_integer(),
-  ALT_count = col_integer()
-))
+# Load REFALT data - use same format as other scripts
+refalt_data <- read.table(refalt_file, header = TRUE)
 
-# Calculate observed frequencies
-observed_data <- refalt_data %>%
+# Transform to frequencies (same as other scripts)
+cat("Converting counts to frequencies...\n")
+refalt_processed <- refalt_data %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
-    total_count = REF_count + ALT_count,
-    freq = ALT_count / total_count
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
   ) %>%
-  filter(total_count > 0)  # Remove positions with no coverage
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    total_count = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+# Filter for high-quality SNPs (same as other scripts)
+cat("Filtering for high-quality SNPs...\n")
+good_snps <- refalt_processed %>%
+  filter(name %in% founders) %>%
+  group_by(CHROM, POS) %>%
+  summarize(
+    zeros = sum(total_count == 0),
+    not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95)
+  ) %>%
+  ungroup() %>%
+  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
+  select(c(CHROM, POS))
+
+# Get valid SNPs for evaluation (euchromatin only)
+observed_data <- good_snps %>%
+  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
+  left_join(refalt_processed, multiple = "all")
+
+cat("✓ Valid euchromatic SNPs for evaluation:", nrow(observed_data %>% distinct(CHROM, POS)), "\n\n")
 
 # Filter to euchromatin and non-founder samples
 observed_euchromatic <- observed_data %>%
