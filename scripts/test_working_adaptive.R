@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # Test script with the working adaptive window algorithm from August 12th
-# This tests the hierarchical clustering approach on a couple of positions
+# This tests the hierarchical clustering approach on a couple of positions with different h_cutoffs
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -74,7 +74,7 @@ window_sizes <- c(base_window_size,
                   base_window_size * 50)  # Max 500kb
 
 # Function to run adaptive window algorithm for one position and h_cutoff
-run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
+run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name, verbose = TRUE) {
   cat("=== Testing position", test_pos, "with h_cutoff", h_cutoff, "for sample", sample_name, "===\n")
   
   # Initialize constraints for this h_cutoff
@@ -90,11 +90,15 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
   for (window_idx in seq_along(window_sizes)) {
     current_window_size <- window_sizes[window_idx]
     
-    cat("  Window size:", current_window_size/1000, "kb\n")
+    cat("  --- Window size:", current_window_size/1000, "kb ---\n")
     
     # Create window around test position
     window_start <- max(0, test_pos - current_window_size/2)
     window_end <- test_pos + current_window_size/2
+    
+    if (verbose) {
+      cat("    Window:", window_start, "-", window_end, "bp (centered at", test_pos, "bp)\n")
+    }
     
     # Get SNPs in this expanding window
     window_snps <- df3 %>%
@@ -119,6 +123,10 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
       next
     }
     
+    if (verbose) {
+      cat("    SNPs in window:", nrow(founder_matrix), "\n")
+    }
+    
     # Convert to matrix for clustering
     founder_matrix <- as.matrix(founder_matrix)
     
@@ -132,7 +140,7 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
     
     # Check if clustering improved (more groups = better separation)
     if (window_idx > 1 && n_groups <= previous_n_groups) {
-      cat("    Clustering not improved, skipping to next window\n")
+      cat("    Clustering not improved (", n_groups, " groups vs ", previous_n_groups, "), skipping to next window\n")
       next
     }
     
@@ -140,9 +148,11 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
     previous_n_groups <- n_groups
     
     # Show group composition
-    for (group_id in unique(founder_clusters)) {
-      group_founders <- names(founder_clusters[founder_clusters == group_id])
-      cat("      Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
+    if (verbose) {
+      for (group_id in unique(founder_clusters)) {
+        group_founders <- names(founder_clusters[founder_clusters == group_id])
+        cat("      Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
+      }
     }
     
     # Build constraint matrix with accumulated constraints from smaller windows
@@ -154,7 +164,9 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
     if (!is.null(accumulated_constraints)) {
       E <- rbind(E, accumulated_constraints)
       F <- c(F, accumulated_constraint_values)
-      cat("    Added", nrow(accumulated_constraints), "accumulated constraints\n")
+      if (verbose) {
+        cat("    Added", nrow(accumulated_constraints), "accumulated constraints\n")
+      }
     }
     
     # Get unique clusters
@@ -168,10 +180,19 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
       if (result$IsError == 0) {
         cat("    ✓ LSEI successful\n")
         
+        # Show frequency estimates for this window
+        if (verbose) {
+          cat("    Frequency estimates:\n")
+          for (i in seq_along(founders)) {
+            cat("      ", founders[i], ":", sprintf("%.4f", result$X[i]), "\n")
+          }
+        }
+        
         # Accumulate constraints for next (larger) window
         current_constraints <- NULL
         current_constraint_values <- NULL
         
+        if (verbose) cat("    Building constraints for next window:\n")
         for (cluster_id in unique_clusters) {
           cluster_founders <- which(founder_clusters == cluster_id)
           if (length(cluster_founders) > 1) {
@@ -182,15 +203,22 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
             # Calculate the actual group frequency from lsei result
             group_freq <- sum(result$X[cluster_founders])
             
-            cat("      Group", cluster_id, "frequency:", round(group_freq, 4), "\n")
+            if (verbose) {
+              cat("      Group", cluster_id, "(", paste(names(founder_clusters[founder_clusters == cluster_id]), collapse = ", "), "): ", 
+                  sprintf("%.4f", group_freq), " (constraint: sum = ", sprintf("%.4f", group_freq), ")\n")
+            }
             
             current_constraints <- rbind(current_constraints, constraint_row)
             current_constraint_values <- c(current_constraint_values, group_freq)
           } else {
             # Single founder: lock their exact frequency
+            founder_name <- names(founder_clusters[founder_clusters == cluster_id])
             founder_freq <- result$X[cluster_founders]
             
-            cat("      Single founder frequency:", round(founder_freq, 4), "\n")
+            if (verbose) {
+              cat("      Group", cluster_id, "(", founder_name, "): ", 
+                  sprintf("%.4f", founder_freq), " (locked: ", founder_name, " = ", sprintf("%.4f", founder_freq), ")\n")
+            }
             
             # Create constraint: this founder = their exact frequency
             constraint_row <- rep(0, n_founders)
@@ -205,12 +233,16 @@ run_adaptive_window_test <- function(test_pos, h_cutoff, sample_name) {
         if (!is.null(current_constraints)) {
           accumulated_constraints <- current_constraints
           accumulated_constraint_values <- current_constraint_values
-          cat("    ✓ Accumulated", nrow(current_constraints), "constraints for next window\n")
+          if (verbose) {
+            cat("    ✓ Accumulated", nrow(current_constraints), "group constraints for next window\n")
+          }
         } else {
           # If no constraints (e.g., all founders in 1 group), reset to NULL
           accumulated_constraints <- NULL
           accumulated_constraint_values <- NULL
-          cat("    ✓ No meaningful constraints to accumulate\n")
+          if (verbose) {
+            cat("    ✓ No meaningful constraints to accumulate, resetting for next window\n")
+          }
         }
         
         # Store the best result for this position/h_cutoff
@@ -259,7 +291,7 @@ for (test_pos in test_positions) {
   for (h_cutoff in test_h_cutoffs) {
     for (sample_name in head(non_founder_samples, 1)) {  # Test just first sample
       result_key <- paste0("pos_", test_pos, "_h", h_cutoff, "_", sample_name)
-      results[[result_key]] <- run_adaptive_window_test(test_pos, h_cutoff, sample_name)
+      results[[result_key]] <- run_adaptive_window_test(test_pos, h_cutoff, sample_name, verbose = TRUE)
       cat("\n")
     }
   }
