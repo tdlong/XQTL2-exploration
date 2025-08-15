@@ -87,8 +87,8 @@ if (!file.exists(refalt_file)) {
 }
 
 # Load and process REFALT data
-# Handle mixed delimiters: tabs in header, spaces in data
-df <- read.table(refalt_file, header = TRUE, sep = "\t", fill = TRUE)
+# Let read.table auto-detect delimiters (like fixed window script)
+df <- read.table(refalt_file, header = TRUE)
 cat("✓ Raw REFALT data loaded:", nrow(df), "rows\n")
 
 # Transform REF/ALT counts to frequencies (same as haplotype scripts)
