@@ -381,8 +381,8 @@ ggsave(plot_file, combined_plot, width = 16, height = 12, dpi = 300)
 cat("\n=== SLIDING WINDOW ANALYSIS ===\n")
 
 # Parameters for sliding window
-window_size <- 250  # SNPs per window
-step_size <- 50     # SNPs per step
+window_size <- 2500  # SNPs per window (increased from 250)
+step_size <- 500     # SNPs per step (increased from 50)
 
 # Get all unique SNP positions
 all_positions <- observed_data %>%
@@ -490,7 +490,7 @@ sliding_plot <- all_sliding_results %>%
   geom_point(alpha = 0.6, size = 0.5) +
   labs(
     title = paste("Sliding Window Performance:", chr),
-    subtitle = paste("250 SNP windows, 50 SNP steps | Euchromatin:", euchromatin_start/1e6, "-", euchromatin_end/1e6, "Mb"),
+    subtitle = paste("2500 SNP windows, 500 SNP steps | Euchromatin:", euchromatin_start/1e6, "-", euchromatin_end/1e6, "Mb"),
     x = "Position (Mb)",
     y = "√MSE (Root Mean Squared Error)",
     color = "Estimator"
