@@ -25,7 +25,7 @@ if (dir.exists(results_dir)) {
 cat("\n")
 
 # Load haplotype results for different adaptive methods
-adaptive_methods <- c("adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10")
+adaptive_methods <- c("adaptive_window_h4", "adaptive_window_h6", "adaptive_window_h8", "adaptive_window_h10")
 results_list <- list()
 
 for (method in adaptive_methods) {
