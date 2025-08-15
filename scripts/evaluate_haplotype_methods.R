@@ -398,88 +398,85 @@ cat("Step size:", step_size, "SNPs\n")
 window_starts <- seq(1, length(all_positions) - window_size + 1, by = step_size)
 cat("Number of windows:", length(window_starts), "\n\n")
 
-# Function to calculate window performance
-calculate_window_performance <- function(window_start_idx, positions, observed_data, imputed_data) {
-  # Get SNP positions for this window
-  window_positions <- positions[window_start_idx:(window_start_idx + window_size - 1)]
-  
-  # Get observed data for these positions
-  window_observed <- observed_data %>%
-    filter(POS %in% window_positions) %>%
-    select(CHROM, POS, name, freq) %>%
-    rename(observed_freq = freq)
-  
-  # Get imputed data for these positions
-  window_imputed <- imputed_data %>%
-    filter(pos %in% window_positions) %>%
-    select(pos, sample, imputed_freq = imputed)
-  
-  # Merge observed and imputed data
-  window_comparison <- window_observed %>%
-    left_join(
-      window_imputed,
-      by = c("POS" = "pos", "name" = "sample")
-    )
-  
-  # Calculate MSE for this window
-  window_mse <- window_comparison %>%
-    filter(!is.na(imputed_freq)) %>%
-    summarize(
-      mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
-      n_snps = n(),
-      n_samples = n_distinct(name)
-    )
-  
-  # Calculate mean position for this window
-  mean_position <- mean(window_positions)
-  
-  return(list(
-    window_start_idx = window_start_idx,
-    mean_position = mean_position,
-    mse = window_mse$mse,
-    n_snps = window_mse$n_snps,
-    n_samples = window_mse$n_samples
-  ))
-}
-
 # Calculate sliding window performance for all estimators
 cat("Calculating sliding windows for all estimators...\n")
-sliding_window_results <- list()
+
+# Create efficient sliding window analysis using vectorized operations
+all_sliding_results <- list()
 
 for (estimator in names(imputation_results)) {
   cat("Processing", estimator, "...\n")
   
-  estimator_results <- list()
+  # Get imputed data for this estimator
+  imputed_data <- imputation_results[[estimator]]
   
-  for (i in seq_along(window_starts)) {
-    window_start_idx <- window_starts[i]
-    
-    # Progress indicator
-    if (i %% 100 == 0) {
-      cat("  Window", i, "/", length(window_starts), "\n")
-    }
-    
-    window_perf <- calculate_window_performance(
-      window_start_idx, 
-      all_positions, 
-      observed_data, 
-      imputation_results[[estimator]]
-    )
-    
-    estimator_results[[i]] <- window_perf
-  }
+  # Create window assignments for all SNP positions
+  window_assignments <- tibble(
+    pos_idx = seq_along(all_positions),
+    position = all_positions
+  ) %>%
+    mutate(
+      window_start = ((pos_idx - 1) %/% step_size) * step_size + 1,
+      window_id = (pos_idx - 1) %/% step_size + 1
+    ) %>%
+    filter(window_start <= length(all_positions) - window_size + 1) %>%
+    mutate(
+      window_end = window_start + window_size - 1,
+      in_window = pos_idx >= window_start & pos_idx <= window_end
+    ) %>%
+    filter(in_window)
   
-  # Convert to data frame
-  estimator_df <- bind_rows(estimator_results) %>%
+  # Get observed data with window assignments
+  observed_with_windows <- observed_data %>%
+    select(CHROM, POS, name, freq) %>%
+    rename(observed_freq = freq) %>%
+    left_join(
+      window_assignments %>% select(position, window_id),
+      by = c("POS" = "position")
+    ) %>%
+    filter(!is.na(window_id))
+  
+  # Get imputed data with window assignments
+  imputed_with_windows <- imputed_data %>%
+    select(pos, sample, imputed_freq = imputed) %>%
+    left_join(
+      window_assignments %>% select(position, window_id),
+      by = c("pos" = "position")
+    ) %>%
+    filter(!is.na(window_id))
+  
+  # Calculate MSE for each window using vectorized operations
+  window_performance <- observed_with_windows %>%
+    left_join(
+      imputed_with_windows,
+      by = c("POS" = "pos", "name" = "sample", "window_id")
+    ) %>%
+    filter(!is.na(imputed_freq)) %>%
+    group_by(window_id) %>%
+    summarize(
+      mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
+      n_snps = n(),
+      n_samples = n_distinct(name),
+      .groups = "drop"
+    ) %>%
+    left_join(
+      window_assignments %>%
+        group_by(window_id) %>%
+        summarize(
+          mean_position = mean(position),
+          .groups = "drop"
+        ),
+      by = "window_id"
+    ) %>%
     mutate(estimator = estimator)
   
-  sliding_window_results[[estimator]] <- estimator_df
+  all_sliding_results[[estimator]] <- window_performance
   
-  cat("  ✓ Completed", estimator, "(", nrow(estimator_df), "windows)\n")
+  cat("  ✓ Completed", estimator, "(", nrow(window_performance), "windows)\n")
 }
 
 # Combine all results
-all_sliding_results <- bind_rows(sliding_window_results)
+all_sliding_results <- bind_rows(all_sliding_results)
 
 cat("\n✓ Sliding window analysis complete\n")
 cat("Total windows analyzed:", nrow(all_sliding_results), "\n\n")
