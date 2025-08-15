@@ -3,6 +3,8 @@
 # Debug Production Pipeline - Step by Step Data Inspection
 # This script shows the data at each step to identify where the production pipeline fails
 
+library(tidyverse)
+
 cat("=== DEBUG PRODUCTION PIPELINE STEP BY STEP ===\n\n")
 
 # 1. Load parameters
