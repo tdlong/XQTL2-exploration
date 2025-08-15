@@ -542,21 +542,29 @@ for (i in 1:nrow(window_summary)) {
 cat(strrep("-", 120), "\n")
 cat("\n")
 
+# =============================================================================
+# Save sliding window results (computationally expensive - save for future use)
+# =============================================================================
+
+cat("Saving sliding window results (computationally expensive analysis)...\n")
+
 # Save sliding window results
 sliding_file <- file.path(results_dir, paste0("sliding_window_results_", chr, ".RDS"))
 saveRDS(all_sliding_results, sliding_file)
+cat("✓ Saved sliding window data:", sliding_file, "\n")
+cat("  (Use this file for future plot modifications without re-running analysis)\n")
 
 # Save sliding window summary
 sliding_summary_file <- file.path(results_dir, paste0("sliding_window_summary_", chr, ".RDS"))
 saveRDS(window_summary, sliding_summary_file)
+cat("✓ Saved sliding window summary:", sliding_summary_file, "\n")
 
 # Save sliding window plot
 sliding_plot_file <- file.path(results_dir, paste0("sliding_window_plot_", chr, ".png"))
 ggsave(sliding_plot_file, sliding_plot, width = 14, height = 8, dpi = 300)
+cat("✓ Saved sliding window plot:", sliding_plot_file, "\n")
 
-cat("Sliding window results:", sliding_file, "\n")
-cat("Sliding window summary:", sliding_summary_file, "\n")
-cat("Sliding window plot:", sliding_plot_file, "\n")
+cat("\n")
 
 # =============================================================================
 # Print recommendations
