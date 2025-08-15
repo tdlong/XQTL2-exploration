@@ -9,6 +9,21 @@ suppressPackageStartupMessages({
 
 cat("=== Checking Adaptive Window Haplotype Estimates ===\n")
 
+# First, let's see what haplotype result files actually exist
+cat("Checking what haplotype result files exist...\n")
+results_dir <- "process/JUICE/haplotype_results"
+if (dir.exists(results_dir)) {
+  haplotype_files <- list.files(results_dir, pattern = "*_results_chr2R.RDS", full.names = TRUE)
+  cat("Found haplotype result files:\n")
+  for (file in haplotype_files) {
+    cat("  ", basename(file), "\n")
+  }
+} else {
+  cat("Results directory not found:", results_dir, "\n")
+}
+
+cat("\n")
+
 # Load haplotype results for different adaptive methods
 adaptive_methods <- c("adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10")
 results_list <- list()
@@ -27,7 +42,10 @@ for (method in adaptive_methods) {
 }
 
 if (length(results_list) == 0) {
-  stop("No adaptive window results found!")
+  cat("\n❌ No adaptive window haplotype results found!\n")
+  cat("This explains why the SNP imputation results were identical.\n")
+  cat("The adaptive window haplotype estimation may have failed or not completed.\n")
+  quit(status = 1)
 }
 
 cat("\n=== Comparing Results ===\n")
