@@ -39,7 +39,8 @@ cat("Input file:", filein, "\n\n")
 
 # Load data
 cat("Loading data...\n")
-df <- read.table(filein, header = TRUE)
+# Handle mixed delimiters: tabs in header, spaces in data
+df <- read.table(filein, header = TRUE, sep = "\t", fill = TRUE)
 
 # Transform REF/ALT counts to frequencies
 cat("Converting counts to frequencies...\n")
