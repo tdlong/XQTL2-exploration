@@ -97,6 +97,25 @@ cat("Total positions to scan:", length(scan_positions), "\n\n")
 # Initialize results table
 results_list <- list()
 
+# Function to check if groups meaningfully changed
+groups_changed <- function(current_groups, previous_groups) {
+  if (is.null(previous_groups)) return(TRUE)
+  
+  # Check if number of groups changed
+  if (length(unique(current_groups)) != length(unique(previous_groups))) return(TRUE)
+  
+  # Check if group composition changed
+  current_group_list <- split(names(current_groups), current_groups)
+  previous_group_list <- split(names(previous_groups), previous_groups)
+  
+  # Sort by group size and founder names for comparison
+  current_sorted <- lapply(current_group_list, function(x) sort(x))
+  previous_sorted <- lapply(previous_group_list, function(x) sort(x))
+  
+  # Compare sorted group compositions
+  !identical(current_sorted, previous_sorted)
+}
+
 # Scan each position
 for (pos_idx in seq_along(scan_positions)) {
   test_pos <- scan_positions[pos_idx]
@@ -133,201 +152,168 @@ for (pos_idx in seq_along(scan_positions)) {
       next
     }
     
-    # Get founder data
-    founder_data <- df3 %>%
-      filter(name %in% founders) %>%
-      select(POS, name, freq) %>%
-      pivot_wider(names_from = name, values_from = freq)
+    # Adaptive window haplotype estimation using fixed algorithm
+    # Test multiple window sizes with hierarchical clustering and constraint accumulation
     
-    if (ncol(founder_data) < length(founders) + 1) {
-      # Return NA for missing founders
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        h_cutoff = h_cutoff,
-        n_groups = NA,
-        n_snps = nrow(sample_data)
-      )
+    # Define window sizes to try (progressive expansion)
+    base_window_size <- 10000  # Start with 10kb
+    window_sizes <- c(base_window_size, 
+                      base_window_size * 2.5, 
+                      base_window_size * 5, 
+                      base_window_size * 10, 
+                      base_window_size * 20,
+                      base_window_size * 50)  # Max 500kb
+    
+    # Initialize constraints for this h_cutoff
+    accumulated_constraints <- NULL
+    accumulated_constraint_values <- NULL
+    
+    # Track previous groups for comparison
+    previous_groups <- NULL
+    best_result <- NULL
+    best_n_groups <- 0
+    
+    # Run adaptive window algorithm
+    for (window_idx in seq_along(window_sizes)) {
+      current_window_size <- window_sizes[window_idx]
       
-      # Add founder frequencies as named columns (all NA)
-      for (i in seq_along(founders)) {
-        result_row[[founders[i]]] <- NA
+      # Create window around test position
+      window_start <- max(0, test_pos - current_window_size/2)
+      window_end <- test_pos + current_window_size/2
+      
+      # Get SNPs in this expanding window
+      window_snps <- df3 %>%
+        filter(CHROM == mychr &
+               POS > window_start &
+               POS < window_end &
+               (name %in% founders | name == sample_name)) %>%
+        select(-c(CHROM, N)) %>%
+        pivot_wider(names_from = name, values_from = freq)
+      
+      # Get founder matrix and sample frequencies
+      founder_matrix <- window_snps %>% select(all_of(founders))
+      sample_freqs <- window_snps[[sample_name]]
+      
+      # Filter for non-NA values
+      valid_positions <- !is.na(sample_freqs)
+      sample_freqs <- sample_freqs[valid_positions]
+      founder_matrix <- founder_matrix[valid_positions, ]
+      
+      if (nrow(founder_matrix) < 10) {
+        next  # Skip to next window size
       }
       
-      results_list[[length(results_list) + 1]] <- result_row
-      next
-    }
-    
-    # Prepare founder matrix (exclude POS column)
-    founder_matrix <- founder_data %>%
-      select(-POS) %>%
-      as.matrix()
-    
-    # Remove rows with any NA values
-    complete_rows <- complete.cases(founder_matrix)
-    if (sum(complete_rows) < 10) {
-      # Return NA for insufficient complete rows
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        h_cutoff = h_cutoff,
-        n_groups = NA,
-        n_snps = nrow(sample_data)
-      )
+      # Convert to matrix for clustering
+      founder_matrix <- as.matrix(founder_matrix)
       
-      # Add founder frequencies as named columns (all NA)
-      for (i in seq_along(founders)) {
-        result_row[[founders[i]]] <- NA
-      }
+      # Cluster founders based on similarity using hierarchical clustering
+      founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = h_cutoff)
       
-      results_list[[length(results_list) + 1]] <- result_row
-      next
-    }
-    
-    founder_matrix <- founder_matrix[complete_rows, ]
-    sample_freqs <- sample_data$freq[match(founder_data$POS[complete_rows], sample_data$POS)]
-    
-    # Remove NA sample frequencies
-    valid_indices <- !is.na(sample_freqs)
-    if (sum(valid_indices) < 10) {
-      # Return NA for insufficient valid frequencies
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        h_cutoff = h_cutoff,
-        n_groups = NA,
-        n_snps = nrow(sample_data)
-      )
+      # Check if groups meaningfully changed
+      groups_meaningfully_changed <- groups_changed(founder_clusters, previous_groups)
       
-      # Add founder frequencies as named columns (all NA)
-      for (i in seq_along(founders)) {
-        result_row[[founders[i]]] <- NA
-      }
-      
-      results_list[[length(results_list) + 1]] <- result_row
-      next
-    }
-    
-    founder_matrix <- founder_matrix[valid_indices, ]
-    sample_freqs <- sample_freqs[valid_indices]
-    
-    # Calculate pairwise distances between founders
-    founder_distances <- as.matrix(dist(t(founder_matrix)))
-    
-    # Find founder groups based on h_cutoff
-    founder_groups <- list()
-    used_founders <- rep(FALSE, ncol(founder_matrix))
-    
-    for (i in 1:ncol(founder_matrix)) {
-      if (used_founders[i]) next
-      
-      # Find all founders within h_cutoff distance
-      group_members <- which(founder_distances[i, ] <= h_cutoff & !used_founders)
-      if (length(group_members) > 0) {
-        founder_groups[[length(founder_groups) + 1]] <- group_members
-        used_founders[group_members] <- TRUE
-      }
-    }
-    
-    # If no groups found or only one group, return NA
-    if (length(founder_groups) <= 1) {
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        h_cutoff = h_cutoff,
-        n_groups = length(founder_groups),
-        n_snps = nrow(sample_data)
-      )
-      
-      # Add founder frequencies as named columns (all NA)
-      for (i in seq_along(founders)) {
-        result_row[[founders[i]]] <- NA
-      }
-      
-      results_list[[length(results_list) + 1]] <- result_row
-      next
-    }
-    
-    # Create reduced founder matrix by averaging within groups
-    reduced_founder_matrix <- matrix(0, nrow = nrow(founder_matrix), ncol = length(founder_groups))
-    group_names <- character(length(founder_groups))
-    
-    for (g in seq_along(founder_groups)) {
-      group_founders <- founder_groups[[g]]
-      reduced_founder_matrix[, g] <- rowMeans(founder_matrix[, group_founders, drop = FALSE])
-      group_names[g] <- paste0("Group", g, "_", paste(founders[group_founders], collapse = "_"))
-    }
-    
-    # Solve constrained least squares with reduced founder matrix
-    tryCatch({
-      result <- limSolve::lsei(A = reduced_founder_matrix, B = sample_freqs, 
-                              E = matrix(1, nrow = 1, ncol = ncol(reduced_founder_matrix)), 
-                              F = 1, G = diag(ncol(reduced_founder_matrix)), H = rep(0, ncol(reduced_founder_matrix)))
-      
-      if (result$IsError == 0) {
-        # Expand group frequencies back to individual founders
-        founder_frequencies <- rep(0, length(founders))
-        for (g in seq_along(founder_groups)) {
-          group_founders <- founder_groups[[g]]
-          founder_frequencies[group_founders] <- result$X[g] / length(group_founders)
+      if (groups_meaningfully_changed) {
+        # Run LSEI with new grouping
+        n_founders <- ncol(founder_matrix)
+        E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
+        F <- 1.0
+        
+        # Add accumulated constraints from previous windows
+        if (!is.null(accumulated_constraints)) {
+          E <- rbind(E, accumulated_constraints)
+          F <- c(F, accumulated_constraint_values)
         }
         
-        # Store results
-        result_row <- list(
-          chr = mychr,
-          pos = test_pos,
-          sample = sample_name,
-          h_cutoff = h_cutoff,
-          n_groups = length(founder_groups),
-          n_snps = nrow(sample_data)
-        )
+        # Get unique clusters
+        unique_clusters <- unique(founder_clusters)
         
-        # Add founder frequencies as named columns
-        for (i in seq_along(founders)) {
-          result_row[[founders[i]]] <- founder_frequencies[i]
-        }
-        
-        results_list[[length(results_list) + 1]] <- result_row
-      } else {
-        # Return NA for lsei error
-        result_row <- list(
-          chr = mychr,
-          pos = test_pos,
-          sample = sample_name,
-          h_cutoff = h_cutoff,
-          n_groups = length(founder_groups),
-          n_snps = nrow(sample_data)
-        )
-        
-        # Add founder frequencies as named columns (all NA)
-        for (i in seq_along(founders)) {
-          result_row[[founders[i]]] <- NA
-        }
-        
-        results_list[[length(results_list) + 1]] <- result_row
+        # Solve constrained least squares
+        tryCatch({
+          result <- limSolve::lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
+                                  G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
+          
+          if (result$IsError == 0) {
+            # Accumulate constraints for next (larger) window
+            current_constraints <- NULL
+            current_constraint_values <- NULL
+            
+            for (cluster_id in unique_clusters) {
+              cluster_founders <- which(founder_clusters == cluster_id)
+              if (length(cluster_founders) > 1) {
+                # Create constraint row for this group
+                constraint_row <- rep(0, n_founders)
+                constraint_row[cluster_founders] <- 1
+                
+                # Calculate the actual group frequency from lsei result
+                group_freq <- sum(result$X[cluster_founders])
+                
+                current_constraints <- rbind(current_constraints, constraint_row)
+                current_constraint_values <- c(current_constraint_values, group_freq)
+              } else {
+                # Single founder: lock their exact frequency
+                founder_freq <- result$X[cluster_founders]
+                
+                # Create constraint: this founder = their exact frequency
+                constraint_row <- rep(0, n_founders)
+                constraint_row[cluster_founders] <- 1
+                
+                current_constraints <- rbind(current_constraints, constraint_row)
+                current_constraint_values <- c(current_constraint_values, founder_freq)
+              }
+            }
+            
+            # Update accumulated constraints for next window
+            if (!is.null(current_constraints)) {
+              accumulated_constraints <- current_constraints
+              accumulated_constraint_values <- current_constraint_values
+            } else {
+              # If no constraints (e.g., all founders in 1 group), reset to NULL
+              accumulated_constraints <- NULL
+              accumulated_constraint_values <- NULL
+            }
+            
+            # Store the best result for this position/h_cutoff
+            best_result <- result
+            best_n_groups <- length(unique(founder_clusters))
+            
+            # Check if all founders are separated
+            if (best_n_groups == length(founders)) {
+              break  # Stop for this h_cutoff
+            }
+          }
+        }, error = function(e) {
+          # Continue to next window size
+        })
       }
-    }, error = function(e) {
-      # Return NA for any error
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        h_cutoff = h_cutoff,
-        n_groups = length(founder_groups),
-        n_snps = nrow(sample_data)
-      )
       
-      # Add founder frequencies as named columns (all NA)
-      for (i in seq_along(founders)) {
-        result_row[[founders[i]]] <- NA
-      }
-      
-      results_list[[length(results_list) + 1]] <- result_row
-    })
+      # Update previous groups for next iteration
+      previous_groups <- founder_clusters
+    }
+    
+    # Use the best result found
+    if (!is.null(best_result)) {
+      founder_frequencies <- best_result$X
+    } else {
+      # Return NA if no successful estimation
+      founder_frequencies <- rep(NA, length(founders))
+    }
+    
+    # Store results
+    result_row <- list(
+      chr = mychr,
+      pos = test_pos,
+      sample = sample_name,
+      h_cutoff = h_cutoff,
+      n_groups = best_n_groups,
+      n_snps = nrow(sample_data)
+    )
+    
+    # Add founder frequencies as named columns
+    for (i in seq_along(founders)) {
+      result_row[[founders[i]]] <- founder_frequencies[i]
+    }
+    
+    results_list[[length(results_list) + 1]] <- result_row
   }
 }
 
@@ -374,8 +360,8 @@ if (length(results_list) > 0) {
   
   # Show group summary
   cat("\nAverage number of founder groups per estimate:\n")
-  cat("Mean:", mean(results_df$n_groups), "\n")
-  cat("Range:", range(results_df$n_groups), "\n")
+  cat("Mean:", mean(results_df$n_groups, na.rm = TRUE), "\n")
+  cat("Range:", range(results_df$n_groups, na.rm = TRUE), "\n")
   
 } else {
   cat("\n❌ No haplotype estimates obtained!\n")
