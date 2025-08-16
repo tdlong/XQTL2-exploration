@@ -12,6 +12,31 @@
 
 **Why this matters**: I cannot run `ls`, check file contents, or debug cluster issues from the local terminal. All cluster operations must be documented in CURRENT_STATUS.md for reference.
 
+## 🚨 **LAWS OF ROBOTICS - CODE CHANGES** 🚨
+
+**BEFORE MAKING ANY CODE CHANGE, I MUST ALWAYS CHECK THIS CHECKLIST:**
+
+### **The 12-Step Code Change Protocol:**
+
+1. **"Is this code currently working?"** - If YES, DON'T TOUCH IT
+2. **"Has it been working for days/weeks?"** - If YES, DON'T TOUCH IT  
+3. **"Am I trying to 'improve' something that works?"** - If YES, DON'T TOUCH IT
+4. **"What actually broke, and when?"** - Find the real problem first
+5. **"Is there working code I can compare against?"** - Use it as reference
+6. **"Can I make a small, targeted fix instead of rewriting?"** - If YES, do that
+7. **"Do I understand why the current code works?"** - If NO, DON'T TOUCH IT
+8. **"Have I tested this change thoroughly?"** - If NO, DON'T DEPLOY IT
+9. **"Do I have a backup of the working version?"** - If NO, DON'T CHANGE IT
+10. **"Am I solving the user's actual problem?"** - Or just my perceived problem?
+11. **"What's the worst that could happen if I'm wrong?"** - Consider the consequences
+12. **"Should I ask the user first?"** - When in doubt, ASK
+
+### **The Golden Rule:**
+**"If it works, DON'T FIX IT. If it's broken, fix ONLY what's broken."**
+
+### **Why This Matters:**
+**I have a destructive tendency to delete working code and then spend days debugging my own unnecessary changes. This checklist prevents that.**
+
 ---
 
 ## Current Phase: Phase 4 (Method evaluation and comparison) + Pipeline Re-execution
