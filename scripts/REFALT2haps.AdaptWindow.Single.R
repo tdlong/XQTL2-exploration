@@ -204,9 +204,28 @@ for (pos_idx in seq_along(scan_positions)) {
         select(-c(CHROM, N)) %>%
         pivot_wider(names_from = name, values_from = freq)
       
+      # Get founder data for this window (copy working logic from fixed window script)
+      founder_data <- window_snps %>%
+        filter(name %in% founders) %>%
+        select(POS, name, freq) %>%
+        pivot_wider(names_from = name, values_from = freq)
+      
+      # Check if we have enough founder data
+      if (ncol(founder_data) < length(founders) + 1) {
+        next  # Skip to next window size
+      }
+      
       # Get founder matrix and sample frequencies
-      founder_matrix <- window_snps %>% select(all_of(founders))
-      sample_freqs <- window_snps[[sample_name]]
+      founder_matrix <- founder_data %>%
+        select(-POS) %>%
+        as.matrix()
+      
+      # Get sample frequencies for the same positions
+      sample_freqs <- window_snps %>%
+        filter(name == sample_name) %>%
+        select(POS, freq) %>%
+        right_join(founder_data %>% select(POS), by = "POS") %>%
+        pull(freq)
       
       # Filter for non-NA values
       valid_positions <- !is.na(sample_freqs)

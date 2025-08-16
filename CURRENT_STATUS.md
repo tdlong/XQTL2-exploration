@@ -16,26 +16,28 @@
 
 **BEFORE MAKING ANY CODE CHANGE, I MUST ALWAYS CHECK THIS CHECKLIST:**
 
-### **The 12-Step Code Change Protocol:**
+### **The Practical Code Change Protocol:**
 
-1. **"Is this code currently working?"** - If YES, DON'T TOUCH IT
-2. **"Has it been working for days/weeks?"** - If YES, DON'T TOUCH IT  
-3. **"Am I trying to 'improve' something that works?"** - If YES, DON'T TOUCH IT
-4. **"What actually broke, and when?"** - Find the real problem first
-5. **"Is there working code I can compare against?"** - Use it as reference
-6. **"Can I make a small, targeted fix instead of rewriting?"** - If YES, do that
-7. **"Do I understand why the current code works?"** - If NO, DON'T TOUCH IT
-8. **"Have I tested this change thoroughly?"** - If NO, DON'T DEPLOY IT
-9. **"Do I have a backup of the working version?"** - If NO, DON'T CHANGE IT
-10. **"Am I solving the user's actual problem?"** - Or just my perceived problem?
-11. **"What's the worst that could happen if I'm wrong?"** - Consider the consequences
-12. **"Should I ask the user first?"** - When in doubt, ASK
+#### **BEFORE MAKING MAJOR CHANGES:**
+1. **Make a backup** of the working code (git branch, copy file, etc.)
+2. **Document what the code was doing right** - capture current behavior and metrics
+3. **Document what you're trying to fix** - be specific about the actual problem
+4. **Create tests that verify the main function still works** - baseline metrics
+
+#### **AFTER MAKING CHANGES:**
+1. **Run the same tests** that the working code passed
+2. **Verify it still does its main function correctly**
+3. **Check that performance metrics haven't degraded**
+4. **Only commit if it passes all the original tests**
 
 ### **The Golden Rule:**
 **"If it works, DON'T FIX IT. If it's broken, fix ONLY what's broken."**
 
 ### **Why This Matters:**
-**I have a destructive tendency to delete working code and then spend days debugging my own unnecessary changes. This checklist prevents that.**
+**I have a destructive tendency to delete working code and then spend days debugging my own unnecessary changes. This protocol prevents that by requiring backup, documentation, and testing before any major modification.**
+
+### **The Key Insight:**
+**Make a test of the code as it is working, record metrics, and then the new code has to at least pass those same checks before committing.**
 
 ---
 
