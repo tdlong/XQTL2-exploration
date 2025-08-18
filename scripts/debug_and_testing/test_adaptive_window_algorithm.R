@@ -111,18 +111,16 @@ for (window_idx in seq_along(window_sizes)) {
   
   cat("Window range:", window_start, "to", window_end, "bp\n")
   
-  # Get SNPs in this expanding window
+  # Get SNPs in this expanding window (same as production script)
   window_snps <- df3 %>%
     filter(CHROM == "chr2R" &
            POS > window_start &
            POS < window_end &
-           (name %in% founders | name == test_sample)) %>%
-    select(-c(CHROM, N)) %>%
-    pivot_wider(names_from = name, values_from = freq)
+           (name %in% founders | name == test_sample))
   
   cat("SNPs in window:", nrow(window_snps), "\n")
   
-  # Get founder data for this window
+  # Get founder data for this window (same as production script)
   founder_data <- window_snps %>%
     filter(name %in% founders) %>%
     select(POS, name, freq) %>%
