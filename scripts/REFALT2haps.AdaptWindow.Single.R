@@ -79,12 +79,11 @@ cat("Quality-filtered positions:", length(quality_filtered_positions), "\n")
 df3 <- df2 %>%
   filter(POS %in% quality_filtered_positions)
 
-# Get all non-founder samples
-all_samples <- unique(df2$name)
-non_founder_samples <- all_samples[!all_samples %in% founders]
+# Use samples defined in parameter file instead of auto-detecting
+non_founder_samples <- names_in_bam
 
 cat("H_cutoff:", h_cutoff, "\n")
-cat("Non-founder samples:", length(non_founder_samples), "\n")
+cat("Using samples from parameter file:", length(non_founder_samples), "\n")
 cat("Samples:", paste(non_founder_samples, collapse = ", "), "\n\n")
 
 # Define scanning positions (500kb to end-500kb, 10kb steps)
@@ -95,7 +94,8 @@ if (!is.finite(chromosome_length)) {
 
 scan_start <- 500000
 scan_end <- chromosome_length - 500000
-scan_positions <- seq(scan_start, scan_end, by = 10000)
+scan_positions <- seq(scan_start, scan_end, by = step)
+cat("Using step size:", step, "bp\n")
 
 cat("Chromosome length:", chromosome_length, "bp\n")
 cat("Scanning from:", scan_start, "to", scan_end, "bp\n")

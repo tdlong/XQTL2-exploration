@@ -53,8 +53,8 @@ df3 <- df2 %>%
   filter(POS %in% quality_filtered_positions)
 
 # Get non-founder samples
-all_samples <- unique(df2$name)
-non_founder_samples <- all_samples[!all_samples %in% founders]
+# Use samples defined in parameter file
+non_founder_samples <- names_in_bam
 
 cat("✓ Data ready:", nrow(df3), "rows\n")
 
