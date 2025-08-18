@@ -1,7 +1,7 @@
 # Adaptive Window Haplotype Estimation Algorithm
 
 ## Overview
-The adaptive window algorithm is designed to estimate founder haplotype frequencies for a given genomic position by progressively expanding the analysis window while accumulating constraints from smaller windows. The key insight is that smaller windows may provide better founder separation, and these constraints can be carried forward to larger windows.
+The adaptive window algorithm estimates founder haplotype frequencies for a given genomic position by progressively expanding the analysis window until founders can be distinguished, then running LSEI estimation at the optimal window size. The algorithm outputs both haplotype frequency estimates and a quality flag indicating reliability.
 
 ## Core Algorithm Steps
 
@@ -10,61 +10,128 @@ Start with a small window (e.g., 10kb) and progressively expand to larger window
 - Window sizes: 10kb → 25kb → 50kb → 100kb → 200kb → 500kb
 - Each window is centered on the target position
 
-### 2. LSEI Haplotype Estimation (Always Run)
-For each optimal window size:
-1. **Extract data**: Founder and sample frequencies for SNPs in window
+### 2. Window Size Optimization Loop
+For each progressively larger window size:
+1. **Extract founder data** for SNPs in the current window
+2. **Hierarchical clustering**: Calculate distances and cluster founders  
+3. **Distinguishability check**: Cut tree at h_cutoff to count founder groups
+4. **Success condition**: If all founders distinguishable (n_groups = n_founders), stop and record optimal window size
+5. **Continue expansion**: If not distinguishable, try next larger window size
+
+### 3. LSEI Haplotype Estimation (At Optimal Window)
+After finding optimal window size:
+1. **Extract data**: Both founder and sample frequencies for SNPs in optimal window
 2. **Run LSEI**: Constrained least squares to get B1, B2, ..., AB8 frequencies
 3. **Constraints**: Sum to 1, non-negative, lower bound 0.0003
-4. **Output**: Actual haplotype frequencies (may be unreliable if founders not distinguishable)
+4. **Quality assessment**: Use distinguishability result to set estimate_OK flag
 
-### 3. Hierarchical Clustering Quality Check
-For founder distinguishability assessment:
-1. **Extract founder genotype data** for all SNPs in the window
-2. **Calculate pairwise distances** between founders using `dist(t(founder_matrix))`
-3. **Perform hierarchical clustering** using `hclust()` 
-4. **Cut the tree** at the specified `h_cutoff` using `cutree(hclust_result, h = h_cutoff)`
-5. **Check distinguishability**: estimate_OK = 1 if all founders separated, 0 if not
+### 4. Single Result Output
+For each position/sample combination:
+1. **One result only**: Single output per position/sample (not per window tested)
+2. **Complete data**: Haplotype frequencies (B1, B2, ..., AB8) from LSEI at optimal window
+3. **Quality flag**: estimate_OK (1=reliable, 0=unreliable, NA=LSEI failed)
+4. **Metadata**: Final window size, number of SNPs, h_cutoff parameter
 
-### 3. Smart Constraint Accumulation
-The key innovation is carrying forward constraints only when meaningful changes occur:
-- **Detect meaningful group changes**: Not just count, but check if group composition changed
-- **Skip LSEI when groups unchanged**: Reuse previous constraints and results
-- **Accumulate constraints progressively**: As groups split or reshuffle
-- **Handle reshuffling gracefully**: Tree structure may change with more SNPs
+## Key Design Principles
 
-### 4. Constraint Types
-Two types of constraints are accumulated:
+### 1. Single Output Per Position/Sample
+- **No intermediate results**: Algorithm tests multiple window sizes but outputs only final result
+- **Optimal window selection**: Uses smallest window that achieves distinguishability
+- **Complete estimation**: Always runs LSEI at chosen window size (if sufficient data)
 
-#### Group Constraints
-For founder groups that cannot be separated in larger windows:
+### 2. Quality Assessment Integration
+- **Distinguishability check**: Hierarchical clustering determines if founders can be separated
+- **Quality flag**: estimate_OK indicates reliability of haplotype estimates  
+- **Flexible threshold**: h_cutoff parameter controls clustering sensitivity
+
+### 3. Efficiency Considerations
+- **Early termination**: Stops expanding when distinguishability achieved
+- **Data filtering**: Quality filter applied once at data loading stage
+- **Memory efficient**: Processes one position/sample at a time
+
+## Mathematical Foundation: Why Constraint Accumulation Works
+
+### The Core Problem: Indistinguishable Founders
+
+When founders are very similar to each other, a fundamental mathematical issue arises:
+
+**LSEI runs perfectly and finds valid solutions, BUT individual founder frequencies become arbitrary.**
+
+#### Example Scenario:
+- Founders B1 and B2 cannot be distinguished by clustering
+- Their true combined frequency is 0.3
+- LSEI will find mathematically valid solutions like:
+  - B1=0.1, B2=0.2 (sum = 0.3) ✓
+  - B1=0.15, B2=0.15 (sum = 0.3) ✓ 
+  - B1=0.05, B2=0.25 (sum = 0.3) ✓
+
+**All solutions are equally valid mathematically, but the individual frequencies are meaningless.**
+
+### Why estimate_OK is Critical
+
+The `estimate_OK` flag captures this fundamental mathematical limitation:
+
+- **`estimate_OK = 1`**: All founders distinguishable → Individual frequencies are meaningful and trustworthy
+- **`estimate_OK = 0`**: Some founders indistinguishable → Individual frequencies are arbitrary, only group sums are reliable
+- **`estimate_OK = NA`**: LSEI failed → No valid estimates available
+
+### How Constraint Accumulation Solves This
+
+The adaptive window algorithm addresses the indistinguishability problem through progressive constraint accumulation:
+
+#### Small Window (e.g., 10kb):
+- B1 and B2 cannot be distinguished
+- LSEI estimates: B1=0.1, B2=0.2 (arbitrary individual values)
+- **Key insight**: Their sum B1+B2=0.3 is reliable
+- **Create constraint**: B1 + B2 = 0.3 (preserve the reliable sum)
+
+#### Larger Window (e.g., 25kb):
+- Include accumulated constraint: B1 + B2 = 0.3
+- Even if B1 and B2 are still indistinguishable, their sum is constrained correctly
+- If other founders become distinguishable, add new constraints
+- **Progressive refinement**: Build up reliable group sum constraints
+
+#### Final Window:
+- All accumulated constraints ensure group sums remain accurate
+- Individual frequencies within indistinguishable groups may still be arbitrary
+- But the overall solution respects all reliable group relationships discovered
+
+### The Innovation
+
+**This is why constraint accumulation is the core innovation:**
+
+1. **Preserves reliable information**: Group sums from smaller windows become constraints for larger windows
+2. **Prevents information loss**: Reliable relationships discovered early are never lost
+3. **Handles partial distinguishability**: Can work even when only some founders are distinguishable
+4. **Mathematically sound**: Ensures solutions respect all reliable relationships discovered across window sizes
+
+**Without constraint accumulation, the algorithm would just be a fixed window method with no ability to preserve reliable group relationships discovered at smaller scales.**
+
+## Algorithm Output
+
+### Output Structure
+For each genomic position and sample combination:
+```R
+# Single row with complete information:
+chr, pos, sample, h_cutoff, final_window_size, n_snps, estimate_OK, B1, B2, B3, B4, B5, B6, B7, AB8
 ```
-Group 1: B1 + B2 + B3 = 0.45  (from smaller window)
-Group 2: B4 + B5 = 0.30       (from smaller window)
-```
 
-#### Individual Constraints  
-For single founders that were isolated:
-```
-B6 = 0.15  (from smaller window)
-B7 = 0.08  (from smaller window)
-B8 = 0.02  (from smaller window)
-```
+### Output Interpretation
+- **Haplotype frequencies**: B1-AB8 values represent the estimated proportion of each founder haplotype
+- **estimate_OK values**:
+  - `1`: Reliable estimates (founders distinguishable at h_cutoff)
+  - `0`: Unreliable estimates (founders not distinguishable, but LSEI ran)
+  - `NA`: No estimates available (LSEI failed due to insufficient data)
+- **final_window_size**: Optimal window size used for estimation (in bp)
+- **n_snps**: Number of SNPs used in the final estimation
 
-### 5. Constrained Least Squares Estimation
-At each window, solve:
-```
-minimize ||A*x - b||^2
-subject to:
-  E*x = F  (equality constraints from accumulated constraints)
-  G*x >= H (inequality constraints: all frequencies >= 0.0003)
-  sum(x) = 1 (frequencies sum to 1)
-```
+## Implementation Notes
 
-Where:
-- `A` = founder genotype matrix for current window
-- `b` = sample frequencies for current window
-- `E, F` = accumulated constraints from smaller windows
-- `G, H` = non-negativity constraints
+- **Single result per position/sample**: No intermediate results from window testing phases
+- **Optimal window selection**: Uses smallest window that achieves distinguishability
+- **Complete data requirement**: Both founder and sample data must be present
+- **Quality filtering**: Applied once at data loading stage for efficiency
+- **Dynamic founder count**: Works with any number of founders defined in parameter file
 
 ### 6. Convergence Criteria
 The algorithm stops when:

@@ -252,7 +252,7 @@ print(snps_tracking)
 
 # Run LSEI estimation using the optimal window size
 cat("\n=== LSEI HAPLOTYPE ESTIMATION ===\n")
-if (estimate_OK == 1) {
+# Always run LSEI first, then determine estimate_OK based on results
   # Use the final window size to get data for LSEI
   window_start <- test_pos - final_window_size/2
   window_end <- test_pos + final_window_size/2
@@ -298,6 +298,17 @@ if (estimate_OK == 1) {
         cat(sprintf("  %s: %.4f\n", founders[i], haplotype_freqs[i]))
       }
       cat("Sum of frequencies:", round(sum(haplotype_freqs), 4), "\n")
+      
+      # Now check distinguishability using clustering results
+      if (final_n_groups == length(founders)) {
+        estimate_OK <- 1  # Founders distinguishable - we can TRUST the frequencies
+        cat("✓ Founders distinguishable - frequencies are TRUSTWORTHY (estimate_OK = 1)\n")
+      } else {
+        estimate_OK <- 0  # Founders NOT distinguishable - we CANNOT trust the frequencies  
+        cat("⚠️  Founders NOT distinguishable - frequencies are UNTRUSTWORTHY (estimate_OK = 0)\n")
+        cat("   BUT we still have the LSEI frequency estimates!\n")
+      }
+      
     } else {
       cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
       estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
@@ -306,9 +317,6 @@ if (estimate_OK == 1) {
     cat("✗ LSEI error:", e$message, "\n")
     estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
   })
-} else {
-  cat("Skipping LSEI - founders not distinguishable\n")
-}
 
 cat("\n=== FINAL RESULT ===\n")
 cat("final_window_size:", final_window_size, "bp (", final_window_size/1000, "kb)\n")
