@@ -78,20 +78,22 @@ window_start <- test_pos - test_window_size/2
 window_end <- test_pos + test_window_size/2
 cat("Window range:", window_start, "to", window_end, "bp\n")
 
-# Get SNPs in window for founders only (data is already quality-filtered)
+# Get SNPs in window for both founders AND sample (data is already quality-filtered)
 window_snps_long <- df3 %>%
-  filter(POS >= window_start & POS <= window_end & name %in% founders)
+  filter(POS >= window_start & POS <= window_end & name %in% c(founders, test_sample))
 
-# Convert to wide format (rows = positions, columns = founders)
+# Convert to wide format (rows = positions, columns = founders + sample)
 wide_data <- window_snps_long %>%
   select(POS, name, freq) %>%
   pivot_wider(names_from = name, values_from = freq)
 
 cat("SNPs in window:", nrow(wide_data), "positions\n")
+cat("Columns available:", paste(names(wide_data), collapse = ", "), "\n")
 
-# Check if we have all founder columns and enough data
-if (ncol(wide_data) < length(founders) + 1) {
-  cat("✗ Missing founders in window, estimate_OK = 0\n")
+# Check if we have all founder columns + sample and enough data
+if (!all(c(founders, test_sample) %in% names(wide_data))) {
+  missing_cols <- c(founders, test_sample)[!c(founders, test_sample) %in% names(wide_data)]
+  cat("✗ Missing columns in window:", paste(missing_cols, collapse = ", "), "\n")
   quit()
 }
 
