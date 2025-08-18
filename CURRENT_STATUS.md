@@ -56,7 +56,7 @@ Both test scripts ran successfully with excellent diagnostic output:
 
 ```bash
 # Run full haplotype testing pipeline with all parameter combinations
-sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE yes
 ```
 
 **This will test ALL parameter combinations:**
@@ -425,16 +425,16 @@ sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_p
 ### 1. Run Full Pipeline (All Methods)
 ```bash
 # Haplotype estimation + SNP imputation for ALL methods (array 1-9)
-sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE yes
 
 # Haplotype estimation ONLY for ALL methods (array 1-9)
-sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
 ```
 
 ### 2. Run Subset Pipeline (Current Run)
 ```bash
 # Haplotype estimation + SNP imputation for ADAPTIVE methods only (array 6-9)
-sbatch --array=6,7,8,9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+sbatch --array=6,7,8,9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE yes
 ```
 
 ### 3. Evaluate Results (After Pipeline Completes)
@@ -470,7 +470,7 @@ chr3L	adaptive	6
 
 **Then run the full pipeline:**
 ```bash
-sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE yes
 ```
 
 **The pipeline automatically processes all rows in the parameter file - no need for separate commands per chromosome.**
