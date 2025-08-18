@@ -195,52 +195,38 @@ for (pos_idx in seq_along(scan_positions)) {
       window_start <- max(0, test_pos - current_window_size/2)
       window_end <- test_pos + current_window_size/2
       
-      # Get SNPs in this expanding window
-      window_snps <- df3 %>%
+      # Get SNPs in this expanding window (long format first)
+      window_snps_long <- df3 %>%
         filter(CHROM == mychr &
                POS > window_start &
                POS < window_end &
-               (name %in% founders | name == sample_name)) %>%
-        select(-c(CHROM, N)) %>%
-        pivot_wider(names_from = name, values_from = freq)
+               (name %in% founders | name == sample_name))
       
-      # Quality filter: keep SNPs where founders are mostly fixed (freq < 3% OR > 97%)
-      # Only apply to founders, not the sample data
-      founder_quality_filtered <- window_snps %>%
-        filter(name %in% founders) %>%
-        group_by(POS) %>%
-        summarize(
-          all_fixed = all(freq < 0.03 | freq > 0.97)
-        ) %>%
-        filter(all_fixed == TRUE) %>%
-        select(POS)
-      
-      # Apply quality filter to all data
-      window_snps <- window_snps %>%
-        semi_join(founder_quality_filtered, by = "POS")
-      
-      # Get founder data for this window (copy working logic from fixed window script)
-      founder_data <- window_snps %>%
-        filter(name %in% founders) %>%
+      # Convert to wide format (rows = positions, columns = sample + founders)
+      window_snps <- window_snps_long %>%
         select(POS, name, freq) %>%
         pivot_wider(names_from = name, values_from = freq)
+      
+      # Quality filter: keep rows where ALL founders are fixed (freq < 0.03 OR freq > 0.97)
+      # Skip positions where any founder has intermediate frequency
+      founder_data <- window_snps %>%
+        filter(
+          if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+        )
       
       # Check if we have enough founder data
       if (ncol(founder_data) < length(founders) + 1) {
         next  # Skip to next window size
       }
       
-      # Get founder matrix and sample frequencies
+      # Get founder matrix and sample frequencies from wide format
       founder_matrix <- founder_data %>%
-        select(-POS) %>%
+        select(all_of(founders)) %>%
         as.matrix()
       
-      # Get sample frequencies for the same positions
-      sample_freqs <- window_snps %>%
-        filter(name == sample_name) %>%
-        select(POS, freq) %>%
-        right_join(founder_data %>% select(POS), by = "POS") %>%
-        pull(freq)
+      # Get sample frequencies
+      sample_freqs <- founder_data %>%
+        pull(!!sample_name)
       
       # Filter for non-NA values
       valid_positions <- !is.na(sample_freqs)
