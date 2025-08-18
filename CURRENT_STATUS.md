@@ -1,5 +1,21 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
+## 🔧 **CURRENT FOCUS: Simplified Binary Distinguishability**
+
+**MAJOR CONCEPTUAL SHIFT**: Instead of complex LSEI estimation, output simple binary distinguishability.
+
+### **Key Insight from User:**
+- **Fixed Window**: Use clustering to check if all 8 founders can be distinguished at given window size → output `estimate_OK` (1/0)
+- **Adaptive Window**: Progressively expand until all 8 founders can be distinguished → output `estimate_OK` (1/0)
+- **Problem**: Previous scripts used clustering for distinguishability check, then ignored it for complex LSEI estimation
+
+### **New Production Scripts:**
+- ✅ **`scripts/REFALT2haps.FixedWindow.Single.R`**: Distinguishability at fixed window size
+- ✅ **`scripts/REFALT2haps.AdaptWindow.Single.R`**: Progressive expansion until distinguishable
+- ✅ **Simple Output**: Both output `estimate_OK` (1/0) instead of complex haplotype frequencies
+- ✅ **Major Efficiency**: Quality filter applied once at data loading, not in every window loop
+- ✅ **Test Scripts**: `test_fixed_window.R` and `test_adaptive_window.R` match production logic exactly
+
 ## ⚠️ **CRITICAL WORKFLOW CONSTRAINT** ⚠️
 
 **This is a CLUSTER-BASED project. Local terminal access is severely limited:**
