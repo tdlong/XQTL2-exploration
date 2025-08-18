@@ -212,9 +212,9 @@ for (window_idx in seq_along(window_sizes)) {
       cat("  Group", group_id, ":", paste(group_founders, collapse=", "), "\n")
     }
     
-    # Check if all 8 founders can be distinguished
-    if (n_groups == 8) {
-      cat("✓ SUCCESS: All 8 founders distinguished individually!\n")
+    # Check if all founders can be distinguished
+    if (n_groups == length(founders)) {
+      cat("✓ SUCCESS: All", length(founders), "founders distinguished individually!\n")
       final_window_size <- window_size
       estimate_OK <- 1
       final_n_snps <- nrow(wide_data)
@@ -254,9 +254,9 @@ cat("n_snps:", final_n_snps, "\n")
 
 if (estimate_OK == 1) {
   cat("✓ SUCCESS: Adaptive algorithm found optimal window size!\n")
-  cat("✓ All 8 founders can be distinguished at", final_window_size/1000, "kb\n")
+  cat("✓ All", length(founders), "founders can be distinguished at", final_window_size/1000, "kb\n")
 } else {
-  cat("✗ FAILURE: Could not distinguish all 8 founders\n")
+  cat("✗ FAILURE: Could not distinguish all", length(founders), "founders\n")
   cat("✗ Even at maximum window size of", max(window_sizes)/1000, "kb\n")
   cat("✗ Best result:", max(snps_tracking$n_groups), "groups\n")
 }

@@ -174,8 +174,8 @@ for (pos_idx in seq_along(scan_positions)) {
       groups <- cutree(hclust_result, h = h_cutoff)
       n_groups <- length(unique(groups))
       
-      # Check if all 8 founders can be distinguished
-      estimate_OK <- ifelse(n_groups == 8, 1, 0)
+      # Check if all founders can be distinguished
+      estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
       
       result_row <- list(
         chr = mychr,

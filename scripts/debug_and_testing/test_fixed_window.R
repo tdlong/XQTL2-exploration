@@ -170,14 +170,14 @@ tryCatch({
     cat("Group", group_id, ":", paste(group_founders, collapse=", "), "\n")
   }
   
-  # Check if all 8 founders can be distinguished
-  estimate_OK <- ifelse(n_groups == 8, 1, 0)
+  # Check if all founders can be distinguished
+  estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
   
   cat("\n=== FINAL RESULT ===\n")
   cat("estimate_OK:", estimate_OK, "\n")
   
   if (estimate_OK == 1) {
-    cat("✓ All 8 founders can be distinguished individually!\n")
+    cat("✓ All", length(founders), "founders can be distinguished individually!\n")
     cat("✓ Perfect distinguishability at", test_window_size/1000, "kb window size\n")
   } else {
     cat("✗ Only", n_groups, "groups - some founders cannot be distinguished\n")
