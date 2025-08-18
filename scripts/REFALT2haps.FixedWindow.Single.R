@@ -8,6 +8,7 @@
 # Example: Rscript REFALT2haps.FixedWindow.Single.R chr2R helpfiles/haplotype_parameters.R process/test 50
 
 library(tidyverse)
+library(limSolve)
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -171,34 +172,83 @@ for (pos_idx in seq_along(scan_positions)) {
       distances <- dist(t(founder_matrix_clean), method = "euclidean")
       hclust_result <- hclust(distances, method = "ward.D2")
       
-      # Cut tree at h_cutoff
-      groups <- cutree(hclust_result, h = h_cutoff)
-      n_groups <- length(unique(groups))
-      
-      # Check if all founders can be distinguished
-      estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
-      
-      result_row <- list(
-        chr = mychr,
-        pos = test_pos,
-        sample = sample_name,
-        window_size = window_size_bp,
-        n_snps = nrow(wide_data),
-        estimate_OK = estimate_OK
-      )
+      # Run LSEI first to get actual haplotype frequency estimates
+      tryCatch({
+        # LSEI constraints: sum to 1, non-negative
+        E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+        F <- 1.0
+        G <- diag(length(founders))  # Non-negativity constraints
+        H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+        
+        lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs, 
+                                     E = E, F = F, G = G, H = H)
+        
+        if (lsei_result$IsError == 0) {
+          # LSEI successful - now check distinguishability
+          haplotype_freqs <- lsei_result$X
+          names(haplotype_freqs) <- founders
+          
+          # Check distinguishability using clustering
+          groups <- cutree(hclust_result, h = h_cutoff)
+          n_groups <- length(unique(groups))
+          estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
+          
+          result_row <- as.list(c(
+            chr = mychr,
+            pos = test_pos,
+            sample = sample_name,
+            window_size = window_size_bp,
+            n_snps = nrow(wide_data),
+            estimate_OK = estimate_OK,
+            haplotype_freqs
+          ))
+        } else {
+          # LSEI failed - output NAs for frequencies and estimate_OK
+          na_freqs <- rep(NA, length(founders))
+          names(na_freqs) <- founders
+          
+          result_row <- as.list(c(
+            chr = mychr,
+            pos = test_pos,
+            sample = sample_name,
+            window_size = window_size_bp,
+            n_snps = nrow(wide_data),
+            estimate_OK = NA,  # NA because LSEI failed
+            na_freqs
+          ))
+        }
+      }, error = function(e) {
+        # LSEI error - output NAs for frequencies
+        na_freqs <- rep(NA, length(founders))
+        names(na_freqs) <- founders
+        
+        result_row <- as.list(c(
+          chr = mychr,
+          pos = test_pos,
+          sample = sample_name,
+          window_size = window_size_bp,
+          n_snps = nrow(wide_data),
+          estimate_OK = NA,  # NA because LSEI failed
+          na_freqs
+        ))
+      })
       
       results_list[[length(results_list) + 1]] <- result_row
       
     }, error = function(e) {
-      # Cannot distinguish - clustering failed
-      result_row <- list(
+      # Cannot distinguish - clustering failed, output NAs for all frequencies
+      na_freqs <- rep(NA, length(founders))
+      names(na_freqs) <- founders
+      
+      result_row <- as.list(c(
         chr = mychr,
         pos = test_pos,
         sample = sample_name,
         window_size = window_size_bp,
         n_snps = nrow(wide_data),
-        estimate_OK = 0
-      )
+        estimate_OK = NA,  # NA because clustering failed
+        na_freqs
+      ))
       
       results_list[[length(results_list) + 1]] <- result_row
     })

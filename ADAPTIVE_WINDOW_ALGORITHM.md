@@ -10,13 +10,20 @@ Start with a small window (e.g., 10kb) and progressively expand to larger window
 - Window sizes: 10kb → 25kb → 50kb → 100kb → 200kb → 500kb
 - Each window is centered on the target position
 
-### 2. Hierarchical Clustering at Each Window
-For each window size:
+### 2. LSEI Haplotype Estimation (Always Run)
+For each optimal window size:
+1. **Extract data**: Founder and sample frequencies for SNPs in window
+2. **Run LSEI**: Constrained least squares to get B1, B2, ..., AB8 frequencies
+3. **Constraints**: Sum to 1, non-negative, lower bound 0.0003
+4. **Output**: Actual haplotype frequencies (may be unreliable if founders not distinguishable)
+
+### 3. Hierarchical Clustering Quality Check
+For founder distinguishability assessment:
 1. **Extract founder genotype data** for all SNPs in the window
 2. **Calculate pairwise distances** between founders using `dist(t(founder_matrix))`
 3. **Perform hierarchical clustering** using `hclust()` 
 4. **Cut the tree** at the specified `h_cutoff` using `cutree(hclust_result, h = h_cutoff)`
-5. **Identify founder groups** based on the clustering
+5. **Check distinguishability**: estimate_OK = 1 if all founders separated, 0 if not
 
 ### 3. Smart Constraint Accumulation
 The key innovation is carrying forward constraints only when meaningful changes occur:

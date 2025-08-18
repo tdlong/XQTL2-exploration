@@ -8,6 +8,7 @@
 # Example: Rscript REFALT2haps.AdaptWindow.Single.R chr2R helpfiles/haplotype_parameters.R process/test 4
 
 library(tidyverse)
+library(limSolve)
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -190,15 +191,122 @@ for (pos_idx in seq_along(scan_positions)) {
       final_n_snps <- nrow(wide_data)
     }
     
-    result_row <- list(
-      chr = mychr,
-      pos = test_pos,
-      sample = sample_name,
-      h_cutoff = h_cutoff,
-      final_window_size = final_window_size,
-      n_snps = final_n_snps,
-      estimate_OK = estimate_OK
-    )
+    # Now run LSEI estimation using the optimal window size
+    tryCatch({
+      # Get data for the final window
+      window_start <- test_pos - final_window_size/2
+      window_end <- test_pos + final_window_size/2
+      
+      window_snps_long <- df3 %>%
+        filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+      
+      if (nrow(window_snps_long) == 0) {
+        # No data for LSEI
+        na_freqs <- rep(NA, length(founders))
+        names(na_freqs) <- founders
+        
+        result_row <- as.list(c(
+          chr = mychr,
+          pos = test_pos,
+          sample = sample_name,
+          h_cutoff = h_cutoff,
+          final_window_size = final_window_size,
+          n_snps = final_n_snps,
+          estimate_OK = NA,
+          na_freqs
+        ))
+      } else {
+        # Prepare data for LSEI
+        wide_data <- window_snps_long %>%
+          select(POS, name, freq) %>%
+          pivot_wider(names_from = name, values_from = freq)
+        
+        # Extract founder and sample data
+        founder_matrix <- wide_data %>%
+          select(all_of(founders)) %>%
+          as.matrix()
+        sample_freqs <- wide_data %>%
+          pull(!!sample_name)
+        
+        # Remove rows with any NAs
+        complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+        founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+        sample_freqs_clean <- sample_freqs[complete_rows]
+        
+        if (nrow(founder_matrix_clean) == 0) {
+          # No complete data for LSEI
+          na_freqs <- rep(NA, length(founders))
+          names(na_freqs) <- founders
+          
+          result_row <- as.list(c(
+            chr = mychr,
+            pos = test_pos,
+            sample = sample_name,
+            h_cutoff = h_cutoff,
+            final_window_size = final_window_size,
+            n_snps = final_n_snps,
+            estimate_OK = NA,
+            na_freqs
+          ))
+        } else {
+          # Run LSEI
+          E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+          F <- 1.0
+          G <- diag(length(founders))  # Non-negativity constraints
+          H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+          
+          lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                       E = E, F = F, G = G, H = H)
+          
+          if (lsei_result$IsError == 0) {
+            # LSEI successful
+            haplotype_freqs <- lsei_result$X
+            names(haplotype_freqs) <- founders
+            
+            result_row <- as.list(c(
+              chr = mychr,
+              pos = test_pos,
+              sample = sample_name,
+              h_cutoff = h_cutoff,
+              final_window_size = final_window_size,
+              n_snps = final_n_snps,
+              estimate_OK = estimate_OK,
+              haplotype_freqs
+            ))
+          } else {
+            # LSEI failed
+            na_freqs <- rep(NA, length(founders))
+            names(na_freqs) <- founders
+            
+            result_row <- as.list(c(
+              chr = mychr,
+              pos = test_pos,
+              sample = sample_name,
+              h_cutoff = h_cutoff,
+              final_window_size = final_window_size,
+              n_snps = final_n_snps,
+              estimate_OK = NA,  # NA because LSEI failed
+              na_freqs
+            ))
+          }
+        }
+      }
+    }, error = function(e) {
+      # LSEI error
+      na_freqs <- rep(NA, length(founders))
+      names(na_freqs) <- founders
+      
+      result_row <- as.list(c(
+        chr = mychr,
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff,
+        final_window_size = final_window_size,
+        n_snps = final_n_snps,
+        estimate_OK = NA,  # NA because of error
+        na_freqs
+      ))
+    })
     
     results_list[[length(results_list) + 1]] <- result_row
   }

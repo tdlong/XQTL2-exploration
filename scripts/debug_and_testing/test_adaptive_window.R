@@ -5,6 +5,7 @@
 # This should match the production script logic exactly
 
 library(tidyverse)
+library(limSolve)
 
 cat("=== ADAPTIVE WINDOW DISTINGUISHABILITY TEST ===\n\n")
 
@@ -249,6 +250,66 @@ if (is.na(final_window_size)) {
 cat("\n=== SNP TRACKING SUMMARY ===\n")
 print(snps_tracking)
 
+# Run LSEI estimation using the optimal window size
+cat("\n=== LSEI HAPLOTYPE ESTIMATION ===\n")
+if (estimate_OK == 1) {
+  # Use the final window size to get data for LSEI
+  window_start <- test_pos - final_window_size/2
+  window_end <- test_pos + final_window_size/2
+  
+  window_data <- df3 %>%
+    filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+  
+  wide_data <- window_data %>%
+    select(POS, name, freq) %>%
+    pivot_wider(names_from = name, values_from = freq)
+  
+  # Extract founder and sample data
+  founder_matrix <- wide_data %>%
+    select(all_of(founders)) %>%
+    as.matrix()
+  sample_freqs <- wide_data %>%
+    pull(!!sample_name)
+  
+  # Remove rows with any NAs
+  complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+  founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+  sample_freqs_clean <- sample_freqs[complete_rows]
+  
+  cat("Data for LSEI:", nrow(founder_matrix_clean), "complete SNPs\n")
+  
+  tryCatch({
+    # LSEI constraints: sum to 1, non-negative
+    E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+    F <- 1.0
+    G <- diag(length(founders))  # Non-negativity constraints
+    H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+    
+    lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                 E = E, F = F, G = G, H = H)
+    
+    if (lsei_result$IsError == 0) {
+      cat("✓ LSEI successful!\n")
+      haplotype_freqs <- lsei_result$X
+      names(haplotype_freqs) <- founders
+      
+      cat("Haplotype frequency estimates:\n")
+      for (i in seq_along(founders)) {
+        cat(sprintf("  %s: %.4f\n", founders[i], haplotype_freqs[i]))
+      }
+      cat("Sum of frequencies:", round(sum(haplotype_freqs), 4), "\n")
+    } else {
+      cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
+      estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
+    }
+  }, error = function(e) {
+    cat("✗ LSEI error:", e$message, "\n")
+    estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
+  })
+} else {
+  cat("Skipping LSEI - founders not distinguishable\n")
+}
+
 cat("\n=== FINAL RESULT ===\n")
 cat("final_window_size:", final_window_size, "bp (", final_window_size/1000, "kb)\n")
 cat("estimate_OK:", estimate_OK, "\n")
@@ -257,10 +318,13 @@ cat("n_snps:", final_n_snps, "\n")
 if (estimate_OK == 1) {
   cat("✓ SUCCESS: Adaptive algorithm found optimal window size!\n")
   cat("✓ All", length(founders), "founders can be distinguished at", final_window_size/1000, "kb\n")
-} else {
+  cat("✓ LSEI estimation successful - haplotype frequencies available\n")
+} else if (estimate_OK == 0) {
   cat("✗ FAILURE: Could not distinguish all", length(founders), "founders\n")
   cat("✗ Even at maximum window size of", max(window_sizes)/1000, "kb\n")
   cat("✗ Best result:", max(snps_tracking$n_groups), "groups\n")
+} else {
+  cat("✗ LSEI estimation failed - no haplotype frequencies available\n")
 }
 
 cat("\n=== ADAPTIVE WINDOW TEST COMPLETE ===\n")

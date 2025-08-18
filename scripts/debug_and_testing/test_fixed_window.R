@@ -5,6 +5,7 @@
 # This should match the production script logic exactly
 
 library(tidyverse)
+library(limSolve)
 
 cat("=== FIXED WINDOW DISTINGUISHABILITY TEST ===\n\n")
 
@@ -171,8 +172,47 @@ tryCatch({
     cat("Group", group_id, ":", paste(group_founders, collapse=", "), "\n")
   }
   
-  # Check if all founders can be distinguished
-  estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
+  # Run LSEI first to get actual haplotype frequency estimates
+  cat("\n=== LSEI HAPLOTYPE ESTIMATION ===\n")
+  tryCatch({
+    # LSEI constraints: sum to 1, non-negative
+    E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+    F <- 1.0
+    G <- diag(length(founders))  # Non-negativity constraints
+    H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+    
+    lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs, 
+                                 E = E, F = F, G = G, H = H)
+    
+    if (lsei_result$IsError == 0) {
+      cat("✓ LSEI successful!\n")
+      haplotype_freqs <- lsei_result$X
+      names(haplotype_freqs) <- founders
+      
+      cat("Haplotype frequency estimates:\n")
+      for (i in seq_along(founders)) {
+        cat(sprintf("  %s: %.4f\n", founders[i], haplotype_freqs[i]))
+      }
+      cat("Sum of frequencies:", round(sum(haplotype_freqs), 4), "\n")
+      
+      # Now check distinguishability
+      estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
+      
+      # Show which founders are in which groups with their frequencies
+      cat("\nGroup-wise frequencies:\n")
+      for (group_id in unique(groups)) {
+        group_founders <- founders[groups == group_id]
+        group_freq <- sum(haplotype_freqs[groups == group_id])
+        cat("Group", group_id, ":", paste(group_founders, collapse="+"), "=", round(group_freq, 4), "\n")
+      }
+    } else {
+      cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
+      estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
+    }
+  }, error = function(e) {
+    cat("✗ LSEI error:", e$message, "\n")
+    estimate_OK <- NA  # Update estimate_OK to NA if LSEI failed
+  })
   
   cat("\n=== FINAL RESULT ===\n")
   cat("estimate_OK:", estimate_OK, "\n")
@@ -180,9 +220,13 @@ tryCatch({
   if (estimate_OK == 1) {
     cat("✓ All", length(founders), "founders can be distinguished individually!\n")
     cat("✓ Perfect distinguishability at", test_window_size/1000, "kb window size\n")
-  } else {
+    cat("✓ LSEI estimation successful - haplotype frequencies available\n")
+  } else if (estimate_OK == 0) {
     cat("✗ Only", n_groups, "groups - some founders cannot be distinguished\n")
     cat("✗ Need larger window or different h_cutoff for full distinguishability\n")
+    cat("! LSEI may still provide estimates, but they may be unreliable\n")
+  } else {
+    cat("✗ LSEI estimation failed - no haplotype frequencies available\n")
   }
   
 }, error = function(e) {
