@@ -204,6 +204,21 @@ for (pos_idx in seq_along(scan_positions)) {
         select(-c(CHROM, N)) %>%
         pivot_wider(names_from = name, values_from = freq)
       
+      # Quality filter: keep SNPs where founders are mostly fixed (freq < 3% OR > 97%)
+      # Only apply to founders, not the sample data
+      founder_quality_filtered <- window_snps %>%
+        filter(name %in% founders) %>%
+        group_by(POS) %>%
+        summarize(
+          all_fixed = all(freq < 0.03 | freq > 0.97)
+        ) %>%
+        filter(all_fixed == TRUE) %>%
+        select(POS)
+      
+      # Apply quality filter to all data
+      window_snps <- window_snps %>%
+        semi_join(founder_quality_filtered, by = "POS")
+      
       # Get founder data for this window (copy working logic from fixed window script)
       founder_data <- window_snps %>%
         filter(name %in% founders) %>%

@@ -380,3 +380,30 @@ sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_p
 ```
 
 **The pipeline automatically processes all rows in the parameter file - no need for separate commands per chromosome.**
+
+## 🐛 **CRITICAL BUG FIXED - Quality Filter Logic**
+
+### **The Problem:**
+The quality filter was **backwards** in adaptive window scripts:
+- **WRONG**: `filter(freq > 0.03 & freq < 0.97)` - kept noisy SNPs, filtered out good ones
+- **CORRECT**: `filter(freq < 0.03 | freq > 0.97)` - keeps fixed SNPs, filters out noisy ones
+
+### **The Concept:**
+**Founders should be "fixed" for each SNP:**
+- **Good SNP**: Founders have frequencies < 3% OR > 97% (mostly fixed)
+- **Bad SNP**: Founders have frequencies between 3-97% (polymorphic, noisy)
+- **Sample frequencies**: Can be anything (0-100%) - that's what we're estimating!
+
+### **Why This Matters:**
+- **Next-gen sequencing noise**: Allows 3% tolerance for sequencing errors
+- **Founder fixation**: Ensures founders provide stable reference points
+- **Sample estimation**: Sample can be polymorphic, we estimate its haplotype from fixed founders
+
+### **Files Fixed:**
+- `scripts/REFALT2haps.AdaptWindow.Single.R` - Production adaptive window
+- `scripts/debug_and_testing/test_adaptive_window_algorithm.R` - Test script
+
+### **Impact:**
+This bug was causing **89% SNP failure rate** instead of expected **few percent**. Fixed scripts should now show much higher success rates.
+
+## **Current Pipeline Status:**

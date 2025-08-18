@@ -177,11 +177,22 @@ for (window_idx in seq_along(window_sizes)) {
     cat("\n")
   }
   
-  # Quality filter: remove extreme frequencies
-  quality_filtered <- window_snps %>%
-    filter(freq > 0.03 & freq < 0.97)
+  # Quality filter: keep SNPs where founders are mostly fixed (freq < 3% OR > 97%)
+  # Only apply to founders, not the sample data
+  founder_quality_filtered <- window_snps %>%
+    filter(name %in% founders) %>%
+    group_by(POS) %>%
+    summarize(
+      all_fixed = all(freq < 0.03 | freq > 0.97)
+    ) %>%
+    filter(all_fixed == TRUE) %>%
+    select(POS)
   
-  cat("After quality filter (0.03 < freq < 0.97):", nrow(quality_filtered), "SNPs\n")
+  # Apply quality filter to all data
+  quality_filtered <- window_snps %>%
+    semi_join(founder_quality_filtered, by = "POS")
+  
+  cat("After quality filter (founders fixed):", nrow(quality_filtered), "SNPs\n")
   snps_tracking$after_quality_filter[window_idx] <- nrow(quality_filtered)
   
   # Get founder data for this window (copy working logic from fixed window script)
