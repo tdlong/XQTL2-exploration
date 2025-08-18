@@ -123,15 +123,15 @@ for (pos_idx in seq_along(scan_positions)) {
     
     # Get SNPs in window for founders only (data is already quality-filtered)
     window_snps_long <- df3 %>%
-      filter(POS >= window_start & POS <= window_end & name %in% founders)
+      filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
     
-    # Convert to wide format (rows = positions, columns = founders)
+    # Convert to wide format (rows = positions, columns = founders + sample)
     wide_data <- window_snps_long %>%
       select(POS, name, freq) %>%
       pivot_wider(names_from = name, values_from = freq)
     
-    # Check if we have all founder columns and enough data
-    if (ncol(wide_data) < length(founders) + 1 || nrow(wide_data) < 10) {
+    # Check if we have all required columns and enough data
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
       result_row <- list(
         chr = mychr,
         pos = test_pos,
