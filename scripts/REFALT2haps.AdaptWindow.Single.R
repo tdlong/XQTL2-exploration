@@ -207,6 +207,11 @@ for (pos_idx in seq_along(scan_positions)) {
         select(POS, name, freq) %>%
         pivot_wider(names_from = name, values_from = freq)
       
+      # Check if we have all founder columns (same as test script)
+      if (ncol(wide_data) < length(founders) + 1) {
+        next  # Skip to next window size if missing founders
+      }
+      
       # Quality filter: keep rows where ALL founders are fixed (freq < 0.03 OR freq > 0.97)
       # Skip positions where any founder has intermediate frequency
       quality_filtered <- wide_data %>%
