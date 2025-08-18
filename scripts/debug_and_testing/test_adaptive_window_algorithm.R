@@ -97,21 +97,30 @@ previous_groups <- NULL
 best_result <- NULL
 best_n_groups <- 0
 
+# Run the complete adaptive window algorithm (loop through window_sizes)
+cat("Window sizes to test:", paste(window_sizes, collapse = " "), "\n")
 cat("=== STARTING ADAPTIVE WINDOW ALGORITHM ===\n")
 
-# Run the complete adaptive window algorithm
+# Track SNP counts across all window sizes
+snps_tracking <- data.frame(
+  window_size = window_sizes,
+  total_snps = 0,
+  after_quality_filter = 0,
+  after_founder_filter = 0,
+  after_sample_filter = 0,
+  final_valid = 0
+)
+
 for (window_idx in seq_along(window_sizes)) {
-  current_window_size <- window_sizes[window_idx]
+  window_size <- window_sizes[window_idx]
+  cat("--- Window", window_idx, ":", window_size, "---\n")
   
-  cat(sprintf("\n--- Window %d: %d kb ---\n", window_idx, current_window_size/1000))
-  
-  # Create window around test position
-  window_start <- max(0, test_pos - current_window_size/2)
-  window_end <- test_pos + current_window_size/2
-  
+  # Calculate window boundaries
+  window_start <- test_pos - window_size/2
+  window_end <- test_pos + window_size/2
   cat("Window range:", window_start, "to", window_end, "bp\n")
   
-  # Get SNPs in this expanding window (same as production script)
+  # Get SNPs in this expanding window (FIXED: removed pivot_wider here)
   window_snps <- df3 %>%
     filter(CHROM == "chr2R" &
            POS > window_start &
@@ -120,15 +129,73 @@ for (window_idx in seq_along(window_sizes)) {
   
   cat("SNPs in window:", nrow(window_snps), "\n")
   
-  # Get founder data for this window (same as production script)
-  founder_data <- window_snps %>%
+  # Track total SNPs
+  snps_tracking$total_snps[window_idx] <- nrow(window_snps)
+  
+  # Show first 25 SNPs as a table (raw data inspection)
+  if (window_idx == 1) {  # Only show for first window to avoid spam
+    cat("\n=== FIRST 25 SNPS IN WINDOW (RAW DATA) ===\n")
+    
+    # Get sample and founder data for first 25 positions
+    sample_data <- window_snps %>%
+      filter(name == test_sample) %>%
+      select(POS, freq) %>%
+      rename(sample_freq = freq)
+    
+    founder_data_wide <- window_snps %>%
+      filter(name %in% founders) %>%
+      select(POS, name, freq) %>%
+      pivot_wider(names_from = name, values_from = freq)
+    
+    # Join and show first 25
+    display_data <- founder_data_wide %>%
+      left_join(sample_data, by = "POS") %>%
+      arrange(POS) %>%
+      head(25) %>%
+      mutate(
+        POS = as.integer(POS),
+        across(-POS, ~round(.x * 100, 0))  # Convert to percentages, no decimals
+      )
+    
+    # Print compact table
+    cat("POS     Sample", paste(sprintf("%6s", founders), collapse = ""), "\n")
+    cat("----    ------", paste(rep("------", length(founders)), collapse = ""), "\n")
+    
+    for (i in 1:nrow(display_data)) {
+      row <- display_data[i, ]
+      cat(sprintf("%6d  %6d", row$POS, row$sample_freq))
+      for (founder in founders) {
+        freq_val <- row[[founder]]
+        if (is.na(freq_val)) {
+          cat("     --")
+        } else {
+          cat(sprintf(" %5d", freq_val))
+        }
+      }
+      cat("\n")
+    }
+    cat("\n")
+  }
+  
+  # Quality filter: remove extreme frequencies
+  quality_filtered <- window_snps %>%
+    filter(freq > 0.03 & freq < 0.97)
+  
+  cat("After quality filter (0.03 < freq < 0.97):", nrow(quality_filtered), "SNPs\n")
+  snps_tracking$after_quality_filter[window_idx] <- nrow(quality_filtered)
+  
+  # Get founder data for this window (copy working logic from fixed window script)
+  founder_data <- quality_filtered %>%
     filter(name %in% founders) %>%
     select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
+  cat("After founder filter (founders only):", nrow(founder_data), "positions\n")
+  snps_tracking$after_founder_filter[window_idx] <- nrow(founder_data)
+  
   # Check if we have enough founder data
   if (ncol(founder_data) < length(founders) + 1) {
-    cat("✗ Insufficient founder data, skipping\n")
+    cat("✗ Missing founders, skipping\n")
     next
   }
   
@@ -138,20 +205,24 @@ for (window_idx in seq_along(window_sizes)) {
     as.matrix()
   
   # Get sample frequencies for the same positions
-  sample_freqs <- window_snps %>%
+  sample_freqs <- quality_filtered %>%
     filter(name == test_sample) %>%
     select(POS, freq) %>%
     right_join(founder_data %>% select(POS), by = "POS") %>%
     pull(freq)
+  
+  cat("After sample filter (sample data available):", length(sample_freqs), "positions\n")
+  snps_tracking$after_sample_filter[window_idx] <- length(sample_freqs)
   
   # Filter for non-NA values
   valid_positions <- !is.na(sample_freqs)
   sample_freqs <- sample_freqs[valid_positions]
   founder_matrix <- founder_matrix[valid_positions, ]
   
-  cat("Valid positions for estimation:", sum(valid_positions), "out of", length(valid_positions), "\n")
+  cat("Final valid positions (no NA):", sum(valid_positions), "out of", length(valid_positions), "\n")
   cat("Sample NA count:", sum(is.na(sample_freqs)), "\n")
   cat("Founder matrix NA count:", sum(is.na(founder_matrix)), "\n")
+  snps_tracking$final_valid[window_idx] <- sum(valid_positions)
   
   if (nrow(founder_matrix) < 10) {
     cat("✗ Insufficient data for estimation, skipping\n")
@@ -268,12 +339,33 @@ for (window_idx in seq_along(window_sizes)) {
 
 # Final results
 cat("\n=== ADAPTIVE WINDOW ALGORITHM COMPLETE ===\n")
-if (!is.null(best_result)) {
-  cat("✓ Algorithm completed successfully\n")
-  cat("Final number of groups:", best_n_groups, "\n")
-  cat("Final estimated frequencies:", paste(round(best_result$X, 4), collapse=", "), "\n")
-} else {
-  cat("✗ Algorithm failed to produce results\n")
+cat("✓ Algorithm completed successfully\n")
+cat("Final number of groups:", best_n_groups, "\n")
+if (best_n_groups > 0) {
+  cat("Final estimated frequencies:", paste(sprintf("%.4f", best_frequencies), collapse = ", "), "\n")
+}
+
+# Print SNP tracking summary
+cat("\n=== SNP COUNT PROGRESSION ACROSS WINDOW SIZES ===\n")
+print(snps_tracking)
+
+cat("\n=== FILTERING ANALYSIS ===\n")
+for (i in 1:nrow(snps_tracking)) {
+  if (snps_tracking$total_snps[i] > 0) {
+    quality_loss <- snps_tracking$total_snps[i] - snps_tracking$after_quality_filter[i]
+    founder_loss <- snps_tracking$after_quality_filter[i] - snps_tracking$after_founder_filter[i]
+    sample_loss <- snps_tracking$after_founder_filter[i] - snps_tracking$after_sample_filter[i]
+    na_loss <- snps_tracking$after_sample_filter[i] - snps_tracking$final_valid[i]
+    
+    cat(sprintf("Window %d (%d kb):\n", i, snps_tracking$window_size[i]/1000))
+    cat(sprintf("  Quality filter loss: %d SNPs (%.1f%%)\n", quality_loss, 100*quality_loss/snps_tracking$total_snps[i]))
+    cat(sprintf("  Founder filter loss: %d SNPs (%.1f%%)\n", founder_loss, 100*founder_loss/snps_tracking$total_snps[i]))
+    cat(sprintf("  Sample filter loss: %d SNPs (%.1f%%)\n", sample_loss, 100*sample_loss/snps_tracking$total_snps[i]))
+    cat(sprintf("  NA filter loss: %d SNPs (%.1f%%)\n", na_loss, 100*na_loss/snps_tracking$total_snps[i]))
+    cat(sprintf("  Final success rate: %.1f%% (%d/%d)\n", 
+                100*snps_tracking$final_valid[i]/snps_tracking$total_snps[i],
+                snps_tracking$final_valid[i], snps_tracking$total_snps[i]))
+  }
 }
 
 cat("\n=== FULL PIPELINE TEST COMPLETE ===\n")
