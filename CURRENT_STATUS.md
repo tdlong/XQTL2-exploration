@@ -16,22 +16,54 @@
 - ✅ **Major Efficiency**: Quality filter applied once at data loading, not in every window loop
 - ✅ **Test Scripts**: `test_fixed_window.R` and `test_adaptive_window.R` match production logic exactly
 
-### **🧪 NEXT: Test the New Scripts**
+### **✅ Test Scripts Completed Successfully**
 
-**Commands to run on cluster:**
+Both test scripts ran successfully with excellent diagnostic output:
+- **Fixed window**: Comprehensive SNP tables, distance matrices, group analysis
+- **Adaptive window**: Progressive window testing, SNP tracking, detailed clustering analysis  
+- **Clean formatting**: Right-justified tables, 1-decimal distances, easy visual scanning
+- **Major efficiency**: Quality filter applied once vs. thousands of times in loops
+- **Scripts organization**: All debugging/testing scripts properly organized in `scripts/debug_and_testing/`
+
+### **🚀 NEXT: Run Full Parameter Pipeline via Slurm**
+
+**The correct way to test production scripts is through the Slurm array job pipeline:**
 
 ```bash
-# Test fixed window distinguishability
-Rscript scripts/debug_and_testing/test_fixed_window.R
-
-# Test adaptive window distinguishability  
-Rscript scripts/debug_and_testing/test_adaptive_window.R
+# Run full haplotype testing pipeline with all parameter combinations
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
 ```
 
-**Expected outputs:**
-- Fixed window: Should show `estimate_OK: 1` or `0` based on 50kb window distinguishability
-- Adaptive window: Should show progressive window expansion and final `estimate_OK` result
-- Both should show major speed improvement from quality filter efficiency
+**This will test ALL parameter combinations:**
+- Fixed window: 10kb, 20kb, 50kb, 100kb, 200kb
+- Adaptive window: h_cutoff 4, 6, 8, 10
+
+**Expected pipeline outputs:**
+- Binary distinguishability results: `estimate_OK` (1/0) for each position/sample/method
+- Results saved as `.RDS` files: `fixed_window_*kb_results_chr2R.RDS` and `adaptive_window_h*_results_chr2R.RDS`
+- Much faster execution due to efficiency improvements
+- Different results across h_cutoff values (no more identical results bug)
+
+## 📁 **SCRIPTS FOLDER ORGANIZATION**
+
+**KEEP SCRIPTS FOLDER CLEAN - NO TEMPORARY OR DEBUGGING SCRIPTS IN ROOT**
+
+### **Production Scripts (scripts/ root):**
+- `REFALT2haps.FixedWindow.Single.R` - Fixed window distinguishability
+- `REFALT2haps.AdaptWindow.Single.R` - Adaptive window distinguishability  
+- `euchromatic_SNP_imputation_single.R` - SNP imputation
+- `haplotype_testing_from_table.sh` - Slurm pipeline wrapper
+- `evaluate_haplotype_methods.R` - Results evaluation
+
+### **Debugging/Testing Scripts (scripts/debug_and_testing/):**
+- `test_fixed_window.R` - Test fixed window algorithm
+- `test_adaptive_window.R` - Test adaptive window algorithm
+- All other debugging, testing, and temporary scripts
+
+### **🚨 RULE: NO TEMPORARY SCRIPTS IN PRODUCTION FOLDER**
+- All debugging scripts go in `scripts/debug_and_testing/`
+- All temporary scripts get deleted after use or moved to `debug_and_testing/`
+- Keep production scripts folder clean and organized
 
 ## ⚠️ **CRITICAL WORKFLOW CONSTRAINT** ⚠️
 
