@@ -132,7 +132,7 @@ cat(paste(rep("-", 10 + length(founders) * 4), collapse=""), "\n")
 for (i in 1:nrow(sample_data)) {
   pos <- sample_data$POS[i]
   freqs <- sprintf("%2.0f", as.numeric(sample_data[i, founders]) * 100)
-  cat(sprintf("%-10s", pos), paste(sprintf("%-3s", freqs), collapse=" "), "\n")
+  cat(sprintf("%-10s", pos), paste(sprintf("%3s", freqs), collapse=" "), "\n")
 }
 
 # Hierarchical clustering to check distinguishability

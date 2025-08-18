@@ -126,7 +126,7 @@ for (window_idx in seq_along(window_sizes)) {
     for (i in 1:nrow(display_data)) {
       pos <- display_data$POS[i]
       freqs <- sprintf("%2.0f", as.numeric(display_data[i, founders]) * 100)
-      cat(sprintf("%-10s", pos), paste(sprintf("%-3s", freqs), collapse=" "), "\n")
+      cat(sprintf("%-10s", pos), paste(sprintf("%3s", freqs), collapse=" "), "\n")
     }
     cat("\n")
   }
