@@ -348,8 +348,8 @@ for (window_idx in seq_along(window_sizes)) {
 cat("\n=== ADAPTIVE WINDOW ALGORITHM COMPLETE ===\n")
 cat("✓ Algorithm completed successfully\n")
 cat("Final number of groups:", best_n_groups, "\n")
-if (best_n_groups > 0) {
-  cat("Final estimated frequencies:", paste(sprintf("%.4f", best_frequencies), collapse = ", "), "\n")
+if (best_n_groups > 0 && !is.null(best_result)) {
+  cat("Final estimated frequencies:", paste(sprintf("%.4f", best_result$X), collapse = ", "), "\n")
 }
 
 # Print SNP tracking summary
