@@ -124,10 +124,15 @@ for (i in 1:ncol(founder_matrix_clean)) {
 # Show sample of raw SNP data
 cat("\n=== SAMPLE SNP DATA (first 10 positions) ===\n")
 sample_data <- wide_data[1:min(10, nrow(wide_data)), ]
+
+# Create formatted table
+cat(sprintf("%-10s", "POS"), paste(sprintf("%-4s", founders), collapse=" "), "\n")
+cat(paste(rep("-", 10 + length(founders) * 5), collapse=""), "\n")
+
 for (i in 1:nrow(sample_data)) {
   pos <- sample_data$POS[i]
-  freqs <- sprintf("%.3f", as.numeric(sample_data[i, founders]))
-  cat("POS", pos, ": ", paste(paste0(founders, "=", freqs), collapse=", "), "\n")
+  freqs <- sprintf("%3.0f%%", as.numeric(sample_data[i, founders]) * 100)
+  cat(sprintf("%-10s", pos), paste(sprintf("%-4s", freqs), collapse=" "), "\n")
 }
 
 # Hierarchical clustering to check distinguishability
@@ -136,13 +141,19 @@ tryCatch({
   distances <- dist(t(founder_matrix_clean), method = "euclidean")
   hclust_result <- hclust(distances, method = "ward.D2")
   
-  # Show clustering distances
-  cat("Clustering distances between founders:\n")
+  # Show clustering distances as a matrix
+  cat("Clustering distance matrix:\n")
   dist_matrix <- as.matrix(distances)
-  for (i in 1:(length(founders)-1)) {
-    for (j in (i+1):length(founders)) {
-      cat(sprintf("  %s - %s: %.3f\n", founders[i], founders[j], dist_matrix[i,j]))
-    }
+  rownames(dist_matrix) <- founders
+  colnames(dist_matrix) <- founders
+  
+  # Print matrix header
+  cat(sprintf("%4s", ""), paste(sprintf("%8s", founders), collapse=""), "\n")
+  
+  # Print matrix rows
+  for (i in 1:length(founders)) {
+    row_values <- sprintf("%8.3f", dist_matrix[i, ])
+    cat(sprintf("%4s", founders[i]), paste(row_values, collapse=""), "\n")
   }
   
   # Cut tree at h_cutoff

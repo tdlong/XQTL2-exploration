@@ -119,10 +119,14 @@ for (window_idx in seq_along(window_sizes)) {
       arrange(POS) %>%
       head(10)
     
+    # Create formatted table
+    cat(sprintf("%-10s", "POS"), paste(sprintf("%-4s", founders), collapse=" "), "\n")
+    cat(paste(rep("-", 10 + length(founders) * 5), collapse=""), "\n")
+    
     for (i in 1:nrow(display_data)) {
       pos <- display_data$POS[i]
-      freqs <- sprintf("%.1f%%", as.numeric(display_data[i, founders]) * 100)
-      cat("POS", pos, ": ", paste(paste0(founders, "=", freqs), collapse=", "), "\n")
+      freqs <- sprintf("%3.0f%%", as.numeric(display_data[i, founders]) * 100)
+      cat(sprintf("%-10s", pos), paste(sprintf("%-4s", freqs), collapse=" "), "\n")
     }
     cat("\n")
   }
@@ -173,14 +177,24 @@ for (window_idx in seq_along(window_sizes)) {
     distances <- dist(t(founder_matrix_clean), method = "euclidean")
     hclust_result <- hclust(distances, method = "ward.D2")
     
-    # Show key clustering distances
-    cat("Key clustering distances:\n")
+    # Show clustering distance matrix
+    cat("Clustering distance matrix:\n")
     dist_matrix <- as.matrix(distances)
+    rownames(dist_matrix) <- founders
+    colnames(dist_matrix) <- founders
+    
+    # Print matrix header
+    cat(sprintf("%4s", ""), paste(sprintf("%8s", founders), collapse=""), "\n")
+    
+    # Print matrix rows
+    for (i in 1:length(founders)) {
+      row_values <- sprintf("%8.3f", dist_matrix[i, ])
+      cat(sprintf("%4s", founders[i]), paste(row_values, collapse=""), "\n")
+    }
+    
     min_dist <- min(dist_matrix[dist_matrix > 0])
     max_dist <- max(dist_matrix)
-    cat("  Minimum distance:", sprintf("%.3f", min_dist), "\n")
-    cat("  Maximum distance:", sprintf("%.3f", max_dist), "\n")
-    cat("  H_cutoff:", test_h_cutoff, "\n")
+    cat("Minimum distance:", sprintf("%.3f", min_dist), "| Maximum distance:", sprintf("%.3f", max_dist), "| H_cutoff:", test_h_cutoff, "\n")
     
     # Cut tree at h_cutoff
     groups <- cutree(hclust_result, h = test_h_cutoff)
