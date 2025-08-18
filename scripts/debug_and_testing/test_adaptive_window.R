@@ -114,19 +114,19 @@ for (window_idx in seq_along(window_sizes)) {
   
   # Show first 10 SNPs as a table for the first window
   if (window_idx == 1) {
-    cat("\n=== FIRST 10 SNPS IN WINDOW (RAW DATA) ===\n")
+    cat("\n=== FIRST 10 SNPS IN WINDOW (RAW DATA, percentages) ===\n")
     display_data <- wide_data %>%
       arrange(POS) %>%
       head(10)
     
     # Create formatted table
-    cat(sprintf("%-10s", "POS"), paste(sprintf("%-4s", founders), collapse=" "), "\n")
-    cat(paste(rep("-", 10 + length(founders) * 5), collapse=""), "\n")
+    cat(sprintf("%-10s", "POS"), paste(sprintf("%-3s", founders), collapse=" "), "\n")
+    cat(paste(rep("-", 10 + length(founders) * 4), collapse=""), "\n")
     
     for (i in 1:nrow(display_data)) {
       pos <- display_data$POS[i]
-      freqs <- sprintf("%3.0f%%", as.numeric(display_data[i, founders]) * 100)
-      cat(sprintf("%-10s", pos), paste(sprintf("%-4s", freqs), collapse=" "), "\n")
+      freqs <- sprintf("%2.0f", as.numeric(display_data[i, founders]) * 100)
+      cat(sprintf("%-10s", pos), paste(sprintf("%-3s", freqs), collapse=" "), "\n")
     }
     cat("\n")
   }
@@ -184,17 +184,17 @@ for (window_idx in seq_along(window_sizes)) {
     colnames(dist_matrix) <- founders
     
     # Print matrix header
-    cat(sprintf("%4s", ""), paste(sprintf("%8s", founders), collapse=""), "\n")
+    cat(sprintf("%4s", ""), paste(sprintf("%6s", founders), collapse=""), "\n")
     
     # Print matrix rows
     for (i in 1:length(founders)) {
-      row_values <- sprintf("%8.3f", dist_matrix[i, ])
+      row_values <- sprintf("%6.1f", dist_matrix[i, ])
       cat(sprintf("%4s", founders[i]), paste(row_values, collapse=""), "\n")
     }
     
     min_dist <- min(dist_matrix[dist_matrix > 0])
     max_dist <- max(dist_matrix)
-    cat("Minimum distance:", sprintf("%.3f", min_dist), "| Maximum distance:", sprintf("%.3f", max_dist), "| H_cutoff:", test_h_cutoff, "\n")
+    cat("Min:", sprintf("%.1f", min_dist), "| Max:", sprintf("%.1f", max_dist), "| H_cutoff:", test_h_cutoff, "\n")
     
     # Cut tree at h_cutoff
     groups <- cutree(hclust_result, h = test_h_cutoff)

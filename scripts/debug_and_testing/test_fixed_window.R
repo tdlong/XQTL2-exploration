@@ -122,17 +122,17 @@ for (i in 1:ncol(founder_matrix_clean)) {
 }
 
 # Show sample of raw SNP data
-cat("\n=== SAMPLE SNP DATA (first 10 positions) ===\n")
+cat("\n=== SAMPLE SNP DATA (first 10 positions, percentages) ===\n")
 sample_data <- wide_data[1:min(10, nrow(wide_data)), ]
 
 # Create formatted table
-cat(sprintf("%-10s", "POS"), paste(sprintf("%-4s", founders), collapse=" "), "\n")
-cat(paste(rep("-", 10 + length(founders) * 5), collapse=""), "\n")
+cat(sprintf("%-10s", "POS"), paste(sprintf("%-3s", founders), collapse=" "), "\n")
+cat(paste(rep("-", 10 + length(founders) * 4), collapse=""), "\n")
 
 for (i in 1:nrow(sample_data)) {
   pos <- sample_data$POS[i]
-  freqs <- sprintf("%3.0f%%", as.numeric(sample_data[i, founders]) * 100)
-  cat(sprintf("%-10s", pos), paste(sprintf("%-4s", freqs), collapse=" "), "\n")
+  freqs <- sprintf("%2.0f", as.numeric(sample_data[i, founders]) * 100)
+  cat(sprintf("%-10s", pos), paste(sprintf("%-3s", freqs), collapse=" "), "\n")
 }
 
 # Hierarchical clustering to check distinguishability
@@ -148,11 +148,11 @@ tryCatch({
   colnames(dist_matrix) <- founders
   
   # Print matrix header
-  cat(sprintf("%4s", ""), paste(sprintf("%8s", founders), collapse=""), "\n")
+  cat(sprintf("%4s", ""), paste(sprintf("%6s", founders), collapse=""), "\n")
   
   # Print matrix rows
   for (i in 1:length(founders)) {
-    row_values <- sprintf("%8.3f", dist_matrix[i, ])
+    row_values <- sprintf("%6.1f", dist_matrix[i, ])
     cat(sprintf("%4s", founders[i]), paste(row_values, collapse=""), "\n")
   }
   
