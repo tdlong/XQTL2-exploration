@@ -20,10 +20,13 @@ if (length(args) != 4) {
 mychr <- args[1]
 parfile <- args[2] 
 mydir <- args[3]
-h_cutoff <- as.numeric(args[4])
+h_cutoff_from_cmdline <- as.numeric(args[4])
 
 # Source the parameter file
 source(parfile)
+
+# CRITICAL: Use command line h_cutoff, not parameter file value
+h_cutoff <- h_cutoff_from_cmdline
 
 # Define file paths
 filein <- paste0(dirname(mydir), "/RefAlt.", mychr, ".txt")
