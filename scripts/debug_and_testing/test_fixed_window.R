@@ -100,13 +100,18 @@ if (nrow(wide_data) < 10) {
   quit()
 }
 
-# Get founder matrix (no need for additional quality filtering)
+# Get founder matrix and sample frequencies for LSEI
 founder_matrix <- wide_data %>%
   select(all_of(founders)) %>%
   as.matrix()
 
-# Convert to matrix for clustering
-founder_matrix_clean <- founder_matrix[complete.cases(founder_matrix), ]
+sample_freqs <- wide_data %>%
+  pull(!!test_sample)
+
+# Remove rows with any NAs (both founder and sample data must be complete)
+complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+sample_freqs_clean <- sample_freqs[complete_rows]
 
 if (nrow(founder_matrix_clean) < 10) {
   cat("✗ Insufficient clean data for clustering, estimate_OK = 0\n")
@@ -136,6 +141,9 @@ for (i in 1:nrow(sample_data)) {
   freqs <- sprintf("%2.0f", as.numeric(sample_data[i, founders]) * 100)
   cat(sprintf("%-10s", pos), paste(sprintf("%3s", freqs), collapse=" "), "\n")
 }
+
+# Initialize estimate_OK variable
+estimate_OK <- NA
 
 # Hierarchical clustering to check distinguishability
 cat("\n=== CLUSTERING ANALYSIS ===\n")
@@ -181,7 +189,7 @@ tryCatch({
     G <- diag(length(founders))  # Non-negativity constraints
     H <- matrix(rep(0.0003, length(founders)))  # Lower bound
     
-    lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs, 
+    lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
                                  E = E, F = F, G = G, H = H)
     
     if (lsei_result$IsError == 0) {
@@ -231,7 +239,8 @@ tryCatch({
   
 }, error = function(e) {
   cat("✗ Clustering failed:", e$message, "\n")
-  cat("estimate_OK: 0\n")
+  estimate_OK <- 0
+  cat("estimate_OK:", estimate_OK, "\n")
 })
 
 cat("\n=== FIXED WINDOW TEST COMPLETE ===\n")
