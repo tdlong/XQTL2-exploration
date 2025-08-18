@@ -41,7 +41,7 @@ euchromatin_end <- 24684540
 
 # Filter SNPs to euchromatin
 good_snps <- df2 %>%
-  filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
+  filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
   summarize(
     zeros = sum(N == 0),
@@ -197,7 +197,8 @@ existing_founders <- existing_founders[order(match(existing_founders, founder_or
 founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
 
 # Run the test
-founders <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+# Load founders from parameter file
+source("helpfiles/JUICE_haplotype_parameters.R")
 test_results <- interpolate_subset(sample_haplotypes, test_snps, founders, founder_order)
 
 end_time <- Sys.time()

@@ -48,7 +48,7 @@ euchromatin_end <- 24684540
 # Filter for high-quality SNPs (same as production)
 cat("Filtering for high-quality SNPs...\n")
 good_snps <- df2 %>%
-  filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
+  filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
   summarize(
     zeros = sum(N == 0),
@@ -67,7 +67,8 @@ cat("✓ Valid euchromatic SNPs:", nrow(valid_snps), "\n")
 # Get unique SNP positions and samples
 snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS)
 all_samples <- unique(df2$name)
-founders <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+# Load founders from parameter file
+source("helpfiles/JUICE_haplotype_parameters.R")
 non_founder_samples <- all_samples[!all_samples %in% founders]
 
 cat("SNP positions:", length(snp_positions), "\n")

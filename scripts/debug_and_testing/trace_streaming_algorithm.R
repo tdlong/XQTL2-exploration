@@ -8,6 +8,9 @@ suppressPackageStartupMessages({
   library(readr)
 })
 
+# Load founders from parameter file
+source("helpfiles/JUICE_haplotype_parameters.R")
+
 # Set parameters
 chr <- "chr2R"
 output_dir <- "process/JUICE"
@@ -43,7 +46,7 @@ df2 <- read_rds(refalt_file)
 
 # Filter SNPs to euchromatin
 good_snps <- df2 %>%
-  filter(name %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
+  filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
   summarize(
     zeros = sum(N == 0),
@@ -134,7 +137,7 @@ for (i in 1:20) {
     cat("  ✓ SNP position is valid for interpolation\n")
     
     # Get founder columns that exist
-    existing_founders <- intersect(c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8"), names(haplotype_freqs))
+    existing_founders <- intersect(founders, names(haplotype_freqs))
     cat("  Founders:", paste(existing_founders, collapse = ", "), "\n")
     
     # Extract frequencies for left and right positions

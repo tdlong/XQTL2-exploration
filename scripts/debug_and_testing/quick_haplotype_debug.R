@@ -81,7 +81,8 @@ if (na_check == 0) {
 }
 
 # Check founder coverage
-founders <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+# Load founders from parameter file
+source("helpfiles/JUICE_haplotype_parameters.R")
 founder_coverage <- euchromatic_haplotypes %>%
   filter(!is.na(freq)) %>%
   group_by(founder) %>%
