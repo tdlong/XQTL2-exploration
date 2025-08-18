@@ -149,12 +149,14 @@ for (window_idx in seq_along(window_sizes)) {
   sample_freqs <- sample_freqs[valid_positions]
   founder_matrix <- founder_matrix[valid_positions, ]
   
+  cat("Valid positions for estimation:", sum(valid_positions), "out of", length(valid_positions), "\n")
+  cat("Sample NA count:", sum(is.na(sample_freqs)), "\n")
+  cat("Founder matrix NA count:", sum(is.na(founder_matrix)), "\n")
+  
   if (nrow(founder_matrix) < 10) {
     cat("✗ Insufficient data for estimation, skipping\n")
     next
   }
-  
-  cat("Valid positions for estimation:", nrow(founder_matrix), "\n")
   
   # Convert to matrix for clustering
   founder_matrix <- as.matrix(founder_matrix)
