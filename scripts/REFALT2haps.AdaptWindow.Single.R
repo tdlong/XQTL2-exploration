@@ -242,18 +242,22 @@ for (pos_idx in seq_along(scan_positions)) {
         next  # Skip to next window size
       }
       
-      # Convert to matrix for clustering
-      founder_matrix <- as.matrix(founder_matrix)
+      # Convert to matrix for clustering (same as test script)
+      founder_matrix_clean <- founder_matrix[complete.cases(founder_matrix), ]
       
-      # Cluster founders based on similarity using hierarchical clustering
-      founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = h_cutoff)
+      # Hierarchical clustering (same as test script)
+      distances <- dist(t(founder_matrix_clean), method = "euclidean")
+      hclust_result <- hclust(distances, method = "ward.D2")
+      
+      # Cut tree at h_cutoff
+      groups <- cutree(hclust_result, h = h_cutoff)
       
       # Check if groups meaningfully changed
-      groups_meaningfully_changed <- groups_changed(founder_clusters, previous_groups)
+      groups_meaningfully_changed <- groups_changed(groups, previous_groups)
       
       if (groups_meaningfully_changed) {
         # Run LSEI with new grouping
-        n_founders <- ncol(founder_matrix)
+        n_founders <- ncol(founder_matrix_clean)
         E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
         F <- 1.0
         
@@ -263,12 +267,9 @@ for (pos_idx in seq_along(scan_positions)) {
           F <- c(F, accumulated_constraint_values)
         }
         
-        # Get unique clusters
-        unique_clusters <- unique(founder_clusters)
-        
-        # Solve constrained least squares
+        # Solve constrained least squares (use clean matrix like test script)
         tryCatch({
-          result <- limSolve::lsei(A = founder_matrix, B = sample_freqs, E = E, F = F, 
+          result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs[complete.cases(founder_matrix)], E = E, F = F, 
                                   G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
           
           if (result$IsError == 0) {
@@ -276,8 +277,8 @@ for (pos_idx in seq_along(scan_positions)) {
             current_constraints <- NULL
             current_constraint_values <- NULL
             
-            for (cluster_id in unique_clusters) {
-              cluster_founders <- which(founder_clusters == cluster_id)
+            for (cluster_id in unique(groups)) {
+              cluster_founders <- which(groups == cluster_id)
               if (length(cluster_founders) > 1) {
                 # Create constraint row for this group
                 constraint_row <- rep(0, n_founders)
@@ -313,7 +314,7 @@ for (pos_idx in seq_along(scan_positions)) {
             
             # Store the best result for this position/h_cutoff
             best_result <- result
-            best_n_groups <- length(unique(founder_clusters))
+            best_n_groups <- length(unique(groups))
             
             # Check if all founders are separated
             if (best_n_groups == length(founders)) {
@@ -326,7 +327,7 @@ for (pos_idx in seq_along(scan_positions)) {
       }
       
       # Update previous groups for next iteration
-      previous_groups <- founder_clusters
+      previous_groups <- groups
     }
     
     # Use the best result found
