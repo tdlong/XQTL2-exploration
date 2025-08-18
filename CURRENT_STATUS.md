@@ -5,9 +5,16 @@
 **MAJOR CONCEPTUAL SHIFT**: Instead of complex LSEI estimation, output simple binary distinguishability.
 
 ### **Key Insight from User:**
-- **Fixed Window**: Use clustering to check if all 8 founders can be distinguished at given window size → output `estimate_OK` (1/0)
-- **Adaptive Window**: Progressively expand until all 8 founders can be distinguished → output `estimate_OK` (1/0)
+- **Fixed Window**: Use clustering to check if all founders can be distinguished at given window size → output `estimate_OK` (1/0)
+- **Adaptive Window**: Progressively expand until all founders can be distinguished → output `estimate_OK` (1/0)
 - **Problem**: Previous scripts used clustering for distinguishability check, then ignored it for complex LSEI estimation
+
+### **🚨 CRITICAL DESIGN PRINCIPLE:**
+**FOUNDERS ARE NOT HARDCODED TO 8** - They are whatever is defined in the parameter file (`helpfiles/JUICE_haplotype_parameters.R`).
+- **Scripts must work with ANY number of founders** (6, 8, 10, etc.)
+- **Use `length(founders)` not hardcoded `8`**
+- **Never assume exactly 8 founders** - this is flexible by design
+- **Examples in conversation**: When I say "8 founders" it's shorthand for "however many founders are defined"
 
 ### **New Production Scripts:**
 - ✅ **`scripts/REFALT2haps.FixedWindow.Single.R`**: Distinguishability at fixed window size
