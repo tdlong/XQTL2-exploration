@@ -66,7 +66,7 @@ cat("\n3. Testing adaptive window distinguishability...\n")
 
 # Test parameters
 test_pos <- 15000000
-test_h_cutoff <- 4  # Test specific h_cutoff
+test_h_cutoff <- 10  # Test higher h_cutoff to force window expansion
 test_sample <- non_founder_samples[1]
 
 cat("✓ Test position:", test_pos, "\n")
