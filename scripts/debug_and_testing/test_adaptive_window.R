@@ -76,14 +76,27 @@ final_window_size <- NA
 estimate_OK <- 0
 final_n_snps <- 0
 
-cat("Testing window sizes:", paste(window_sizes/1000, "kb", collapse=", "), "\n\n")
+cat("=== STARTING ADAPTIVE WINDOW ALGORITHM ===\n")
+cat("Window sizes to test:", paste(window_sizes/1000, "kb", collapse=", "), "\n\n")
 
-for (window_size in window_sizes) {
-  cat("--- Testing window size:", window_size/1000, "kb ---\n")
+# Track SNP counts across all window sizes
+snps_tracking <- data.frame(
+  window_size = window_sizes,
+  total_snps = 0,
+  founder_complete = 0,
+  clustering_valid = 0,
+  n_groups = 0,
+  estimate_OK = 0
+)
+
+for (window_idx in seq_along(window_sizes)) {
+  window_size <- window_sizes[window_idx]
+  cat("--- Window", window_idx, ":", window_size/1000, "kb ---\n")
   
   # Define window boundaries
   window_start <- test_pos - window_size/2
   window_end <- test_pos + window_size/2
+  cat("Window range:", window_start, "to", window_end, "bp\n")
   
   # Get SNPs in window for founders only (data is already quality-filtered)
   window_snps_long <- df3 %>%
@@ -96,14 +109,34 @@ for (window_size in window_sizes) {
   
   cat("SNPs in window:", nrow(wide_data), "positions\n")
   
+  # Track total SNPs
+  snps_tracking$total_snps[window_idx] <- nrow(wide_data)
+  
+  # Show first 10 SNPs as a table for the first window
+  if (window_idx == 1) {
+    cat("\n=== FIRST 10 SNPS IN WINDOW (RAW DATA) ===\n")
+    display_data <- wide_data %>%
+      arrange(POS) %>%
+      head(10)
+    
+    for (i in 1:nrow(display_data)) {
+      pos <- display_data$POS[i]
+      freqs <- sprintf("%.1f%%", as.numeric(display_data[i, founders]) * 100)
+      cat("POS", pos, ": ", paste(paste0(founders, "=", freqs), collapse=", "), "\n")
+    }
+    cat("\n")
+  }
+  
   # Check if we have all founder columns and enough data
   if (ncol(wide_data) < length(founders) + 1) {
     cat("✗ Missing founders, trying larger window\n\n")
+    snps_tracking$founder_complete[window_idx] <- 0
     next  # Try larger window
   }
   
   if (nrow(wide_data) < 10) {
     cat("✗ Insufficient data in window, trying larger window\n\n")
+    snps_tracking$founder_complete[window_idx] <- 0
     next  # Try larger window
   }
   
@@ -117,38 +150,75 @@ for (window_size in window_sizes) {
   
   if (nrow(founder_matrix_clean) < 10) {
     cat("✗ Insufficient clean data, trying larger window\n\n")
+    snps_tracking$founder_complete[window_idx] <- nrow(founder_matrix_clean)
+    snps_tracking$clustering_valid[window_idx] <- 0
     next  # Try larger window
   }
   
+  snps_tracking$founder_complete[window_idx] <- nrow(founder_matrix)
+  snps_tracking$clustering_valid[window_idx] <- nrow(founder_matrix_clean)
+  
   cat("Founder matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
+  
+  # Show founder frequency ranges for this window
+  cat("Founder frequency ranges:\n")
+  for (i in 1:ncol(founder_matrix_clean)) {
+    founder_name <- founders[i]
+    freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
+    cat("  ", founder_name, ": ", sprintf("%.3f - %.3f", freq_range[1], freq_range[2]), "\n")
+  }
   
   # Hierarchical clustering to check distinguishability
   tryCatch({
     distances <- dist(t(founder_matrix_clean), method = "euclidean")
     hclust_result <- hclust(distances, method = "ward.D2")
     
+    # Show key clustering distances
+    cat("Key clustering distances:\n")
+    dist_matrix <- as.matrix(distances)
+    min_dist <- min(dist_matrix[dist_matrix > 0])
+    max_dist <- max(dist_matrix)
+    cat("  Minimum distance:", sprintf("%.3f", min_dist), "\n")
+    cat("  Maximum distance:", sprintf("%.3f", max_dist), "\n")
+    cat("  H_cutoff:", test_h_cutoff, "\n")
+    
     # Cut tree at h_cutoff
     groups <- cutree(hclust_result, h = test_h_cutoff)
     n_groups <- length(unique(groups))
     
-    cat("Number of groups at h_cutoff", test_h_cutoff, ":", n_groups, "\n")
-    cat("Group assignments:", paste(groups, collapse=", "), "\n")
+    snps_tracking$n_groups[window_idx] <- n_groups
+    
+    cat("Clustering results:\n")
+    cat("  Number of groups:", n_groups, "\n")
+    cat("  Group assignments:", paste(groups, collapse=", "), "\n")
+    
+    # Show which founders are in which groups
+    for (group_id in unique(groups)) {
+      group_founders <- founders[groups == group_id]
+      cat("  Group", group_id, ":", paste(group_founders, collapse=", "), "\n")
+    }
     
     # Check if all 8 founders can be distinguished
     if (n_groups == 8) {
-      cat("✓ SUCCESS: All 8 founders distinguished!\n")
+      cat("✓ SUCCESS: All 8 founders distinguished individually!\n")
       final_window_size <- window_size
       estimate_OK <- 1
       final_n_snps <- nrow(wide_data)
+      snps_tracking$estimate_OK[window_idx] <- 1
       break  # Success! Stop expanding
     } else {
-      cat("✗ Only", n_groups, "groups, trying larger window\n\n")
+      cat("✗ Only", n_groups, "groups - need larger window\n")
+      cat("✗ Some founders still clustered together\n")
+      snps_tracking$estimate_OK[window_idx] <- 0
     }
     
   }, error = function(e) {
-    cat("✗ Clustering failed:", e$message, ", trying larger window\n\n")
-    # Clustering failed, try larger window
+    cat("✗ Clustering failed:", e$message, ", trying larger window\n")
+    snps_tracking$n_groups[window_idx] <- 0
+    snps_tracking$estimate_OK[window_idx] <- 0
   })
+  
+  cat("\n")
 }
 
 # Record result (either successful at some window size, or failed at all sizes)
@@ -159,9 +229,22 @@ if (is.na(final_window_size)) {
   cat("✅ SUCCESS: All founders distinguished at", final_window_size/1000, "kb\n")
 }
 
+# Show comprehensive SNP tracking summary
+cat("\n=== SNP TRACKING SUMMARY ===\n")
+print(snps_tracking)
+
 cat("\n=== FINAL RESULT ===\n")
 cat("final_window_size:", final_window_size, "bp (", final_window_size/1000, "kb)\n")
 cat("estimate_OK:", estimate_OK, "\n")
 cat("n_snps:", final_n_snps, "\n")
+
+if (estimate_OK == 1) {
+  cat("✓ SUCCESS: Adaptive algorithm found optimal window size!\n")
+  cat("✓ All 8 founders can be distinguished at", final_window_size/1000, "kb\n")
+} else {
+  cat("✗ FAILURE: Could not distinguish all 8 founders\n")
+  cat("✗ Even at maximum window size of", max(window_sizes)/1000, "kb\n")
+  cat("✗ Best result:", max(snps_tracking$n_groups), "groups\n")
+}
 
 cat("\n=== ADAPTIVE WINDOW TEST COMPLETE ===\n")

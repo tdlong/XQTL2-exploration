@@ -16,6 +16,23 @@
 - ✅ **Major Efficiency**: Quality filter applied once at data loading, not in every window loop
 - ✅ **Test Scripts**: `test_fixed_window.R` and `test_adaptive_window.R` match production logic exactly
 
+### **🧪 NEXT: Test the New Scripts**
+
+**Commands to run on cluster:**
+
+```bash
+# Test fixed window distinguishability
+Rscript scripts/debug_and_testing/test_fixed_window.R
+
+# Test adaptive window distinguishability  
+Rscript scripts/debug_and_testing/test_adaptive_window.R
+```
+
+**Expected outputs:**
+- Fixed window: Should show `estimate_OK: 1` or `0` based on 50kb window distinguishability
+- Adaptive window: Should show progressive window expansion and final `estimate_OK` result
+- Both should show major speed improvement from quality filter efficiency
+
 ## ⚠️ **CRITICAL WORKFLOW CONSTRAINT** ⚠️
 
 **This is a CLUSTER-BASED project. Local terminal access is severely limited:**

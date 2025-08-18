@@ -113,28 +113,64 @@ if (nrow(founder_matrix_clean) < 10) {
 
 cat("Final founder matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
 
+# Show some raw data for diagnostics
+cat("\n=== FOUNDER FREQUENCY RANGES ===\n")
+for (i in 1:ncol(founder_matrix_clean)) {
+  founder_name <- founders[i]
+  freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
+  cat(founder_name, ": ", sprintf("%.3f - %.3f", freq_range[1], freq_range[2]), "\n")
+}
+
+# Show sample of raw SNP data
+cat("\n=== SAMPLE SNP DATA (first 10 positions) ===\n")
+sample_data <- wide_data[1:min(10, nrow(wide_data)), ]
+for (i in 1:nrow(sample_data)) {
+  pos <- sample_data$POS[i]
+  freqs <- sprintf("%.3f", as.numeric(sample_data[i, founders]))
+  cat("POS", pos, ": ", paste(paste0(founders, "=", freqs), collapse=", "), "\n")
+}
+
 # Hierarchical clustering to check distinguishability
+cat("\n=== CLUSTERING ANALYSIS ===\n")
 tryCatch({
   distances <- dist(t(founder_matrix_clean), method = "euclidean")
   hclust_result <- hclust(distances, method = "ward.D2")
+  
+  # Show clustering distances
+  cat("Clustering distances between founders:\n")
+  dist_matrix <- as.matrix(distances)
+  for (i in 1:(length(founders)-1)) {
+    for (j in (i+1):length(founders)) {
+      cat(sprintf("  %s - %s: %.3f\n", founders[i], founders[j], dist_matrix[i,j]))
+    }
+  }
   
   # Cut tree at h_cutoff
   groups <- cutree(hclust_result, h = h_cutoff)
   n_groups <- length(unique(groups))
   
-  cat("Number of founder groups at h_cutoff", h_cutoff, ":", n_groups, "\n")
+  cat("\nClustering results at h_cutoff", h_cutoff, ":\n")
+  cat("Number of groups:", n_groups, "\n")
   cat("Group assignments:", paste(groups, collapse=", "), "\n")
+  
+  # Show which founders are in which groups
+  for (group_id in unique(groups)) {
+    group_founders <- founders[groups == group_id]
+    cat("Group", group_id, ":", paste(group_founders, collapse=", "), "\n")
+  }
   
   # Check if all 8 founders can be distinguished
   estimate_OK <- ifelse(n_groups == 8, 1, 0)
   
-  cat("\n=== RESULT ===\n")
+  cat("\n=== FINAL RESULT ===\n")
   cat("estimate_OK:", estimate_OK, "\n")
   
   if (estimate_OK == 1) {
-    cat("✓ All 8 founders can be distinguished!\n")
+    cat("✓ All 8 founders can be distinguished individually!\n")
+    cat("✓ Perfect distinguishability at", test_window_size/1000, "kb window size\n")
   } else {
-    cat("✗ Only", n_groups, "groups - founders cannot be fully distinguished\n")
+    cat("✗ Only", n_groups, "groups - some founders cannot be distinguished\n")
+    cat("✗ Need larger window or different h_cutoff for full distinguishability\n")
   }
   
 }, error = function(e) {
