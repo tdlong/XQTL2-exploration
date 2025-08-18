@@ -132,24 +132,19 @@ for (window_idx in seq_along(window_sizes)) {
   # Track total SNPs
   snps_tracking$total_snps[window_idx] <- nrow(window_snps)
   
+  # Convert to wide format first (rows = positions, columns = sample + founders)
+  wide_data <- window_snps %>%
+    select(POS, name, freq) %>%
+    pivot_wider(names_from = name, values_from = freq)
+  
+  cat("Wide format data:", nrow(wide_data), "positions\n")
+  
   # Show first 25 SNPs as a table (raw data inspection)
   if (window_idx == 1) {  # Only show for first window to avoid spam
     cat("\n=== FIRST 25 SNPS IN WINDOW (RAW DATA) ===\n")
     
-    # Get sample and founder data for first 25 positions
-    sample_data <- window_snps %>%
-      filter(name == test_sample) %>%
-      select(POS, freq) %>%
-      rename(sample_freq = freq)
-    
-    founder_data_wide <- window_snps %>%
-      filter(name %in% founders) %>%
-      select(POS, name, freq) %>%
-      pivot_wider(names_from = name, values_from = freq)
-    
-    # Join and show first 25
-    display_data <- founder_data_wide %>%
-      left_join(sample_data, by = "POS") %>%
+    # Show first 25 positions
+    display_data <- wide_data %>%
       arrange(POS) %>%
       head(25) %>%
       mutate(
@@ -163,7 +158,8 @@ for (window_idx in seq_along(window_sizes)) {
     
     for (i in 1:nrow(display_data)) {
       row <- display_data[i, ]
-      cat(sprintf("%6d  %6d", row$POS, row$sample_freq))
+      sample_col <- test_sample
+      cat(sprintf("%6d  %6d", row$POS, row[[sample_col]]))
       for (founder in founders) {
         freq_val <- row[[founder]]
         if (is.na(freq_val)) {
@@ -177,31 +173,20 @@ for (window_idx in seq_along(window_sizes)) {
     cat("\n")
   }
   
-  # Quality filter: keep SNPs where founders are mostly fixed (freq < 3% OR > 97%)
-  # Only apply to founders, not the sample data
-  founder_quality_filtered <- window_snps %>%
-    filter(name %in% founders) %>%
-    group_by(POS) %>%
-    summarize(
-      all_fixed = all(freq < 0.03 | freq > 0.97)
-    ) %>%
-    filter(all_fixed == TRUE) %>%
-    select(POS)
+  # Quality filter: keep rows where ALL founders are fixed (freq < 0.03 OR freq > 0.97)
+  # Skip positions where any founder has intermediate frequency
+  quality_filtered <- wide_data %>%
+    filter(
+      if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+    )
   
-  # Apply quality filter to all data
-  quality_filtered <- window_snps %>%
-    semi_join(founder_quality_filtered, by = "POS")
-  
-  cat("After quality filter (founders fixed):", nrow(quality_filtered), "SNPs\n")
+  cat("After quality filter (founders fixed):", nrow(quality_filtered), "positions\n")
   snps_tracking$after_quality_filter[window_idx] <- nrow(quality_filtered)
   
-  # Get founder data for this window (copy working logic from fixed window script)
-  founder_data <- quality_filtered %>%
-    filter(name %in% founders) %>%
-    select(POS, name, freq) %>%
-    pivot_wider(names_from = name, values_from = freq)
+  # Get founder data for this window
+  founder_data <- quality_filtered
   
-  cat("After founder filter (founders only):", nrow(founder_data), "positions\n")
+  cat("After founder filter (same as quality):", nrow(founder_data), "positions\n")
   snps_tracking$after_founder_filter[window_idx] <- nrow(founder_data)
   
   # Check if we have enough founder data
@@ -210,17 +195,14 @@ for (window_idx in seq_along(window_sizes)) {
     next
   }
   
-  # Get founder matrix and sample frequencies
+  # Get founder matrix and sample frequencies from wide format
   founder_matrix <- founder_data %>%
-    select(-POS) %>%
+    select(all_of(founders)) %>%
     as.matrix()
   
-  # Get sample frequencies for the same positions
-  sample_freqs <- quality_filtered %>%
-    filter(name == test_sample) %>%
-    select(POS, freq) %>%
-    right_join(founder_data %>% select(POS), by = "POS") %>%
-    pull(freq)
+  # Get sample frequencies
+  sample_freqs <- founder_data %>%
+    pull(!!test_sample)
   
   cat("After sample filter (sample data available):", length(sample_freqs), "positions\n")
   snps_tracking$after_sample_filter[window_idx] <- length(sample_freqs)
@@ -235,23 +217,39 @@ for (window_idx in seq_along(window_sizes)) {
   cat("Founder matrix NA count:", sum(is.na(founder_matrix)), "\n")
   snps_tracking$final_valid[window_idx] <- sum(valid_positions)
   
-  if (nrow(founder_matrix) < 10) {
+  # Convert to matrix for clustering
+  founder_matrix_clean <- founder_matrix[complete.cases(founder_matrix), ]
+  
+  if (nrow(founder_matrix_clean) < 10) {
     cat("✗ Insufficient data for estimation, skipping\n")
     next
   }
   
-  # Convert to matrix for clustering
-  founder_matrix <- as.matrix(founder_matrix)
+  # Debug: Show founder frequency ranges
+  cat("Founder frequency ranges:\n")
+  for (i in 1:ncol(founder_matrix_clean)) {
+    founder_name <- colnames(founder_matrix_clean)[i]
+    freq_range <- range(founder_matrix_clean[, i])
+    cat(sprintf("  %s: %.4f to %.4f\n", founder_name, freq_range[1], freq_range[2]))
+  }
   
-  # Cluster founders based on similarity using hierarchical clustering
-  founder_clusters <- cutree(hclust(dist(t(founder_matrix))), h = test_h_cutoff)
-  n_groups <- length(unique(founder_clusters))
+  # Hierarchical clustering
+  distances <- dist(t(founder_matrix_clean), method = "euclidean")
+  hclust_result <- hclust(distances, method = "ward.D2")
+  
+  # Debug: Show clustering distances
+  cat("Clustering distances:\n")
+  print(distances)
+  
+  # Cut tree at h_cutoff
+  groups <- cutree(hclust_result, h = test_h_cutoff)
+  n_groups <- length(unique(groups))
   
   cat("Founder groups:", n_groups, "\n")
-  cat("Group assignments:", paste(founder_clusters, collapse=", "), "\n")
+  cat("Group assignments:", paste(groups, collapse=", "), "\n")
   
   # Check if groups meaningfully changed
-  groups_meaningfully_changed <- groups_changed(founder_clusters, previous_groups)
+  groups_meaningfully_changed <- groups_changed(groups, previous_groups)
   cat("Groups meaningfully changed:", groups_meaningfully_changed, "\n")
   
   if (groups_meaningfully_changed) {
@@ -285,8 +283,8 @@ for (window_idx in seq_along(window_sizes)) {
         current_constraints <- NULL
         current_constraint_values <- NULL
         
-        for (cluster_id in unique(founder_clusters)) {
-          cluster_founders <- which(founder_clusters == cluster_id)
+        for (cluster_id in unique(groups)) {
+          cluster_founders <- which(groups == cluster_id)
           if (length(cluster_founders) > 1) {
             # Create constraint row for this group
             constraint_row <- rep(0, n_founders)
@@ -328,7 +326,7 @@ for (window_idx in seq_along(window_sizes)) {
         
         # Store the best result for this position/h_cutoff
         best_result <- result
-        best_n_groups <- length(unique(founder_clusters))
+        best_n_groups <- length(unique(groups))
         
         # Check if all founders are separated
         if (best_n_groups == length(founders)) {
@@ -345,7 +343,7 @@ for (window_idx in seq_along(window_sizes)) {
     cat("Groups unchanged, skipping LSEI\n")
   }
   
-  previous_groups <- founder_clusters
+  previous_groups <- groups
 }
 
 # Final results
