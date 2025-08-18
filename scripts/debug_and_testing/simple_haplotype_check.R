@@ -38,49 +38,13 @@ for (method in methods) {
     # Load the data
     results <- readRDS(file_path)
     cat("  Data:", nrow(results), "rows\n")
+    cat("  Columns:", paste(names(results), collapse = ", "), "\n")
     
-    # Question 2: What fraction have founder NAs vs estimates?
-    if (all(founders %in% names(results))) {
-      cat("✓ All founder columns present\n")
-      
-      # Check if we have sample column
-      if ("sample" %in% names(results)) {
-        # Per-sample analysis
-        sample_summary <- results %>%
-          group_by(sample) %>%
-          summarise(
-            total_positions = n(),
-            # Count positions where ALL founders are NA
-            all_founders_NA = sum(rowSums(is.na(select(., all_of(founders)))) == length(founders)),
-            # Count positions where at least one founder has estimate
-            some_founders_estimated = sum(rowSums(!is.na(select(., all_of(founders)))) > 0),
-            .groups = "drop"
-          ) %>%
-          mutate(
-            fraction_all_NA = round(all_founders_NA / total_positions, 3),
-            fraction_estimated = round(some_founders_estimated / total_positions, 3)
-          )
-        
-        cat("  Per-sample founder coverage:\n")
-        for (i in 1:nrow(sample_summary)) {
-          cat(sprintf("    %s: %.3f all-NA, %.3f estimated\n", 
-                     sample_summary$sample[i], 
-                     sample_summary$fraction_all_NA[i],
-                     sample_summary$fraction_estimated[i]))
-        }
-      } else {
-        # Single analysis
-        total_pos <- nrow(results)
-        all_na <- sum(rowSums(is.na(results[founders])) == length(founders))
-        some_est <- sum(rowSums(!is.na(results[founders])) > 0)
-        
-        cat(sprintf("  Founder coverage: %.3f all-NA, %.3f estimated\n", 
-                   all_na/total_pos, some_est/total_pos))
-      }
-    } else {
-      missing_founders <- founders[!founders %in% names(results)]
-      cat("✗ Missing founder columns:", paste(missing_founders, collapse = ", "), "\n")
-    }
+    # Question 2: What fraction of positions have estimates vs NAs?
+    # In binary distinguishability format: estimate_OK tells us if founders could be distinguished
+    cat("✓ Using binary distinguishability format (estimate_OK column)\n")
+    cat("  estimate_OK = 1: All founders distinguishable (haplotype estimatable)\n")
+    cat("  estimate_OK = 0: Founders not distinguishable (haplotype NOT estimatable)\n")
     
     # Question 3: What fraction are estimate_OK?
     if ("estimate_OK" %in% names(results)) {
