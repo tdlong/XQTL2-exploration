@@ -16,6 +16,24 @@
 - **Never assume exactly 8 founders** - this is flexible by design
 - **Examples in conversation**: When I say "8 founders" it's shorthand for "however many founders are defined"
 
+### **📁 PARAMETER FILE CONFIGURATION:**
+**All scripts read parameters from: `helpfiles/JUICE_haplotype_parameters.R`**
+
+**Parameters used by scripts:**
+- **`founders`**: Founder sample names (e.g., B1, B2, ..., AB8) - defines how many founders
+- **`step`**: Step size for chromosome scanning (10000 = 10kb steps)
+- **`h_cutoff`**: Clustering threshold for fixed window (2.5 default)
+- **`names_in_bam`**: Specific samples to process (AJ_1_1, AJ_2_1, GJ_1_1, etc.)
+
+**Parameters NOT used by scripts:**
+- **`size`**: COMMENTED OUT - window size comes from command line for flexibility
+
+**Key Benefits:**
+- **Selective processing**: Can handle large REFALT files but only analyze specific samples
+- **Flexible founder counts**: Works with any number of founders defined in parameter file
+- **Single source of truth**: All parameters centralized in one file
+- **Easy configuration**: Change step size, samples, or founders without editing scripts
+
 ### **New Production Scripts:**
 - ✅ **`scripts/REFALT2haps.FixedWindow.Single.R`**: Distinguishability at fixed window size
 - ✅ **`scripts/REFALT2haps.AdaptWindow.Single.R`**: Progressive expansion until distinguishable

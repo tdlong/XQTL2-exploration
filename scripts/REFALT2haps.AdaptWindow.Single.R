@@ -34,7 +34,9 @@ filein <- paste0(dirname(mydir), "/RefAlt.", mychr, ".txt")
 cat("=== REFALT2haps Adaptive Window - Distinguishability Check ===\n")
 cat("Chromosome:", mychr, "\n")
 cat("H_cutoff:", h_cutoff, "\n")
-cat("Input file:", filein, "\n\n")
+cat("Input file:", filein, "\n")
+cat("Parameter file:", parfile, "\n")
+cat("✓ Loaded parameters: founders (", length(founders), "), step (", step, "), h_cutoff (", h_cutoff, "), samples (", length(names_in_bam), ")\n\n")
 
 # Load data
 cat("Loading data...\n")

@@ -10,9 +10,10 @@ cat("=== FIXED WINDOW DISTINGUISHABILITY TEST ===\n\n")
 
 # 1. Load parameters (same as production)
 cat("1. Loading parameters...\n")
-source("helpfiles/JUICE/JUICE_haplotype_parameters.R")
+source("helpfiles/JUICE_haplotype_parameters.R")
+cat("✓ Parameter file: helpfiles/JUICE_haplotype_parameters.R\n")
+cat("✓ Loaded parameters: founders (", length(founders), "), step (", step, "), h_cutoff (", h_cutoff, "), samples (", length(names_in_bam), ")\n")
 cat("✓ Founders:", paste(founders, collapse=", "), "\n")
-cat("✓ H_cutoff:", h_cutoff, "\n")
 
 # 2. Load and transform data (same as production)
 cat("\n2. Loading and transforming data...\n")
