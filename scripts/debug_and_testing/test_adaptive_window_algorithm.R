@@ -61,7 +61,7 @@ cat("\n3. Testing complete adaptive window algorithm...\n")
 
 # Test parameters
 test_pos <- 15000000
-test_h_cutoff <- 4
+test_h_cutoff <- 10  # Larger h_cutoff to make it more challenging
 test_sample <- non_founder_samples[1]
 
 cat("✓ Test position:", test_pos, "\n")
