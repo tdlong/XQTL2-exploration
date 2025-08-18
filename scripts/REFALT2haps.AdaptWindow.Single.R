@@ -267,9 +267,10 @@ for (pos_idx in seq_along(scan_positions)) {
           F <- c(F, accumulated_constraint_values)
         }
         
-        # Solve constrained least squares (use clean matrix like test script)
+        # Solve constrained least squares (use clean matrix consistently)
+        sample_freqs_clean <- sample_freqs[complete.cases(founder_matrix)]
         tryCatch({
-          result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs[complete.cases(founder_matrix)], E = E, F = F, 
+          result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, E = E, F = F, 
                                   G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
           
           if (result$IsError == 0) {
