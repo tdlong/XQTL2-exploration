@@ -127,17 +127,15 @@ for (window_idx in seq_along(window_sizes)) {
            POS < window_end &
            (name %in% founders | name == test_sample))
   
-  cat("SNPs in window:", nrow(window_snps), "\n")
-  
-  # Track total SNPs
-  snps_tracking$total_snps[window_idx] <- nrow(window_snps)
-  
   # Convert to wide format first (rows = positions, columns = sample + founders)
   wide_data <- window_snps %>%
     select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
-  cat("Wide format data:", nrow(wide_data), "positions\n")
+  cat("SNPs in window:", nrow(wide_data), "positions\n")
+  
+  # Track total SNPs (positions)
+  snps_tracking$total_snps[window_idx] <- nrow(wide_data)
   
   # Show first 25 SNPs as a table (raw data inspection)
   if (window_idx == 1) {  # Only show for first window to avoid spam
