@@ -1,31 +1,4 @@
-# XQTL2 Pipeline Scripts
-
-This repository contains the bioinformatics pipeline scripts for XQTL (Experimental Quantitative Trait Locus) analysis in Drosophila.
-
-**Note:** The XQTL analysis and visualization functions have been moved to the [XQTL2.Xplore R package](https://github.com/tdlong/XQTL2.Xplore), which provides comprehensive tools for data analysis and plotting.
-
-## Script Organization
-
-The scripts are organized into logical subfolders reflecting the pipeline flow:
-
-### **Main Scripts** (`scripts/`)
-- **Main Pipeline**: `haplotype_testing_from_table.sh` - Comprehensive wrapper for haplotype estimation and SNP imputation
-- **Haplotype Estimation**: `REFALT2haps.FixedWindow.Single.R`, `REFALT2haps.AdaptWindow.Single.R` - Single-parameter estimators
-- **SNP Imputation**: `euchromatic_SNP_imputation_single.R` - SNP frequency interpolation with founder order fix
-- **Method Evaluation**: `evaluate_haplotype_methods.R` - Comprehensive comparison of different haplotype estimation methods
-
-### **Pipeline Subfolders**
-- **`raw2bam2REFALT/`** - Early pipeline: Raw data → BAM → REF/ALT counts
-  - `fq2bam.sh`, `fq2bam.Oct28.sh`, `bam2bcf2REFALT.sh`
-- **`haps2scan/`** - GWAS scanning and analysis
-  - All `haps2scan.*` scripts, `scan_functions.R`, `XQTL_plotting_functions.R`, `concat_Chromosome_Scans.*`
-- **`old_REFALT2haps/`** - Legacy Andreas scripts
-  - `REFALT2haps.Andreas.*` scripts
-- **`Heterozygosity_tests/`** - Heterozygosity analysis
-  - `plot_heterozygosity.R`, `process_heterozygosity.R`, `bam2bcf2REFALT_het.sh`, `REFALT2HET.awk`
-- **`debug_and_testing/`** - Debugging, testing, and diagnostic scripts (16 files)
-
-## Current XQTL pipeline
+# Current XQTL pipeline
 
 ## Get sequences from core...
 

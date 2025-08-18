@@ -48,12 +48,14 @@ sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_p
 
 **KEEP SCRIPTS FOLDER CLEAN - NO TEMPORARY OR DEBUGGING SCRIPTS IN ROOT**
 
-### **Production Scripts (scripts/ root):**
+### **Production Scripts (scripts/ root) - CLEANED UP:**
 - `REFALT2haps.FixedWindow.Single.R` - Fixed window distinguishability
 - `REFALT2haps.AdaptWindow.Single.R` - Adaptive window distinguishability  
 - `euchromatic_SNP_imputation_single.R` - SNP imputation
 - `haplotype_testing_from_table.sh` - Slurm pipeline wrapper
 - `evaluate_haplotype_methods.R` - Results evaluation
+- `summarize_pipeline_results.R` - Pipeline monitoring
+- **Organized subfolders**: `haps2scan/`, `Heterozygosity_tests/`, `old_REFALT2haps/`, `raw2bam2REFALT/`
 
 ### **Debugging/Testing Scripts (scripts/debug_and_testing/):**
 - `test_fixed_window.R` - Test fixed window algorithm
@@ -61,6 +63,8 @@ sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_p
 - All other debugging, testing, and temporary scripts
 
 ### **🚨 RULE: NO TEMPORARY SCRIPTS IN PRODUCTION FOLDER**
+- ✅ **CLEANUP COMPLETED**: Moved `debug_pos_column.R` and `debug_production_pipeline.R` to `debug_and_testing/`
+- ✅ **OLD FILES REMOVED**: Deleted `.OLD.R` backup files 
 - All debugging scripts go in `scripts/debug_and_testing/`
 - All temporary scripts get deleted after use or moved to `debug_and_testing/`
 - Keep production scripts folder clean and organized
