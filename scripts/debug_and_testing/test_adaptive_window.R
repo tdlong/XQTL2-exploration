@@ -258,7 +258,7 @@ if (estimate_OK == 1) {
   window_end <- test_pos + final_window_size/2
   
   window_data <- df3 %>%
-    filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+    filter(POS >= window_start & POS <= window_end & name %in% c(founders, test_sample))
   
   wide_data <- window_data %>%
     select(POS, name, freq) %>%
@@ -269,7 +269,7 @@ if (estimate_OK == 1) {
     select(all_of(founders)) %>%
     as.matrix()
   sample_freqs <- wide_data %>%
-    pull(!!sample_name)
+    pull(!!test_sample)
   
   # Remove rows with any NAs
   complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
