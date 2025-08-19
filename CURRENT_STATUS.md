@@ -1,40 +1,52 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🔧 **CURRENT FOCUS: Fix Production Scripts Based on Working Test Scripts**
+## 🔧 **CURRENT FOCUS: Update Production Scripts to Match Working Test Scripts**
 
-**ISSUE IDENTIFIED**: Production scripts missing founder frequency columns in output (0% success rate), while test scripts work perfectly.
+**STATUS**: Test scripts work perfectly and have been verified by user. Now applying exact working logic to production scripts.
 
-**CURRENT PHASE**: Enhance test scripts to replicate complete production workflow, then fix production to match working tests.
+**CRITICAL PROTOCOL**: **DO NOT RE-WRITE PRODUCTION FROM SCRATCH**
+- ✅ Fixed window test script: Working perfectly (verified by user)
+- ✅ Adaptive window test script: Working perfectly (verified by user) 
+- 🎯 **NOW**: Update production scripts to use EXACT same logic as working tests
+- **NO new algorithms, NO new ideas, NO rewrites - just copy working test logic**
 
 ### **Current Implementation Plan:**
 
-**STEP 1: Enhance Fixed Window Test Script** (COMPLETED)
-- ✅ Keep current diagnostic screen output (algorithm verification)
-- ✅ Add production data workflow (result_row creation, RDS saving)
-- ✅ Test multiple positions/samples (3 positions × 2 samples = 6 test cases)
-- ✅ Verify output structure (all expected columns present)
-- ✅ Test all edge cases (LSEI success/failure/error)
-- ✅ Test RDS save/load functionality
-- ✅ Verify data structure matches production expectations
+**STEP 1: Enhance Test Scripts** ✅ **COMPLETED AND VERIFIED**
+- ✅ Fixed window test: 6 test cases, complete production workflow simulation
+- ✅ Adaptive window test: 12 test cases, constraint accumulation diagnostics
+- ✅ Both tests: Output correct data structures, RDS save/load, all columns present
+- ✅ User verification: "test scripts are working and have been tested by me"
 
-**STEP 2: Fix Production Fixed Window Script**
-- Copy exact working logic from enhanced test script
-- Ensure production creates same data structures as test
+**STEP 2: Update Production Fixed Window Script** ⏳ **IN PROGRESS**
+- Take exact working logic from `scripts/debug_and_testing/test_fixed_window.R`
+- Remove diagnostic output, keep core algorithm and data structure creation
+- Ensure production creates IDENTICAL data structures as working test
 
-**STEP 3: Enhance Adaptive Window Test Script** (COMPLETED)
-- ✅ Keep current diagnostic screen output (algorithm verification)
-- ✅ Add production data workflow (result_row creation, RDS saving)
-- ✅ Test multiple positions/samples/h_cutoffs (3×2×2 = 12 test cases)
-- ✅ Test complete constraint accumulation algorithm
-- ✅ Verify output structure (all expected columns present)
-- ✅ Test RDS save/load functionality
-- ✅ Test constraint accumulation works (different h_cutoff → different results)
-- ✅ Verify data structure matches production expectations
+**STEP 3: Update Production Adaptive Window Script** 📋 **PENDING**
+- Take exact working logic from `scripts/debug_and_testing/test_adaptive_window.R`
+- Remove diagnostic output, keep core constraint accumulation algorithm
+- Ensure production creates IDENTICAL data structures as working test
 
-**STEP 4: Fix Production Adaptive Window Script**
-- Copy exact working logic from enhanced test script
+**GOLDEN RULE**: Production scripts should be "test scripts minus the diagnostic output"
 
-**CRITICAL CONSTRAINT**: DO NOT modify algorithm logic - only add data output testing to test scripts.
+### **🚨 CRITICAL TESTING AND RESOURCE REALITY**
+
+**Laws of Robotics - Code Changes:**
+1. **If it works, DON'T FIX IT. If it's broken, fix ONLY what's broken.**
+2. **Test script works perfectly → Production script should exactly mimic the working test**
+3. **NEVER re-write production code from scratch when test code works**
+
+**Resource Reality:**
+- **Cluster debugging is EXPENSIVE** (time, compute resources, queue wait)
+- **Local testing is CHEAP** (10 seconds vs overnight)
+- **Test scripts must be the source of truth** - they replicate exact production logic
+- **Production bugs caught locally save hours/days of cluster debugging**
+
+**Current Protocol:**
+- ✅ **Test scripts verified working by user**
+- 🎯 **Copy exact working logic to production (remove only diagnostic output)**
+- ❌ **NO new algorithms, NO new ideas, NO rewrites**
 
 ### **Corrected Algorithm Logic:**
 - **Always run LSEI** (if sufficient SNPs) to get actual haplotype frequencies (B1, B2, ..., AB8)
