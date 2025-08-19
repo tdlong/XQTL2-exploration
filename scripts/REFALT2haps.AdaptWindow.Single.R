@@ -83,11 +83,13 @@ scan_positions <- seq(from = min(quality_filtered_positions),
 # Initialize results list
 results_list <- list()
 
-# Process each position and sample combination
+# Process each position and sample combination  
 for (test_pos in scan_positions) {
   for (sample_name in non_founder_samples) {
     
     # ADAPTIVE WINDOW ALGORITHM WITH CONSTRAINT ACCUMULATION
+    # (Same as main test above, but multiple cases)
+    
     window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
     best_result <- NULL
     best_n_groups <- 0
@@ -233,7 +235,7 @@ for (test_pos in scan_positions) {
       estimate_OK <- NA
     }
     
-    # CREATE result_row STRUCTURE (same as test script)
+    # CREATE EXACT SAME result_row STRUCTURE AS PRODUCTION
     result_row <- list(
       chr = mychr,
       pos = test_pos,
@@ -244,7 +246,7 @@ for (test_pos in scan_positions) {
       estimate_OK = estimate_OK
     )
     
-    # Add founder frequencies as named columns
+    # Add founder frequencies as named columns (EXACTLY like production should do)
     for (i in seq_along(founders)) {
       result_row[[founders[i]]] <- founder_frequencies[i]
     }

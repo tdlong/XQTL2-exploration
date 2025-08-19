@@ -86,43 +86,37 @@ results_list <- list()
 for (test_pos in scan_positions) {
   for (sample_name in non_founder_samples) {
     
-    # Calculate window boundaries
+    # Run the exact same algorithm as the main test above
     window_start <- test_pos - window_size_bp/2
     window_end <- test_pos + window_size_bp/2
     
-    # Get SNPs in window for both founders AND sample (data is already quality-filtered)
-    window_snps_long <- df3 %>%
+    # Get data (same as main test)
+    window_data <- df3 %>%
       filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
     
-    # Skip if no data
-    if (nrow(window_snps_long) == 0) {
+    if (nrow(window_data) == 0) {
       next
     }
     
-    # Convert to wide format (rows = positions, columns = founders + sample)
-    wide_data <- window_snps_long %>%
+    wide_data <- window_data %>%
       select(POS, name, freq) %>%
       pivot_wider(names_from = name, values_from = freq)
     
-    # Check if we have all founder columns + sample and enough data
     if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
       next
     }
     
-    # Get founder matrix and sample frequencies for LSEI
+    # Get founder matrix and sample frequencies
     founder_matrix <- wide_data %>%
       select(all_of(founders)) %>%
       as.matrix()
-    
     sample_freqs <- wide_data %>%
       pull(!!sample_name)
     
-    # Remove rows with any NAs (both founder and sample data must be complete)
     complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
     founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
     sample_freqs_clean <- sample_freqs[complete_rows]
     
-    # Skip if insufficient clean data
     if (nrow(founder_matrix_clean) < 10) {
       next
     }
@@ -132,13 +126,12 @@ for (test_pos in scan_positions) {
     haplotype_freqs <- rep(NA, length(founders))
     names(haplotype_freqs) <- founders
     
-    # Run LSEI to get actual haplotype frequency estimates
+    # Run LSEI (same algorithm as main test)
     tryCatch({
-      # LSEI constraints: sum to 1, non-negative
-      E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+      E <- matrix(rep(1, length(founders)), nrow = 1)
       F <- 1.0
-      G <- diag(length(founders))  # Non-negativity constraints
-      H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+      G <- diag(length(founders))
+      H <- matrix(rep(0.0003, length(founders)))
       
       lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
                                    E = E, F = F, G = G, H = H)
@@ -148,25 +141,22 @@ for (test_pos in scan_positions) {
         haplotype_freqs <- lsei_result$X
         names(haplotype_freqs) <- founders
         
-        # Check distinguishability using clustering
-        distances <- dist(t(founder_matrix_clean), method = "euclidean")
-        hclust_result <- hclust(distances, method = "ward.D2")
+        # Check distinguishability
+        distances <- dist(t(founder_matrix_clean))
+        hclust_result <- hclust(distances, method = "complete")
         groups <- cutree(hclust_result, h = h_cutoff)
         n_groups <- length(unique(groups))
         
-        # Set estimate_OK based on distinguishability
         estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
         
       } else {
-        # LSEI failed
         estimate_OK <- NA
       }
     }, error = function(e) {
-      # LSEI error
       estimate_OK <- NA
     })
     
-    # CREATE result_row STRUCTURE (same as test script)
+    # CREATE EXACT SAME result_row STRUCTURE AS PRODUCTION
     result_row <- list(
       chr = mychr,
       pos = test_pos,
@@ -176,7 +166,7 @@ for (test_pos in scan_positions) {
       estimate_OK = estimate_OK
     )
     
-    # Add founder frequencies as named columns
+    # Add founder frequencies as named columns (EXACTLY like production should do)
     for (i in seq_along(founders)) {
       result_row[[founders[i]]] <- haplotype_freqs[i]
     }
