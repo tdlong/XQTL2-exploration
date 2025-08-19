@@ -161,9 +161,14 @@ if (length(results_list) > 0) {
     cat("ℹ Extra columns:", paste(extra_cols, collapse = ", "), "\n")
   }
   
-  # Show complete results table
+  # Show complete results table with better formatting
   cat(sprintf("\nComplete results (%d rows):\n", nrow(results_df)))
-  print(results_df)
+  
+  # Format positions as integers (not scientific notation)
+  results_formatted <- results_df %>%
+    mutate(pos = format(pos, scientific = FALSE, big.mark = ","))
+  
+  print(results_formatted)
   
   # Test that fixed and adaptive methods give different results
   if (any(results_df$method == "fixed") && any(results_df$method == "adaptive")) {
