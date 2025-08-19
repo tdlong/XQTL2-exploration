@@ -627,17 +627,9 @@ if (length(results_list) > 0) {
     cat("✗ RDS save/load test failed\n")
   }
   
-  # Show sample of actual data (with more context)
-  cat(sprintf("\nSample results (showing first 3 of %d total rows):\n", nrow(results_df)))
-  print(head(results_df, 3))
-  
-  # Show summary by test parameters to verify all combinations
-  cat("\nTest case breakdown:\n")
-  test_summary <- results_df %>%
-    group_by(h_cutoff, pos, sample) %>%
-    summarise(n_rows = n(), .groups = "drop") %>%
-    arrange(h_cutoff, pos, sample)
-  print(test_summary)
+  # Show ALL results - this is the main output!
+  cat(sprintf("\nComplete results (%d rows):\n", nrow(results_df)))
+  print(results_df)
   
   # Test constraint accumulation worked (different h_cutoff should give different results)
   if (length(test_h_cutoffs) > 1) {
