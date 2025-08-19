@@ -451,16 +451,18 @@ create_result <- function(chr, pos, sample_name, method, window_size, n_snps, es
     chr = chr,
     pos = pos,
     sample = sample_name,
-    method = method,
-    final_window_size = window_size,
-    n_snps = n_snps,
-    estimate_OK = estimate_OK
+    method = method
   )
   
-  # Add h_cutoff for adaptive method
+  # Add h_cutoff for adaptive method (right after method)
   if (method == "adaptive") {
     result[["h_cutoff"]] <- h_cutoff
   }
+  
+  # Continue with remaining columns
+  result[["final_window_size"]] <- window_size
+  result[["n_snps"]] <- n_snps
+  result[["estimate_OK"]] <- estimate_OK
   
   # Add founder frequencies
   for (i in seq_along(founders)) {
