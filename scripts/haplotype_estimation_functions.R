@@ -126,9 +126,10 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       cat("Window sizes to test:", paste(window_sizes/1000, "kb"), "\n")
     }
     
-    best_result <- NULL
-    best_n_groups <- 0
-    best_window_size <- window_sizes[1]
+    final_result <- NULL
+    final_n_groups <- 0
+    final_window_size <- window_sizes[1]
+    final_wide_data <- NULL
     previous_n_groups <- 0
     
     # CONSTRAINT ACCUMULATION (core of adaptive algorithm)
@@ -289,10 +290,11 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
             }
           }
           
-          # Store the best result
-          best_result <- result
-          best_n_groups <- n_groups
-          best_window_size <- window_size
+          # Always store the final result (will be overwritten as we expand)
+          final_result <- result
+          final_n_groups <- n_groups
+          final_window_size <- window_size
+          final_wide_data <- wide_data
           
           # Check if all founders are separated
           if (n_groups == length(founders)) {
@@ -311,13 +313,13 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
     }
     
     # Apply the correct rules for output
-    if (!is.null(best_result)) {
+    if (!is.null(final_result)) {
       # LSEI was successful - ALWAYS return the frequency estimates
-      founder_frequencies <- best_result$X
+      founder_frequencies <- final_result$X
       names(founder_frequencies) <- founders
       
       # Check if founders are distinguishable to set trust level
-      if (best_n_groups == length(founders)) {
+      if (final_n_groups == length(founders)) {
         estimate_OK <- 1  # Founders distinguishable - we can TRUST the frequencies
         if (verbose >= 2) {
           cat("✓ Founders distinguishable - frequencies are TRUSTWORTHY (estimate_OK = 1)\n")
@@ -343,13 +345,13 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       cat(sprintf("\n✅ FINAL RESULT:\n"))
       cat(sprintf("  estimate_OK: %s\n", ifelse(is.na(estimate_OK), "NA", estimate_OK)))
       cat(sprintf("  final_window_size: %s\n", 
-                  ifelse(best_window_size >= 1000, paste0(best_window_size/1000, " kb"), paste0(best_window_size, " bp"))))
-      cat(sprintf("  n_snps: %d\n", ifelse(is.null(best_result), 0, nrow(wide_data))))
+                  ifelse(final_window_size >= 1000, paste0(final_window_size/1000, " kb"), paste0(final_window_size, " bp"))))
+      cat(sprintf("  n_snps: %d\n", ifelse(is.null(final_result), 0, nrow(final_wide_data))))
     }
     
     # Return result
-    return(create_result(chr, pos, sample_name, method, best_window_size, 
-                        ifelse(is.null(best_result), 0, nrow(wide_data)), 
+    return(create_result(chr, pos, sample_name, method, final_window_size, 
+                        ifelse(is.null(final_result), 0, nrow(final_wide_data)), 
                         estimate_OK, founder_frequencies, founders))
   }
 }
