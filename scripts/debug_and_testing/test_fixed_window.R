@@ -246,3 +246,166 @@ tryCatch({
 })
 
 cat("\n=== FIXED WINDOW TEST COMPLETE ===\n")
+
+# ===============================================================
+# PRODUCTION DATA WORKFLOW TEST
+# Test the same data structures and file output as production
+# ===============================================================
+
+cat("\n=== TESTING PRODUCTION DATA WORKFLOW ===\n")
+
+# Test multiple positions and samples like production does
+test_positions <- c(5000000, 10000000, 15000000)
+test_samples <- names_in_bam[1:2]  # Test first 2 samples
+
+results_list <- list()
+
+for (test_pos in test_positions) {
+  for (sample_name in test_samples) {
+    cat(sprintf("Testing position %d, sample %s...\n", test_pos, sample_name))
+    
+    # Run the exact same algorithm as the main test above
+    window_start <- test_pos - test_window_size/2
+    window_end <- test_pos + test_window_size/2
+    
+    # Get data (same as main test)
+    window_data <- df3 %>%
+      filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+    
+    if (nrow(window_data) == 0) {
+      cat("  No data in window, skipping...\n")
+      next
+    }
+    
+    wide_data <- window_data %>%
+      select(POS, name, freq) %>%
+      pivot_wider(names_from = name, values_from = freq)
+    
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
+      cat("  Insufficient data, skipping...\n")
+      next
+    }
+    
+    # Get founder matrix and sample frequencies
+    founder_matrix <- wide_data %>%
+      select(all_of(founders)) %>%
+      as.matrix()
+    sample_freqs <- wide_data %>%
+      pull(!!sample_name)
+    
+    complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs[complete_rows]
+    
+    if (nrow(founder_matrix_clean) < 10) {
+      cat("  Too few complete SNPs, skipping...\n")
+      next
+    }
+    
+    # Initialize result variables
+    estimate_OK <- NA
+    haplotype_freqs <- rep(NA, length(founders))
+    names(haplotype_freqs) <- founders
+    
+    # Run LSEI (same algorithm as main test)
+    tryCatch({
+      E <- matrix(rep(1, length(founders)), nrow = 1)
+      F <- 1.0
+      G <- diag(length(founders))
+      H <- matrix(rep(0.0003, length(founders)))
+      
+      lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                   E = E, F = F, G = G, H = H)
+      
+      if (lsei_result$IsError == 0) {
+        # LSEI successful - get frequencies
+        haplotype_freqs <- lsei_result$X
+        names(haplotype_freqs) <- founders
+        
+        # Check distinguishability
+        distances <- dist(t(founder_matrix_clean))
+        hclust_result <- hclust(distances, method = "complete")
+        groups <- cutree(hclust_result, h = h_cutoff)
+        n_groups <- length(unique(groups))
+        
+        estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
+        
+      } else {
+        estimate_OK <- NA
+      }
+    }, error = function(e) {
+      estimate_OK <- NA
+    })
+    
+    # CREATE EXACT SAME result_row STRUCTURE AS PRODUCTION
+    result_row <- list(
+      chr = "chr2R",
+      pos = test_pos,
+      sample = sample_name,
+      window_size = test_window_size,
+      n_snps = nrow(wide_data),
+      estimate_OK = estimate_OK
+    )
+    
+    # Add founder frequencies as named columns (EXACTLY like production should do)
+    for (i in seq_along(founders)) {
+      result_row[[founders[i]]] <- haplotype_freqs[i]
+    }
+    
+    results_list[[length(results_list) + 1]] <- result_row
+    
+    cat(sprintf("  Result: estimate_OK=%s, n_snps=%d\n", 
+                ifelse(is.na(estimate_OK), "NA", estimate_OK), nrow(wide_data)))
+  }
+}
+
+# Convert to data frame (same as production)
+if (length(results_list) > 0) {
+  results_df <- bind_rows(results_list)
+  
+  cat("\n=== PRODUCTION DATA STRUCTURE TEST ===\n")
+  cat("Generated results data frame:\n")
+  cat("Columns:", paste(names(results_df), collapse = ", "), "\n")
+  cat("Rows:", nrow(results_df), "\n")
+  
+  # Verify all expected columns are present
+  expected_cols <- c("chr", "pos", "sample", "window_size", "n_snps", "estimate_OK", founders)
+  missing_cols <- setdiff(expected_cols, names(results_df))
+  extra_cols <- setdiff(names(results_df), expected_cols)
+  
+  if (length(missing_cols) == 0) {
+    cat("✓ All expected columns present:", paste(expected_cols, collapse = ", "), "\n")
+  } else {
+    cat("✗ Missing columns:", paste(missing_cols, collapse = ", "), "\n")
+  }
+  
+  if (length(extra_cols) > 0) {
+    cat("! Extra columns:", paste(extra_cols, collapse = ", "), "\n")
+  }
+  
+  # Test RDS file saving/loading
+  test_output_file <- "test_fixed_window_output.RDS"
+  saveRDS(results_df, test_output_file)
+  cat("✓ Saved test results to:", test_output_file, "\n")
+  
+  # Test loading and verify structure
+  loaded_results <- readRDS(test_output_file)
+  if (identical(results_df, loaded_results)) {
+    cat("✓ RDS save/load test passed\n")
+  } else {
+    cat("✗ RDS save/load test failed\n")
+  }
+  
+  # Show sample of actual data
+  cat("\nSample results:\n")
+  print(head(results_df, 3))
+  
+  # Clean up test file
+  file.remove(test_output_file)
+  cat("✓ Cleaned up test file\n")
+  
+} else {
+  cat("✗ No results generated - check algorithm or data\n")
+}
+
+cat("\n=== PRODUCTION WORKFLOW TEST COMPLETE ===\n")

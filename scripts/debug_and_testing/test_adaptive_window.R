@@ -336,3 +336,263 @@ if (estimate_OK == 1) {
 }
 
 cat("\n=== ADAPTIVE WINDOW TEST COMPLETE ===\n")
+
+# ===============================================================
+# PRODUCTION DATA WORKFLOW TEST
+# Test the same data structures and file output as production
+# ===============================================================
+
+cat("\n=== TESTING ADAPTIVE WINDOW PRODUCTION WORKFLOW ===\n")
+
+# Test multiple positions and samples like production does
+test_positions <- c(5000000, 10000000, 15000000)
+test_samples <- names_in_bam[1:2]  # Test first 2 samples
+test_h_cutoffs <- c(4, 6)  # Test different h_cutoff values
+
+results_list <- list()
+
+for (h_cutoff_test in test_h_cutoffs) {
+  for (test_pos in test_positions) {
+    for (sample_name in test_samples) {
+      cat(sprintf("Testing position %d, sample %s, h_cutoff %d...\n", test_pos, sample_name, h_cutoff_test))
+      
+      # ADAPTIVE WINDOW ALGORITHM WITH CONSTRAINT ACCUMULATION
+      # (Same as main test above, but multiple cases)
+      
+      window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
+      best_result <- NULL
+      best_n_groups <- 0
+      best_window_size <- window_sizes[1]
+      previous_n_groups <- 0
+      
+      # CONSTRAINT ACCUMULATION (core of adaptive algorithm)
+      accumulated_constraints <- NULL
+      accumulated_constraint_values <- NULL
+      
+      for (window_idx in seq_along(window_sizes)) {
+        window_size <- window_sizes[window_idx]
+        window_start <- max(1, test_pos - window_size/2)
+        window_end <- test_pos + window_size/2
+        
+        # Get SNPs in window
+        window_data <- df3 %>%
+          filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+        
+        if (nrow(window_data) == 0) next
+        
+        wide_data <- window_data %>%
+          select(POS, name, freq) %>%
+          pivot_wider(names_from = name, values_from = freq)
+        
+        if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
+        
+        # Get founder matrix and sample frequencies
+        founder_matrix <- wide_data %>%
+          select(all_of(founders)) %>%
+          as.matrix()
+        sample_freqs <- wide_data %>%
+          pull(!!sample_name)
+        
+        complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+        founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+        sample_freqs_clean <- sample_freqs[complete_rows]
+        
+        if (nrow(founder_matrix_clean) < 10) next
+        
+        # Hierarchical clustering
+        founder_dist <- dist(t(founder_matrix_clean))
+        hclust_result <- hclust(founder_dist, method = "complete")
+        groups <- cutree(hclust_result, h = h_cutoff_test)
+        n_groups <- length(unique(groups))
+        
+        # Check if clustering improved
+        if (window_idx > 1 && n_groups <= previous_n_groups) {
+          next  # No improvement, try larger window
+        }
+        
+        previous_n_groups <- n_groups
+        
+        # Build constraint matrix with accumulated constraints
+        n_founders <- ncol(founder_matrix_clean)
+        E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
+        F <- 1.0
+        
+        # Add accumulated constraints from previous windows
+        if (!is.null(accumulated_constraints)) {
+          E <- rbind(E, accumulated_constraints)
+          F <- c(F, accumulated_constraint_values)
+        }
+        
+        # Run LSEI with constraints
+        tryCatch({
+          result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                  E = E, F = F, 
+                                  G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
+          
+          if (result$IsError == 0) {
+            # LSEI successful - accumulate constraints for next window
+            current_constraints <- NULL
+            current_constraint_values <- NULL
+            
+            unique_clusters <- unique(groups)
+            for (cluster_id in unique_clusters) {
+              cluster_founders <- which(groups == cluster_id)
+              if (length(cluster_founders) > 1) {
+                # Create constraint row for this group
+                constraint_row <- rep(0, n_founders)
+                constraint_row[cluster_founders] <- 1
+                
+                # Calculate the actual group frequency from lsei result
+                group_freq <- sum(result$X[cluster_founders])
+                
+                current_constraints <- rbind(current_constraints, constraint_row)
+                current_constraint_values <- c(current_constraint_values, group_freq)
+              } else {
+                # Single founder: lock their exact frequency
+                founder_freq <- result$X[cluster_founders]
+                
+                # Create constraint: this founder = their exact frequency
+                constraint_row <- rep(0, n_founders)
+                constraint_row[cluster_founders] <- 1
+                
+                current_constraints <- rbind(current_constraints, constraint_row)
+                current_constraint_values <- c(current_constraint_values, founder_freq)
+              }
+            }
+            
+            # Update accumulated constraints for next window
+            if (!is.null(current_constraints)) {
+              accumulated_constraints <- current_constraints
+              accumulated_constraint_values <- current_constraint_values
+            } else {
+              accumulated_constraints <- NULL
+              accumulated_constraint_values <- NULL
+            }
+            
+            # Store the best result
+            best_result <- result
+            best_n_groups <- n_groups
+            best_window_size <- window_size
+            
+            # Check if all founders are separated
+            if (n_groups == length(founders)) {
+              break  # Success! Stop expanding
+            }
+          }
+        }, error = function(e) {
+          # LSEI error, try larger window
+        })
+      }
+      
+      # Apply the correct rules for output
+      if (!is.null(best_result)) {
+        # LSEI was successful - ALWAYS return the frequency estimates
+        founder_frequencies <- best_result$X
+        
+        # Check if founders are distinguishable to set trust level
+        if (best_n_groups == length(founders)) {
+          estimate_OK <- 1  # Founders distinguishable - we can TRUST the frequencies
+        } else {
+          estimate_OK <- 0  # Founders NOT distinguishable - we CANNOT trust the frequencies
+        }
+        
+      } else {
+        # Either insufficient SNPs OR LSEI failed/didn't converge
+        # Both cases → NA for estimate_OK and frequencies
+        founder_frequencies <- rep(NA, length(founders))
+        estimate_OK <- NA
+      }
+      
+      # CREATE EXACT SAME result_row STRUCTURE AS PRODUCTION
+      result_row <- list(
+        chr = "chr2R",
+        pos = test_pos,
+        sample = sample_name,
+        h_cutoff = h_cutoff_test,
+        final_window_size = best_window_size,
+        n_snps = ifelse(is.null(best_result), 0, nrow(wide_data)),
+        estimate_OK = estimate_OK
+      )
+      
+      # Add founder frequencies as named columns (EXACTLY like production should do)
+      for (i in seq_along(founders)) {
+        result_row[[founders[i]]] <- founder_frequencies[i]
+      }
+      
+      results_list[[length(results_list) + 1]] <- result_row
+      
+      cat(sprintf("  Result: estimate_OK=%s, window_size=%d, n_snps=%d\n", 
+                  ifelse(is.na(estimate_OK), "NA", estimate_OK), 
+                  best_window_size, 
+                  ifelse(is.null(best_result), 0, nrow(wide_data))))
+    }
+  }
+}
+
+# Convert to data frame (same as production)
+if (length(results_list) > 0) {
+  results_df <- bind_rows(results_list)
+  
+  cat("\n=== ADAPTIVE WINDOW PRODUCTION DATA STRUCTURE TEST ===\n")
+  cat("Generated results data frame:\n")
+  cat("Columns:", paste(names(results_df), collapse = ", "), "\n")
+  cat("Rows:", nrow(results_df), "\n")
+  
+  # Verify all expected columns are present
+  expected_cols <- c("chr", "pos", "sample", "h_cutoff", "final_window_size", "n_snps", "estimate_OK", founders)
+  missing_cols <- setdiff(expected_cols, names(results_df))
+  extra_cols <- setdiff(names(results_df), expected_cols)
+  
+  if (length(missing_cols) == 0) {
+    cat("✓ All expected columns present:", paste(expected_cols, collapse = ", "), "\n")
+  } else {
+    cat("✗ Missing columns:", paste(missing_cols, collapse = ", "), "\n")
+  }
+  
+  if (length(extra_cols) > 0) {
+    cat("! Extra columns:", paste(extra_cols, collapse = ", "), "\n")
+  }
+  
+  # Test RDS file saving/loading
+  test_output_file <- "test_adaptive_window_output.RDS"
+  saveRDS(results_df, test_output_file)
+  cat("✓ Saved test results to:", test_output_file, "\n")
+  
+  # Test loading and verify structure
+  loaded_results <- readRDS(test_output_file)
+  if (identical(results_df, loaded_results)) {
+    cat("✓ RDS save/load test passed\n")
+  } else {
+    cat("✗ RDS save/load test failed\n")
+  }
+  
+  # Show sample of actual data
+  cat("\nSample results:\n")
+  print(head(results_df, 3))
+  
+  # Test constraint accumulation worked (different h_cutoff should give different results)
+  if (length(test_h_cutoffs) > 1) {
+    h_cutoff_comparison <- results_df %>%
+      group_by(pos, sample) %>%
+      summarise(
+        n_h_cutoffs = n_distinct(h_cutoff),
+        different_results = n_distinct(paste(estimate_OK, final_window_size)),
+        .groups = "drop"
+      )
+    
+    if (any(h_cutoff_comparison$different_results > 1)) {
+      cat("✓ Different h_cutoff values produce different results (constraint accumulation working)\n")
+    } else {
+      cat("⚠️  All h_cutoff values produce identical results (potential constraint accumulation bug)\n")
+    }
+  }
+  
+  # Clean up test file
+  file.remove(test_output_file)
+  cat("✓ Cleaned up test file\n")
+  
+} else {
+  cat("✗ No results generated - check algorithm or data\n")
+}
+
+cat("\n=== ADAPTIVE WINDOW PRODUCTION WORKFLOW TEST COMPLETE ===\n")
