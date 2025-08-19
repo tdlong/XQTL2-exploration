@@ -264,8 +264,6 @@ if (length(haplotype_summary) > 0) {
     Reliable_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_1_pct, 1)),
     Unreliable_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_0_pct, 1)), 
     Failed_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_na_pct, 1)),
-    Haplotypes_Available_Pct = sapply(haplotype_summary, function(x) round(x$success_rate, 1)),
-    Haplotypes_NA_Pct = sapply(haplotype_summary, function(x) round(x$haplotype_na_pct, 1)),
     File_Size_MB = sapply(haplotype_summary, function(x) x$file_size_mb)
   )
   
