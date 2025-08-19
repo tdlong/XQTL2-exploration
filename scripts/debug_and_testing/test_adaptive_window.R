@@ -421,6 +421,9 @@ for (h_cutoff_test in test_h_cutoffs) {
         if (!is.null(accumulated_constraints)) {
           E <- rbind(E, accumulated_constraints)
           F <- c(F, accumulated_constraint_values)
+          cat(sprintf("    ✓ Added %d accumulated constraints from previous windows\n", nrow(accumulated_constraints)))
+        } else {
+          cat("    • No accumulated constraints yet (first meaningful window)\n")
         }
         
         # Run LSEI with constraints
@@ -434,6 +437,7 @@ for (h_cutoff_test in test_h_cutoffs) {
             current_constraints <- NULL
             current_constraint_values <- NULL
             
+            cat(sprintf("    Building constraints from %d founder groups...\n", n_groups))
             unique_clusters <- unique(groups)
             for (cluster_id in unique_clusters) {
               cluster_founders <- which(groups == cluster_id)
@@ -447,6 +451,10 @@ for (h_cutoff_test in test_h_cutoffs) {
                 
                 current_constraints <- rbind(current_constraints, constraint_row)
                 current_constraint_values <- c(current_constraint_values, group_freq)
+                
+                group_names <- founders[cluster_founders]
+                cat(sprintf("      Group %d: %s = %.4f\n", 
+                           cluster_id, paste(group_names, collapse="+"), group_freq))
               } else {
                 # Single founder: lock their exact frequency
                 founder_freq <- result$X[cluster_founders]
@@ -457,6 +465,9 @@ for (h_cutoff_test in test_h_cutoffs) {
                 
                 current_constraints <- rbind(current_constraints, constraint_row)
                 current_constraint_values <- c(current_constraint_values, founder_freq)
+                
+                cat(sprintf("      Group %d: %s = %.4f (locked)\n", 
+                           cluster_id, founders[cluster_founders], founder_freq))
               }
             }
             
@@ -464,9 +475,13 @@ for (h_cutoff_test in test_h_cutoffs) {
             if (!is.null(current_constraints)) {
               accumulated_constraints <- current_constraints
               accumulated_constraint_values <- current_constraint_values
+              cat(sprintf("    ✓ Accumulated %d constraints for next window (groups: %s)\n", 
+                         nrow(current_constraints),
+                         paste(unique(groups), collapse=",")))
             } else {
               accumulated_constraints <- NULL
               accumulated_constraint_values <- NULL
+              cat("    • No constraints to accumulate (all founders in 1 group)\n")
             }
             
             # Store the best result
