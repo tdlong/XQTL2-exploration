@@ -111,10 +111,28 @@ for (i in 1:nrow(expected_files)) {
     
     cat("  Founder columns found:", paste(founder_cols, collapse = ", "), "\n")
     
-    # Calculate success rate (rows where at least one founder has non-NA value)
+    # Calculate detailed statistics
     total_rows <- nrow(results)
+    
+    # estimate_OK statistics
+    if ("estimate_OK" %in% names(results)) {
+      estimate_ok_1 <- sum(results$estimate_OK == 1, na.rm = TRUE)
+      estimate_ok_0 <- sum(results$estimate_OK == 0, na.rm = TRUE) 
+      estimate_ok_na <- sum(is.na(results$estimate_OK))
+      
+      estimate_ok_1_pct <- estimate_ok_1 / total_rows * 100
+      estimate_ok_0_pct <- estimate_ok_0 / total_rows * 100
+      estimate_ok_na_pct <- estimate_ok_na / total_rows * 100
+    } else {
+      estimate_ok_1 <- estimate_ok_0 <- estimate_ok_na <- 0
+      estimate_ok_1_pct <- estimate_ok_0_pct <- estimate_ok_na_pct <- 0
+    }
+    
+    # Haplotype frequencies statistics (rows where at least one founder has non-NA value)
     successful_rows <- sum(rowSums(!is.na(results[founder_cols])) > 0)
+    haplotype_na_rows <- total_rows - successful_rows
     success_rate <- successful_rows / total_rows * 100
+    haplotype_na_pct <- haplotype_na_rows / total_rows * 100
     
     # Check if there's a sample column, if not, assume one sample per file
     if ("sample" %in% names(results)) {
@@ -143,12 +161,30 @@ for (i in 1:nrow(expected_files)) {
       total_rows = total_rows,
       successful_rows = successful_rows,
       success_rate = success_rate,
+      haplotype_na_rows = haplotype_na_rows,
+      haplotype_na_pct = haplotype_na_pct,
+      estimate_ok_1 = estimate_ok_1,
+      estimate_ok_0 = estimate_ok_0,
+      estimate_ok_na = estimate_ok_na,
+      estimate_ok_1_pct = estimate_ok_1_pct,
+      estimate_ok_0_pct = estimate_ok_0_pct,
+      estimate_ok_na_pct = estimate_ok_na_pct,
       founder_cols = founder_cols,
       sample_stats = sample_stats,
       file_size_mb = round(file_info(file_path)$size / 1024^2, 1)
     )
     
-    cat("  Success rate:", round(success_rate, 1), "% (", successful_rows, "/", total_rows, ")\n")
+    # Print detailed statistics
+    cat("  === HAPLOTYPE STATISTICS ===\n")
+    cat("  Total rows:", total_rows, "\n")
+    cat("  Haplotype estimates available:", sprintf("%.1f%% (%d/%d)", success_rate, successful_rows, total_rows), "\n")
+    cat("  Haplotype estimates NA:", sprintf("%.1f%% (%d/%d)", haplotype_na_pct, haplotype_na_rows, total_rows), "\n")
+    
+    cat("  === ESTIMATE_OK STATISTICS ===\n")
+    cat("  estimate_OK = 1 (reliable):", sprintf("%.1f%% (%d/%d)", estimate_ok_1_pct, estimate_ok_1, total_rows), "\n")
+    cat("  estimate_OK = 0 (unreliable):", sprintf("%.1f%% (%d/%d)", estimate_ok_0_pct, estimate_ok_0, total_rows), "\n")
+    cat("  estimate_OK = NA (failed):", sprintf("%.1f%% (%d/%d)", estimate_ok_na_pct, estimate_ok_na, total_rows), "\n")
+    
     cat("  File size:", haplotype_summary[[estimator]]$file_size_mb, "MB\n")
     
   } else {
@@ -220,13 +256,16 @@ if (length(haplotype_summary) > 0) {
   cat("\nHaplotype Estimation Results:\n")
   cat("=", strrep("=", 50), "\n")
   
-  # Create summary table
+  # Create enhanced summary table
   haplotype_table <- data.frame(
     Method = sapply(haplotype_summary, function(x) x$method),
     Parameter = sapply(haplotype_summary, function(x) x$parameter),
-    Success_Rate = sapply(haplotype_summary, function(x) round(x$success_rate, 1)),
     Total_Rows = sapply(haplotype_summary, function(x) x$total_rows),
-    Successful_Rows = sapply(haplotype_summary, function(x) x$successful_rows),
+    Reliable_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_1_pct, 1)),
+    Unreliable_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_0_pct, 1)), 
+    Failed_Pct = sapply(haplotype_summary, function(x) round(x$estimate_ok_na_pct, 1)),
+    Haplotypes_Available_Pct = sapply(haplotype_summary, function(x) round(x$success_rate, 1)),
+    Haplotypes_NA_Pct = sapply(haplotype_summary, function(x) round(x$haplotype_na_pct, 1)),
     File_Size_MB = sapply(haplotype_summary, function(x) x$file_size_mb)
   )
   
