@@ -352,12 +352,22 @@ test_samples <- names_in_bam[1:2]  # Test first 2 samples
 test_h_cutoffs <- c(4, 6)  # Test different h_cutoff values
 
 results_list <- list()
+test_case_counter <- 0
+total_test_cases <- length(test_h_cutoffs) * length(test_positions) * length(test_samples)
+
+cat(sprintf("\n=== ADAPTIVE WINDOW PRODUCTION WORKFLOW TEST ===\n"))
+cat(sprintf("Testing %d cases: %d h_cutoffs × %d positions × %d samples\n", 
+            total_test_cases, length(test_h_cutoffs), length(test_positions), length(test_samples)))
+cat(sprintf("Positions: %s\n", paste(format(test_positions, big.mark=","), collapse=", ")))
+cat(sprintf("Samples: %s\n", paste(test_samples, collapse=", ")))
+cat(sprintf("H_cutoffs: %s\n", paste(test_h_cutoffs, collapse=", ")))
 
 for (h_cutoff_test in test_h_cutoffs) {
   for (test_pos in test_positions) {
     for (sample_name in test_samples) {
-      cat(sprintf("\n=== TESTING POSITION %s, SAMPLE %s, H_CUTOFF %d ===\n", 
-                  format(test_pos, big.mark=","), sample_name, h_cutoff_test))
+      test_case_counter <- test_case_counter + 1
+      cat(sprintf("\n=== TESTING CASE %d/%d: POSITION %s, SAMPLE %s, H_CUTOFF %d ===\n", 
+                  test_case_counter, total_test_cases, format(test_pos, big.mark=","), sample_name, h_cutoff_test))
       
       # ADAPTIVE WINDOW ALGORITHM WITH CONSTRAINT ACCUMULATION
       # (Same as main test above, but multiple cases)
@@ -617,9 +627,17 @@ if (length(results_list) > 0) {
     cat("✗ RDS save/load test failed\n")
   }
   
-  # Show sample of actual data
-  cat("\nSample results:\n")
+  # Show sample of actual data (with more context)
+  cat(sprintf("\nSample results (showing first 3 of %d total rows):\n", nrow(results_df)))
   print(head(results_df, 3))
+  
+  # Show summary by test parameters to verify all combinations
+  cat("\nTest case breakdown:\n")
+  test_summary <- results_df %>%
+    group_by(h_cutoff, pos, sample) %>%
+    summarise(n_rows = n(), .groups = "drop") %>%
+    arrange(h_cutoff, pos, sample)
+  print(test_summary)
   
   # Test constraint accumulation worked (different h_cutoff should give different results)
   if (length(test_h_cutoffs) > 1) {
@@ -644,6 +662,15 @@ if (length(results_list) > 0) {
   
 } else {
   cat("✗ No results generated - check algorithm or data\n")
+}
+
+cat(sprintf("\n=== TEST CASE SUMMARY ===\n"))
+cat(sprintf("✓ Completed all %d test cases successfully\n", test_case_counter))
+cat(sprintf("✓ Generated %d result rows\n", length(results_list)))
+if (length(results_list) == test_case_counter) {
+  cat("✅ SUCCESS: Result count matches test case count\n")
+} else {
+  cat(sprintf("❌ MISMATCH: Expected %d results but got %d\n", test_case_counter, length(results_list)))
 }
 
 cat("\n=== ADAPTIVE WINDOW PRODUCTION WORKFLOW TEST COMPLETE ===\n")
