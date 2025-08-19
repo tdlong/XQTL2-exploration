@@ -545,8 +545,13 @@ if (length(imputation_results) > 0) {
   # Convert to data frame
   imputation_df <- bind_rows(imputation_results)
   
-  # Save results
-  output_file <- file.path(output_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
+  # Save results (with testing suffix if in testing mode)
+  if (!is.null(test_start_pos) || !is.null(test_max_snps)) {
+    output_file <- file.path(output_dir, paste0("snp_imputation_", estimator, "_", chr, "_TEST.RDS"))
+    cat("TESTING MODE: Saving to separate test file to avoid overwriting production results\n")
+  } else {
+    output_file <- file.path(output_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
+  }
   write_rds(imputation_df, output_file)
   
   cat("\n✓ SNP Imputation completed successfully!\n")
