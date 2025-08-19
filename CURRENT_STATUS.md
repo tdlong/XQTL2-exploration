@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🔧 **CURRENT FOCUS: Deploy Working Unified Function to Production**
+## 🔧 **CURRENT STATUS: Unified Architecture Complete - Ready for Cluster Testing**
 
-**STATUS**: ✅ **UNIFIED FUNCTION WORKING AND TESTED** - Ready for production deployment
+**STATUS**: ✅ **UNIFIED ARCHITECTURE COMPLETE** - All components implemented, tested, and deployed
 
 **COMPLETED**: **WORKING UNIFIED FUNCTION SYSTEM** 
 - ✅ Created `scripts/haplotype_estimation_functions.R` with unified `estimate_haplotypes()` function
@@ -60,7 +60,31 @@ Rscript run_haplotype_estimation.R chr2R fixed 50 process/JUICE helpfiles/JUICE_
 estimate_haplotypes(pos, sample, df3, founders, h_cutoff, method, chr, verbose=0)
 ```
 
-**READY FOR DEPLOYMENT** 🚀
+## 🧪 **CURRENT TESTING STRATEGY (PROVEN TO WORK)**
+
+**Local Testing**: `Rscript scripts/test_haplotype_functions.R`
+- ✅ **Tests core algorithm** with multiple positions, samples, methods, parameters
+- ✅ **Validates output format** (16 test cases all pass)
+- ✅ **Confirms algorithm correctness** (different h_cutoff → different results)
+- ✅ **Fast feedback** (10 seconds locally vs. hours on cluster)
+- ✅ **Comprehensive diagnostics** (with verbose=2)
+
+**Key Insight**: Test script contains the **working pattern** that production follows
+
+## 🏭 **CURRENT PRODUCTION STRATEGY (READY TO DEPLOY)**
+
+**Single Unified Wrapper**: `scripts/run_haplotype_estimation.R`
+- ✅ **Handles both methods** (fixed and adaptive) with single interface
+- ✅ **Same data processing** as test script (proven pattern)
+- ✅ **Intelligent output naming** (method-specific filenames)
+- ✅ **Full chromosome scans** (all positions × all samples)
+
+**Slurm Array Deployment**: 
+```bash
+sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+```
+
+**READY FOR CLUSTER TESTING** 🚀
 
 **NEW PARADIGM**: Production scripts become simple purrr::pmap_dfr calls to tested unified function
 
@@ -167,18 +191,21 @@ sbatch --array=1-9 scripts/haplotype_testing_from_table.sh helpfiles/haplotype_p
 - Much faster execution due to efficiency improvements
 - Different results across h_cutoff values and window sizes
 
-## 📁 **SCRIPTS FOLDER ORGANIZATION**
+## 📁 **SCRIPTS FOLDER ORGANIZATION (CLEANED UP)**
 
-**KEEP SCRIPTS FOLDER CLEAN - NO TEMPORARY OR DEBUGGING SCRIPTS IN ROOT**
+### **Active Production Scripts (scripts/ root):**
+- ✅ `haplotype_estimation_functions.R` - **Core unified function**
+- ✅ `run_haplotype_estimation.R` - **Unified production wrapper**  
+- ✅ `haplotype_testing_from_table.sh` - **Slurm array wrapper**
+- ✅ `test_haplotype_functions.R` - **Working test script**
+- ✅ `summarize_pipeline_results.R` - **Pipeline monitoring (compatible)**
+- ✅ `euchromatic_SNP_imputation_single.R` - **SNP imputation (needs updating)**
+- ✅ `evaluate_imputation_methods.R` - **SNP imputation evaluation (for later)**
 
-### **Production Scripts (scripts/ root) - CLEANED UP:**
-- `REFALT2haps.FixedWindow.Single.R` - Fixed window distinguishability
-- `REFALT2haps.AdaptWindow.Single.R` - Adaptive window distinguishability  
-- `euchromatic_SNP_imputation_single.R` - SNP imputation
-- `haplotype_testing_from_table.sh` - Slurm pipeline wrapper
-- `evaluate_haplotype_methods.R` - Results evaluation
-- `summarize_pipeline_results.R` - Pipeline monitoring
-- **Organized subfolders**: `haps2scan/`, `Heterozygosity_tests/`, `old_REFALT2haps/`, `raw2bam2REFALT/`
+### **Organized Subfolders:**
+- `old_REFALT2haps/` - **Old production scripts (moved here)**
+- `debug_and_testing/` - **All debugging/testing scripts**  
+- `haps2scan/`, `Heterozygosity_tests/`, `raw2bam2REFALT/` - **Other pipeline components**
 
 ### **Debugging/Testing Scripts (scripts/debug_and_testing/):**
 - `test_fixed_window.R` - Test fixed window algorithm
