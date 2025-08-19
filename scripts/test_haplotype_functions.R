@@ -164,11 +164,14 @@ if (length(results_list) > 0) {
   # Show complete results table with better formatting
   cat(sprintf("\nComplete results (%d rows):\n", nrow(results_df)))
   
-  # Format positions as integers (not scientific notation)
-  results_formatted <- results_df %>%
-    mutate(pos = format(pos, scientific = FALSE, big.mark = ","))
+  # Temporarily disable scientific notation for cleaner position display
+  old_scipen <- getOption("scipen")
+  options(scipen = 999)  # Avoid scientific notation
   
-  print(results_formatted)
+  print(results_df)
+  
+  # Restore original setting
+  options(scipen = old_scipen)
   
   # Test that fixed and adaptive methods give different results
   if (any(results_df$method == "fixed") && any(results_df$method == "adaptive")) {
