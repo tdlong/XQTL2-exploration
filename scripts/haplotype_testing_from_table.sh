@@ -38,10 +38,10 @@
 #
 # EXAMPLES:
 # # Haplotype estimation only
-# sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
+# sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
 #
 # # Haplotype estimation + SNP imputation
-# sbatch scripts/haplotype_testing_from_table.sh helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+# sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
 # =============================================================================
 
 module load R/4.4.2
@@ -57,10 +57,10 @@ if [ $# -lt 3 ] || [ $# -gt 4 ]; then
   echo ""
   echo "Examples:"
   echo "  # Haplotype estimation only"
-  echo "  sbatch $0 helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE"
+  echo "  sbatch $0 helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE"
   echo ""
   echo "  # Haplotype estimation + SNP imputation"
-  echo "  sbatch $0 helpfiles/haplotype_params.2R.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes"
+  echo "  sbatch $0 helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes"
   exit 1
 fi
 
@@ -173,16 +173,16 @@ echo ""
 RESULTS_DIR="$OUTDIR/haplotype_results"
 mkdir -p "$RESULTS_DIR"
 
+# Run haplotype estimation using unified production wrapper
+echo "Running haplotype estimation: $METHOD method with parameter $PARAM..."
+Rscript scripts/run_haplotype_estimation.R "$CHR" "$METHOD" "$PARAM" "$OUTDIR" "$PARFILE"
+STATUS=$?
+
+# Set output file names and estimator (for SNP imputation step)
 if [ "$METHOD" = "fixed" ]; then
-  echo "Running fixed window estimation with ${PARAM}kb window..."
-  Rscript scripts/REFALT2haps.FixedWindow.Single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$PARAM"
-  STATUS=$?
   HAPLOTYPE_FILE="$RESULTS_DIR/fixed_window_${PARAM}kb_results_${CHR}.RDS"
   ESTIMATOR="fixed_${PARAM}kb"
 else
-  echo "Running adaptive window estimation with h_cutoff = $PARAM..."
-  Rscript scripts/REFALT2haps.AdaptWindow.Single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$PARAM"
-  STATUS=$?
   HAPLOTYPE_FILE="$RESULTS_DIR/adaptive_window_h${PARAM}_results_${CHR}.RDS"
   ESTIMATOR="adaptive_h${PARAM}"
 fi
@@ -231,7 +231,7 @@ if [ "$RUN_IMPUTATION" = "yes" ]; then
 else
   echo "=== SNP Imputation Skipped ==="
   echo "To run SNP imputation, add 'yes' as the 4th argument"
-  echo "Example: sbatch $0 $PARAMS_TSV $PARFILE $OUTDIR yes"
+  echo "Example: sbatch $0 helpfiles/production_slurm_params.tsv $PARFILE $OUTDIR yes"
 fi
 
 echo ""

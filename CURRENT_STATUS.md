@@ -1,34 +1,85 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🔧 **CURRENT FOCUS: Update Production Scripts to Match Working Test Scripts**
+## 🔧 **CURRENT FOCUS: Deploy Working Unified Function to Production**
 
-**STATUS**: Test scripts work perfectly and have been verified by user. Now applying exact working logic to production scripts.
+**STATUS**: ✅ **UNIFIED FUNCTION WORKING AND TESTED** - Ready for production deployment
 
-**CRITICAL PROTOCOL**: **DO NOT RE-WRITE PRODUCTION FROM SCRATCH**
-- ✅ Fixed window test script: Working perfectly (verified by user)
-- ✅ Adaptive window test script: Working perfectly (verified by user) 
-- 🎯 **NOW**: Update production scripts to use EXACT same logic as working tests
-- **NO new algorithms, NO new ideas, NO rewrites - just copy working test logic**
+**COMPLETED**: **WORKING UNIFIED FUNCTION SYSTEM** 
+- ✅ Created `scripts/haplotype_estimation_functions.R` with unified `estimate_haplotypes()` function
+- ✅ Created `scripts/test_haplotype_functions.R` - **THE CURRENT WORKING TEST SCRIPT**
+- ✅ **TESTED AND DEBUGGED**: `Rscript scripts/test_haplotype_functions.R` runs successfully
+- ✅ All 16 test cases pass: multiple positions, samples, methods (fixed/adaptive), h_cutoff values
+- ✅ Proper verbosity levels (0=silent production, 2=detailed diagnostics)
+- ✅ Verified different h_cutoff values produce different results (constraint accumulation working)
+- 🎯 **NOW**: Update production scripts to call this working unified function
 
-### **Current Implementation Plan:**
+### **Professional Implementation Completed:**
 
-**STEP 1: Enhance Test Scripts** ✅ **COMPLETED AND VERIFIED**
-- ✅ Fixed window test: 6 test cases, complete production workflow simulation
-- ✅ Adaptive window test: 12 test cases, constraint accumulation diagnostics
-- ✅ Both tests: Output correct data structures, RDS save/load, all columns present
-- ✅ User verification: "test scripts are working and have been tested by me"
+## 🎯 **THE WORKING FOUNDATION**
 
-**STEP 2: Update Production Fixed Window Script** ⏳ **IN PROGRESS**
-- Take exact working logic from `scripts/debug_and_testing/test_fixed_window.R`
-- Remove diagnostic output, keep core algorithm and data structure creation
-- Ensure production creates IDENTICAL data structures as working test
+**CURRENT WORKING TEST SCRIPT**: `scripts/test_haplotype_functions.R`
+- **Command**: `Rscript scripts/test_haplotype_functions.R`
+- **Status**: ✅ **RUNS SUCCESSFULLY** - This contains the working code
+- **Function**: Calls unified `estimate_haplotypes()` function with various parameters
+- **Test Cases**: 16 combinations (positions × samples × methods × h_cutoff values)
+- **Verified**: Different h_cutoff values produce different results
+- **Output**: Properly formatted data frames with all expected columns
 
-**STEP 3: Update Production Adaptive Window Script** 📋 **PENDING**
-- Take exact working logic from `scripts/debug_and_testing/test_adaptive_window.R`
-- Remove diagnostic output, keep core constraint accumulation algorithm
-- Ensure production creates IDENTICAL data structures as working test
+**UNIFIED FUNCTION**: `scripts/haplotype_estimation_functions.R`
+- **Function**: `estimate_haplotypes(pos, sample_name, df3, founders, h_cutoff, method, window_size_bp, chr, verbose)`
+- **Methods**: Both "fixed" and "adaptive" 
+- **Verbosity**: 0=silent, 1=basic, 2=detailed diagnostics
+- **Output**: Standardized result list with chr, pos, sample, method, estimate_OK, founder frequencies
 
-**GOLDEN RULE**: Production scripts should be "test scripts minus the diagnostic output"
+**STEP 2: Create Unified Production Wrapper** ✅ **COMPLETED**
+- ✅ Created `scripts/run_haplotype_estimation.R` - unified production wrapper
+- ✅ Follows same pattern as `test_haplotype_functions.R` (data loading, processing, function calls)
+- ✅ Handles both fixed and adaptive methods with single interface
+- ✅ Uses `estimate_haplotypes()` function with `verbose=0` for production
+- ✅ Intelligent output filenames: `fixed_window_50kb_results_chr2R.RDS`, `adaptive_window_h6_results_chr2R.RDS`
+- ✅ **Moved old scripts**: `REFALT2haps.FixedWindow.Single.R` and `REFALT2haps.AdaptWindow.Single.R` → `old_REFALT2haps/`
+
+**STEP 3: Update Slurm Wrapper** ✅ **COMPLETED**
+- ✅ Updated `scripts/haplotype_testing_from_table.sh` to call unified wrapper
+- ✅ Simplified: Single call to `run_haplotype_estimation.R` for both methods
+- ✅ Uses renamed parameter file: `helpfiles/production_slurm_params.tsv`
+- ✅ **Clean architecture**: Slurm → Production wrapper → Unified function
+
+## 🎯 **NEW CLEAN ARCHITECTURE COMPLETED**
+
+**Layer 1**: `scripts/haplotype_estimation_functions.R` - Core `estimate_haplotypes()` function  
+**Layer 2**: `scripts/run_haplotype_estimation.R` - Production wrapper (chromosome-wide scans)  
+**Layer 3**: `scripts/haplotype_testing_from_table.sh` - Slurm array wrapper (parameter combinations)
+
+**Command Pattern**:
+```bash
+# Slurm calls production wrapper with specific parameter combination
+Rscript run_haplotype_estimation.R chr2R fixed 50 process/JUICE helpfiles/JUICE_haplotype_parameters.R
+
+# Production wrapper calls unified function for all positions/samples  
+estimate_haplotypes(pos, sample, df3, founders, h_cutoff, method, chr, verbose=0)
+```
+
+**READY FOR DEPLOYMENT** 🚀
+
+**NEW PARADIGM**: Production scripts become simple purrr::pmap_dfr calls to tested unified function
+
+## 📊 **PARALLELIZATION STRATEGY UNDERSTANDING**
+
+**SLURM Array Jobs**: Each array element processes one parameter combination in parallel:
+- **Chromosome**: chr2R, chr2L, chr3L, chr3R, chrX
+- **Method**: fixed window vs adaptive window  
+- **Parameter**: window size (kb) or h_cutoff value
+
+**Within Each Job**: Process ALL positions and ALL samples for that combination:
+- **All scan positions**: `seq(min_position, max_position, by = 10kb)` across euchromatin
+- **All samples**: 6 samples defined in `names_in_bam` parameter
+- **Quality filtering**: Only SNPs where founders are fixed (< 3% or > 97% frequency)
+
+**Why This Works**: 
+- **Parallel across methods** (9 different combinations run simultaneously)
+- **Sequential within methods** (positions and samples processed efficiently in each job)
+- **Leverages cluster resources** for the computationally expensive method comparisons
 
 ### **🚨 CRITICAL TESTING AND RESOURCE REALITY**
 
