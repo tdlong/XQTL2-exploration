@@ -329,7 +329,8 @@ adaptive_count <- sum(sapply(haplotype_summary, function(x) x$method == "adaptiv
 if (fixed_count > 0 && adaptive_count > 0) {
   cat("✅ Ready for haplotype method comparison:\n")
   param_file <- "helpfiles/JUICE/JUICE_haplotype_parameters.R"
-  cat("  Rscript scripts/evaluate_haplotype_methods.R", chr, param_file, output_dir, "\n")
+  cat("  # Note: evaluate_haplotype_methods.R renamed to evaluate_imputation_methods.R\n")
+  cat("  # Wait for SNP imputation to complete first\n")
 } else if (fixed_count > 0 && adaptive_count == 0) {
   cat("🔄 Fixed windows complete, waiting for adaptive windows:\n")
   cat("  - Fixed window success rates: ", round(mean(sapply(haplotype_summary, function(x) x$success_rate)), 1), "%\n")
@@ -346,6 +347,12 @@ if (length(haplotype_summary) > 0) {
   cat("  - Haplotype estimation:", length(haplotype_summary), "/", nrow(expected_files), "files complete\n")
   cat("  - SNP imputation:", length(snp_imputation_summary), "/", nrow(expected_files), "files complete\n")
   cat("  - Average success rate:", round(mean(sapply(haplotype_summary, function(x) x$success_rate)), 1), "%\n")
+  
+  # Next step recommendation  
+  if (length(haplotype_summary) == nrow(expected_files) && length(snp_imputation_summary) == 0) {
+    cat("\n🚀 Next step - Run SNP imputation:\n")
+    cat("  sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R", output_dir, "\n")
+  }
 }
 
 cat("\n=== DONE ===\n")
