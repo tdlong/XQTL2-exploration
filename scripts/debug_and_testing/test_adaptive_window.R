@@ -299,8 +299,10 @@ cat("\n=== LSEI HAPLOTYPE ESTIMATION ===\n")
       }
       cat("Sum of frequencies:", round(sum(haplotype_freqs), 4), "\n")
       
-      # Now check distinguishability using clustering results
-      if (final_n_groups == length(founders)) {
+      # Now check distinguishability using clustering results from optimal window
+      # Get the max n_groups achieved (which corresponds to the final_window_size)
+      max_n_groups <- max(snps_tracking$n_groups, na.rm = TRUE)
+      if (max_n_groups == length(founders)) {
         estimate_OK <- 1  # Founders distinguishable - we can TRUST the frequencies
         cat("✓ Founders distinguishable - frequencies are TRUSTWORTHY (estimate_OK = 1)\n")
       } else {
@@ -354,7 +356,8 @@ results_list <- list()
 for (h_cutoff_test in test_h_cutoffs) {
   for (test_pos in test_positions) {
     for (sample_name in test_samples) {
-      cat(sprintf("Testing position %d, sample %s, h_cutoff %d...\n", test_pos, sample_name, h_cutoff_test))
+      cat(sprintf("\n=== TESTING POSITION %s, SAMPLE %s, H_CUTOFF %d ===\n", 
+                  format(test_pos, big.mark=","), sample_name, h_cutoff_test))
       
       # ADAPTIVE WINDOW ALGORITHM WITH CONSTRAINT ACCUMULATION
       # (Same as main test above, but multiple cases)
@@ -373,6 +376,9 @@ for (h_cutoff_test in test_h_cutoffs) {
         window_size <- window_sizes[window_idx]
         window_start <- max(1, test_pos - window_size/2)
         window_end <- test_pos + window_size/2
+        
+        cat(sprintf("\n--- Window %d: %s ---\n", window_idx, 
+                    ifelse(window_size >= 1000, paste0(window_size/1000, " kb"), paste0(window_size, " bp"))))
         
         # Get SNPs in window
         window_data <- df3 %>%
@@ -405,8 +411,26 @@ for (h_cutoff_test in test_h_cutoffs) {
         groups <- cutree(hclust_result, h = h_cutoff_test)
         n_groups <- length(unique(groups))
         
+        # Show clustering results
+        cat(sprintf("SNPs in window: %d positions\n", nrow(founder_matrix_clean)))
+        cat(sprintf("Clustering results: %d groups\n", n_groups))
+        
+        # Show group assignments
+        if (n_groups <= 6) {  # Only show details if reasonable number of groups
+          unique_clusters <- unique(groups)
+          for (cluster_id in unique_clusters) {
+            cluster_founders <- founders[groups == cluster_id]
+            if (length(cluster_founders) == 1) {
+              cat(sprintf("  Group %d: %s (individual)\n", cluster_id, cluster_founders))
+            } else {
+              cat(sprintf("  Group %d: %s\n", cluster_id, paste(cluster_founders, collapse=", ")))
+            }
+          }
+        }
+        
         # Check if clustering improved
         if (window_idx > 1 && n_groups <= previous_n_groups) {
+          cat("✗ No improvement from previous window, trying larger window\n")
           next  # No improvement, try larger window
         }
         
@@ -491,6 +515,7 @@ for (h_cutoff_test in test_h_cutoffs) {
             
             # Check if all founders are separated
             if (n_groups == length(founders)) {
+              cat("✅ SUCCESS: All founders distinguished - stopping window expansion\n")
               break  # Success! Stop expanding
             }
           }
@@ -536,10 +561,21 @@ for (h_cutoff_test in test_h_cutoffs) {
       
       results_list[[length(results_list) + 1]] <- result_row
       
-      cat(sprintf("  Result: estimate_OK=%s, window_size=%d, n_snps=%d\n", 
-                  ifelse(is.na(estimate_OK), "NA", estimate_OK), 
-                  best_window_size, 
-                  ifelse(is.null(best_result), 0, nrow(wide_data))))
+      # FINAL RESULT SUMMARY
+      cat(sprintf("\n✅ FINAL RESULT:\n"))
+      cat(sprintf("  estimate_OK: %s\n", ifelse(is.na(estimate_OK), "NA", estimate_OK)))
+      cat(sprintf("  final_window_size: %s\n", 
+                  ifelse(best_window_size >= 1000, paste0(best_window_size/1000, " kb"), paste0(best_window_size, " bp"))))
+      cat(sprintf("  n_snps: %d\n", ifelse(is.null(best_result), 0, nrow(wide_data))))
+      if (!is.na(estimate_OK)) {
+        if (estimate_OK == 1) {
+          cat("  ✓ All founders distinguished - haplotype frequencies are TRUSTWORTHY\n")
+        } else if (estimate_OK == 0) {
+          cat("  ⚠️  Founders NOT fully distinguished - haplotype frequencies are UNTRUSTWORTHY\n")
+        }
+      } else {
+        cat("  ❌ LSEI failed or insufficient SNPs - no haplotype frequencies available\n")
+      }
     }
   }
 }
