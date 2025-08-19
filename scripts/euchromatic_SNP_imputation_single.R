@@ -19,8 +19,8 @@ suppressPackageStartupMessages({
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4) {
-  stop("Usage: Rscript euchromatic_SNP_imputation_single.R <chr> <param_file> <output_dir> <estimator>")
+if (length(args) < 4 || length(args) > 6) {
+  stop("Usage: Rscript euchromatic_SNP_imputation_single.R <chr> <param_file> <output_dir> <estimator> [start_pos] [max_snps]")
 }
 
 chr <- args[1]
@@ -28,11 +28,23 @@ param_file <- args[2]
 output_dir <- args[3]
 estimator <- args[4]
 
+# Optional testing parameters
+test_start_pos <- if (length(args) >= 5) as.numeric(args[5]) else NULL
+test_max_snps <- if (length(args) >= 6) as.numeric(args[6]) else NULL
+
+# Determine if we're in testing mode
+testing_mode <- !is.null(test_start_pos) || !is.null(test_max_snps)
+
 cat("=== Euchromatic SNP Imputation - Single Estimator ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Parameter file:", param_file, "\n")
 cat("Output directory:", output_dir, "\n")
-cat("Estimator:", estimator, "\n\n")
+cat("Estimator:", estimator, "\n")
+if (testing_mode) {
+  cat("TESTING MODE: start_pos =", ifelse(is.null(test_start_pos), "none", test_start_pos), 
+      ", max_snps =", ifelse(is.null(test_max_snps), "none", test_max_snps), "\n")
+}
+cat("\n")
 
 # Load parameter file
 cat("Loading parameter file...\n")
@@ -286,11 +298,35 @@ calculate_imputed_snp_frequency <- function(haplotype_freqs, founder_states) {
 }
 
 # Function to create SNP imputation table for this estimator
-create_snp_imputation_table <- function(valid_snps, haplotype_results, founders, estimator) {
+create_snp_imputation_table <- function(valid_snps, haplotype_results, founders, estimator, 
+                                        test_start_pos = NULL, test_max_snps = NULL) {
   cat("Creating SNP imputation table for", estimator, "...\n")
   
   # Get unique SNP positions and samples
   snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS)
+  
+  # Apply testing filters if specified
+  if (!is.null(test_start_pos) || !is.null(test_max_snps)) {
+    original_count <- length(snp_positions)
+    
+    # Filter by start position if specified
+    if (!is.null(test_start_pos)) {
+      snp_positions <- snp_positions[snp_positions >= test_start_pos]
+      cat("TESTING: Filtered to positions >=", test_start_pos, ":", length(snp_positions), "SNPs\n")
+    }
+    
+    # Limit number of SNPs if specified
+    if (!is.null(test_max_snps) && length(snp_positions) > test_max_snps) {
+      snp_positions <- head(sort(snp_positions), test_max_snps)
+      cat("TESTING: Limited to first", test_max_snps, "SNPs\n")
+    }
+    
+    cat("TESTING: Using", length(snp_positions), "/", original_count, "SNPs for testing\n")
+    
+    # Update valid_snps to only include test positions
+    valid_snps <- valid_snps %>% filter(POS %in% snp_positions)
+  }
+  
   all_samples <- unique(valid_snps$name)
   non_founder_samples <- all_samples[!all_samples %in% founders]
   
@@ -502,7 +538,8 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
 cat("=== Creating SNP Imputation Table ===\n")
 start_time <- Sys.time()
 
-imputation_results <- create_snp_imputation_table(valid_snps, haplotype_results, founders, estimator)
+imputation_results <- create_snp_imputation_table(valid_snps, haplotype_results, founders, estimator, 
+                                                  test_start_pos, test_max_snps)
 
 if (length(imputation_results) > 0) {
   # Convert to data frame
