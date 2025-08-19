@@ -279,6 +279,9 @@ if (length(haplotype_summary) > 0) {
   # Method comparison
   if (length(unique(haplotype_table$Method)) > 1) {
     cat("\nMethod comparison:\n")
+    # Add success_rate column to haplotype_table for comparison
+    haplotype_table$Success_Rate <- sapply(haplotype_summary, function(x) round(x$success_rate, 1))
+    
     method_comparison <- haplotype_table %>%
       group_by(Method) %>%
       summarize(
