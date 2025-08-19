@@ -47,7 +47,7 @@ cat("=== LOADING PARAMETER COMBINATIONS ===\n")
 # Read the parameter file to know what combinations to expect
 # Extract chromosome number (e.g., chr2R -> 2R)
 chr_num <- gsub("chr", "", chr)
-param_file <- file.path("helpfiles", glue("haplotype_params.{chr_num}.tsv"))
+param_file <- "helpfiles/production_slurm_params.tsv"
 if (!file.exists(param_file)) {
   cat("❌ Parameter file not found:", param_file, "\n")
   quit(status = 1)
