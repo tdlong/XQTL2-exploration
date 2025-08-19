@@ -130,4 +130,106 @@ Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_pa
 
 ---
 
+## 📝 **KEY COMMANDS HISTORY**
+
+### **HAPLOTYPE ESTIMATION WORKFLOW**
+
+#### **1. Initial Setup and Testing**
+```bash
+# Test individual haplotype functions locally
+Rscript scripts/test_haplotype_functions.R
+```
+
+#### **2. Production Haplotype Estimation**
+```bash
+# Run full haplotype estimation pipeline (9 parameter combinations)
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# Check completion status
+Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
+```
+
+**Result**: 9/9 estimators completed successfully with 100% reliability for adaptive methods
+
+### **SNP IMPUTATION WORKFLOW**
+
+#### **3. SNP Imputation Testing**
+```bash
+# Test SNP imputation on small subset (1000 SNPs, fast validation)
+Rscript scripts/test_snp_imputation_1000.R
+
+# Verified:
+# - All 6 samples processed correctly
+# - Haplotype/SNP data compatibility
+# - Safe testing (separate _TEST.RDS files)
+```
+
+**Result**: Test passed with flying colors!
+
+#### **4. Production SNP Imputation (CURRENT)**
+```bash
+# Launch full SNP imputation pipeline (9 parallel jobs)
+sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# Monitor progress
+Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
+```
+
+**Status**: Running (may take until tomorrow)
+
+### **UPCOMING: METHOD EVALUATION**
+
+#### **6. Performance Analysis (NEXT STEP)**
+```bash
+# After SNP imputation completes, run comprehensive evaluation
+Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# This will generate:
+# - MSE, correlation, coverage metrics
+# - Regional sliding window analysis
+# - Method comparison and recommendations
+```
+
+### **DEBUGGING AND DEVELOPMENT COMMANDS USED**
+
+#### **Key Debugging Tools**
+```bash
+# Test specific functions during development
+Rscript scripts/test_haplotype_functions.R
+
+# Quick SNP imputation testing
+Rscript scripts/test_snp_imputation_1000.R
+
+# Monitor file completion
+ls -la process/JUICE/haplotype_results/
+Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
+
+# Overall pipeline monitoring  
+Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
+```
+
+#### **Git Workflow**
+```bash
+# Standard development cycle
+git add .
+git commit -m "descriptive message"
+git push origin main
+
+# Pull updates on cluster
+git pull origin main
+```
+
+### **PARAMETER FILES USED**
+
+#### **Core Configuration**
+- **`helpfiles/production_slurm_params.tsv`**: Method/parameter combinations (9 rows)
+- **`helpfiles/JUICE_haplotype_parameters.R`**: Founders, samples, step size
+
+#### **Key Data Files**
+- **Input**: `process/JUICE/RefAlt.chr2R.txt` (REFALT allele counts)
+- **Haplotype Output**: `process/JUICE/haplotype_results/<estimator>_results_chr2R.RDS`
+- **SNP Output**: `process/JUICE/haplotype_results/snp_imputation_<estimator>_chr2R.RDS`
+
+---
+
 *Last Updated: 2025-01-19 - SNP Imputation Phase Active*
