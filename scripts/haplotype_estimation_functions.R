@@ -171,6 +171,10 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       
       if (nrow(founder_matrix_clean) < 10) next
       
+      # Always update final window info (this is the last window we actually tried)
+      final_window_size <- window_size
+      final_wide_data <- wide_data
+      
       # Hierarchical clustering
       founder_dist <- dist(t(founder_matrix_clean))
       hclust_result <- hclust(founder_dist, method = "complete")
@@ -290,11 +294,9 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
             }
           }
           
-          # Always store the final result (will be overwritten as we expand)
+          # Store the result (will be overwritten as we expand)
           final_result <- result
           final_n_groups <- n_groups
-          final_window_size <- window_size
-          final_wide_data <- wide_data
           
           # Check if all founders are separated
           if (n_groups == length(founders)) {
@@ -352,7 +354,7 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
     # Return result
     return(create_result(chr, pos, sample_name, method, final_window_size, 
                         ifelse(is.null(final_result), 0, nrow(final_wide_data)), 
-                        estimate_OK, founder_frequencies, founders))
+                        estimate_OK, founder_frequencies, founders, h_cutoff))
   }
 }
 
@@ -444,7 +446,7 @@ create_empty_result <- function(chr, pos, sample_name, method, window_size, foun
 }
 
 #' Create result structure
-create_result <- function(chr, pos, sample_name, method, window_size, n_snps, estimate_OK, haplotype_freqs, founders) {
+create_result <- function(chr, pos, sample_name, method, window_size, n_snps, estimate_OK, haplotype_freqs, founders, h_cutoff = NA) {
   result <- list(
     chr = chr,
     pos = pos,
@@ -454,6 +456,11 @@ create_result <- function(chr, pos, sample_name, method, window_size, n_snps, es
     n_snps = n_snps,
     estimate_OK = estimate_OK
   )
+  
+  # Add h_cutoff for adaptive method
+  if (method == "adaptive") {
+    result[["h_cutoff"]] <- h_cutoff
+  }
   
   # Add founder frequencies
   for (i in seq_along(founders)) {
