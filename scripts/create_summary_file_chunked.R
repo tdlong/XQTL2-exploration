@@ -16,7 +16,7 @@ output_dir <- args[3]
 
 # Load parameters
 source(param_file)
-results_dir <- file.path(output_dir, "haplotype_results")
+results_dir <- output_dir  # Files are directly in the output directory
 
 cat("=== CREATING SUMMARY FILE (CHUNKED) ===\n")
 cat("Chromosome:", chr, "\n")
@@ -28,7 +28,7 @@ methods <- c("fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_50
 
 # Get all positions divisible by 10kb (10,000)
 cat("Loading haplotype data to determine positions...\n")
-first_file <- file.path(results_dir, "fixed_20kb_results_chr2R.RDS")
+first_file <- file.path(results_dir, "fixed_window_20kb_results_chr2R.RDS")
 if (!file.exists(first_file)) {
   stop("Haplotype results not found: ", first_file)
 }
