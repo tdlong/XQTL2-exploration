@@ -7,19 +7,19 @@ suppressPackageStartupMessages({
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 4) {
-  stop("Usage: Rscript scripts/plot_summary_region.R <chr> <param_file> <output_dir> <midpoint_10kb>")
+              stop("Usage: Rscript scripts/plot_summary_region.R <chr> <param_file> <output_dir> <midpoint_bp>")
 }
 
-chr <- args[1]
-param_file <- args[2]
-output_dir <- args[3]
-midpoint_10kb <- as.numeric(args[4])
+            chr <- args[1]
+            param_file <- args[2]
+            output_dir <- args[3]
+            midpoint_bp <- as.numeric(args[4])
 
 cat("=== PLOTTING SUMMARY REGION ===\n")
-cat("Chromosome:", chr, "\n")
-cat("Output directory:", output_dir, "\n")
-cat("Midpoint (10kb):", midpoint_10kb, "\n")
-cat("Region width: 200kb\n\n")
+            cat("Chromosome:", chr, "\n")
+            cat("Output directory:", output_dir, "\n")
+            cat("Midpoint (bp):", midpoint_bp, "\n")
+            cat("Region width: 200kb\n\n")
 
 # Load parameters
 source(param_file)
@@ -35,24 +35,30 @@ if (!file.exists(summary_file)) {
 cat("Loading summary file...\n")
 summary_data <- readRDS(summary_file)
 
-cat("✓ Summary data loaded:", nrow(summary_data), "rows\n")
-cat("Samples available:", paste(unique(summary_data$sample), collapse = ", "), "\n")
+            cat("✓ Summary data loaded:", nrow(summary_data), "rows\n")
+            cat("Samples available:", paste(unique(summary_data$sample), collapse = ", "), "\n")
+            
+            # Show position range in data
+            pos_range <- range(summary_data$pos)
+            cat("Position range in data:", format(pos_range[1], big.mark=","), "to", format(pos_range[2], big.mark=","), "base pairs\n")
+            cat("Position range in 10kb units:", round(pos_range[1]/10000), "to", round(pos_range[2]/10000), "\n\n")
 
-# Get the first sample
-first_sample <- unique(summary_data$sample)[1]
-cat("Using first sample:", first_sample, "\n\n")
+            # Get the first sample
+            first_sample <- unique(summary_data$sample)[1]
+            cat("Using first sample:", first_sample, "\n\n")
 
-# Filter to the specified region (200kb centered on midpoint)
-region_start_10kb <- midpoint_10kb - 10  # 100kb on each side
-region_end_10kb <- midpoint_10kb + 10
+            # Filter to the specified region (200kb centered on midpoint)
+            region_start_bp <- midpoint_bp - 100000  # 100kb on each side
+            region_end_bp <- midpoint_bp + 100000
 
-cat("Plotting region:", region_start_10kb, "-", region_end_10kb, "(10kb units)\n")
-cat("This corresponds to:", region_start_10kb * 10000, "-", region_end_10kb * 10000, "base pairs\n\n")
+            cat("Plotting region:", region_start_bp, "-", region_end_bp, "base pairs\n")
+            cat("This corresponds to:", round(region_start_bp/10000), "-", round(region_end_bp/10000), "(10kb units)\n\n")
+            cat("Note: Input positions are in base pairs (e.g., 10800000 = 10,800,000 base pairs)\n\n")
 
             # Filter data to the region and first sample
             region_data <- summary_data %>%
               filter(sample == first_sample) %>%
-              filter(pos >= region_start_10kb & pos <= region_end_10kb)
+              filter(pos >= region_start_bp & pos <= region_end_bp)
 
 cat("Data points in region:", nrow(region_data), "\n")
 
@@ -80,11 +86,11 @@ method_colors <- c(
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE, big.mark = ","),
-                breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
+                breaks = seq(region_start_bp, region_end_bp, by = 20000)  # Every 20kb
               ) +
               labs(
                 title = paste("B1 Haplotype Frequencies -", first_sample),
-                subtitle = paste("Chromosome:", chr, "(positions in 10kb units)"),
+                subtitle = paste("Chromosome:", chr, "(positions in base pairs)"),
                 x = NULL,  # No x-axis label for top panel
                 y = "B1 Frequency",
                 color = "Method"
@@ -107,12 +113,12 @@ rmse_data <- region_data %>%
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE, big.mark = ","),
-                  breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
+                  breaks = seq(region_start_bp, region_end_bp, by = 20000)  # Every 20kb
                 ) +
                 labs(
                   title = paste("SNP Imputation RMSE -", first_sample),
                   subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
-                  x = "Position (10kb units)",
+                  x = "Position (base pairs)",
                   y = "RMSE",
                   color = "Method"
                 ) +
@@ -144,7 +150,7 @@ rmse_data <- region_data %>%
 
             # Print summary table for the region
             cat("\n=== SUMMARY TABLE FOR REGION ===\n")
-            cat("Position (10kb) | Method        | B1     | Status | SNPs\n")
+            cat("Position (bp)   | Method        | B1     | Status | SNPs\n")
             cat("----------------|---------------|--------|--------|------\n")
 
             for (i in 1:nrow(region_data)) {
