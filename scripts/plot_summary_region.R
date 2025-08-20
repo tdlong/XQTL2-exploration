@@ -49,10 +49,10 @@ region_end_10kb <- midpoint_10kb + 10
 cat("Plotting region:", region_start_10kb, "-", region_end_10kb, "(10kb units)\n")
 cat("This corresponds to:", region_start_10kb * 10000, "-", region_end_10kb * 10000, "base pairs\n\n")
 
-# Filter data to the region and first sample
-region_data <- summary_data %>%
-  filter(sample == first_sample) %>%
-  filter(pos_10kb >= region_start_10kb & pos_10kb <= region_end_10kb)
+            # Filter data to the region and first sample
+            region_data <- summary_data %>%
+              filter(sample == first_sample) %>%
+              filter(pos >= region_start_10kb & pos <= region_end_10kb)
 
 cat("Data points in region:", nrow(region_data), "\n")
 
@@ -73,56 +73,56 @@ method_colors <- c(
   "adaptive_h10" = "#90EE90"   # Light green
 )
 
-# Create haplotype frequency plot (top panel)
-p_haplo <- ggplot(region_data, aes(x = pos_10kb, y = B1_freq, color = method)) +
-  geom_line(alpha = 0.7) +
-  geom_point(size = 1) +
-  scale_color_manual(values = method_colors) +
-  scale_x_continuous(
-    labels = function(x) format(x, scientific = FALSE, big.mark = ","),
-    breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
-  ) +
-  labs(
-    title = paste("B1 Haplotype Frequencies -", first_sample),
-    subtitle = paste("Chromosome:", chr, "(positions in 10kb units)"),
-    x = NULL,  # No x-axis label for top panel
-    y = "B1 Frequency",
-    color = "Method"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(size = 12, face = "bold"),
-    legend.position = "none",  # Legend only on bottom panel
-    axis.text.x = element_blank()  # No x-axis text for top panel
-  )
+            # Create haplotype frequency plot (top panel)
+            p_haplo <- ggplot(region_data, aes(x = pos, y = B1_freq, color = method)) +
+              geom_line(alpha = 0.7) +
+              geom_point(size = 1) +
+              scale_color_manual(values = method_colors) +
+              scale_x_continuous(
+                labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+                breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
+              ) +
+              labs(
+                title = paste("B1 Haplotype Frequencies -", first_sample),
+                subtitle = paste("Chromosome:", chr, "(positions in 10kb units)"),
+                x = NULL,  # No x-axis label for top panel
+                y = "B1 Frequency",
+                color = "Method"
+              ) +
+              theme_minimal() +
+              theme(
+                plot.title = element_text(size = 12, face = "bold"),
+                legend.position = "none",  # Legend only on bottom panel
+                axis.text.x = element_blank()  # No x-axis text for top panel
+              )
 
 # Create RMSE plot (bottom panel) - only for positions with SNPs
 rmse_data <- region_data %>%
   filter(!is.na(RMSE) & NSNPs > 0)
 
-if (nrow(rmse_data) > 0) {
-  p_rmse <- ggplot(rmse_data, aes(x = pos_10kb, y = RMSE, color = method)) +
-    geom_line(alpha = 0.7) +
-    geom_point(size = 1) +
-    scale_color_manual(values = method_colors) +
-    scale_x_continuous(
-      labels = function(x) format(x, scientific = FALSE, big.mark = ","),
-      breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
-    ) +
-    labs(
-      title = paste("SNP Imputation RMSE -", first_sample),
-      subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
-      x = "Position (10kb units)",
-      y = "RMSE",
-      color = "Method"
-    ) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 12, face = "bold"),
-      legend.position = "bottom",
-      legend.text = element_text(size = 8),
-      axis.text.x = element_text(angle = 45, hjust = 1)
-    )
+            if (nrow(rmse_data) > 0) {
+              p_rmse <- ggplot(rmse_data, aes(x = pos, y = RMSE, color = method)) +
+                geom_line(alpha = 0.7) +
+                geom_point(size = 1) +
+                scale_color_manual(values = method_colors) +
+                scale_x_continuous(
+                  labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+                  breaks = seq(region_start_10kb, region_end_10kb, by = 2)  # Every 20kb
+                ) +
+                labs(
+                  title = paste("SNP Imputation RMSE -", first_sample),
+                  subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
+                  x = "Position (10kb units)",
+                  y = "RMSE",
+                  color = "Method"
+                ) +
+                theme_minimal() +
+                theme(
+                  plot.title = element_text(size = 12, face = "bold"),
+                  legend.position = "bottom",
+                  legend.text = element_text(size = 8),
+                  axis.text.x = element_text(angle = 45, hjust = 1)
+                )
   
   # Create combined two-panel plot
   p_combined <- p_haplo / p_rmse + 
@@ -142,21 +142,21 @@ if (nrow(rmse_data) > 0) {
   cat("✓ Plot saved to:", plot_file, "\n")
 }
 
-# Print summary table for the region
-cat("\n=== SUMMARY TABLE FOR REGION ===\n")
-cat("Position (10kb) | Method        | B1     | Status | SNPs\n")
-cat("----------------|---------------|--------|--------|------\n")
+            # Print summary table for the region
+            cat("\n=== SUMMARY TABLE FOR REGION ===\n")
+            cat("Position (10kb) | Method        | B1     | Status | SNPs\n")
+            cat("----------------|---------------|--------|--------|------\n")
 
-for (i in 1:nrow(region_data)) {
-  row <- region_data[i, ]
-  pos_str <- sprintf("%-14.0f", row$pos_10kb)
-  method_str <- sprintf("%-13s", row$method)
-  b1_str <- sprintf("%-6.3f", row$B1_freq)
-  status_str <- sprintf("%-6s", ifelse(row$estimate_OK == 1, "OK", "FAIL"))
-  snps_str <- sprintf("%-4d", row$NSNPs)
-  
-  cat(pos_str, "|", method_str, "|", b1_str, "|", status_str, "|", snps_str, "\n")
-}
+            for (i in 1:nrow(region_data)) {
+              row <- region_data[i, ]
+              pos_str <- sprintf("%-14.0f", row$pos)
+              method_str <- sprintf("%-13s", row$method)
+              b1_str <- sprintf("%-6.3f", row$B1_freq)
+              status_str <- sprintf("%-6s", ifelse(row$estimate_OK == 1, "OK", "FAIL"))
+              snps_str <- sprintf("%-4d", row$NSNPs)
+
+              cat(pos_str, "|", method_str, "|", b1_str, "|", status_str, "|", snps_str, "\n")
+            }
 
 # Print region statistics
 cat("\n=== REGION STATISTICS ===\n")
