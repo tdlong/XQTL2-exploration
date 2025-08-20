@@ -34,16 +34,26 @@ adaptive   h10        100.0%     0.0%         0.0%
 
 ---
 
-## 🔄 **CURRENT PHASE: SNP IMPUTATION PRODUCTION**
+## 🔄 **CURRENT PHASE: SNP IMPUTATION PRODUCTION - CRITICAL BUG FIXED**
 
-### **Status**: Pipeline running on cluster (may take until tomorrow)
+### **Status**: ⚠️ **CRITICAL BUG DISCOVERED AND FIXED** - Need to re-run SNP imputation
 
-**Command executed:**
+**🚨 CRITICAL ISSUE IDENTIFIED**: Founder ordering bug in SNP imputation caused identical RMSE across all methods despite different haplotype estimates.
+
+**What was wrong**: `calculate_imputed_snp_frequency()` was receiving haplotype frequencies as data frames instead of numeric vectors, causing element-wise multiplication to fail silently.
+
+**What was fixed**: 
+- Added explicit conversion: `haplotype_freqs_numeric <- as.numeric(haplotype_freqs[1, ])`
+- Added debug output to verify founder ordering (B1, B2, B3, B4, B5, B6, B7, AB8)
+- Fixed data type mismatch that was breaking SNP frequency calculation
+
+**Previous results**: All methods showed identical RMSE (random baseline performance)
+**Expected results**: Different RMSE values correlating with haplotype frequency differences
+
+**Next step**: Re-run SNP imputation pipeline with fixed code
 ```bash
 sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
 ```
-
-**What's running**: 9 parallel Slurm jobs processing ALL euchromatic SNPs for ALL estimators
 
 **Monitoring:**
 ```bash
@@ -84,14 +94,66 @@ Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_pa
 3. **`haplotype_testing_from_table.sh`** - Slurm orchestration
 
 ### **SNP Imputation Pipeline:**
-1. **`euchromatic_SNP_imputation_single.R`** - Core imputation (with testing mode)
+1. **`euchromatic_SNP_imputation_single.R`** - Core imputation (with testing mode) ⚠️ **CRITICAL BUG FIXED**
 2. **`snp_imputation_from_table.sh`** - Slurm orchestration
 3. **`test_snp_imputation_1000.R`** - Fast testing wrapper
 
-### **Monitoring:**
+### **Monitoring & Analysis:**
 1. **`summarize_pipeline_results.R`** - Progress tracking
 2. **`check_snp_imputation_status.R`** - SNP completion status
 3. **`evaluate_imputation_methods.R`** - Method evaluation
+4. **`create_summary_file_chunked.R`** - Create comprehensive summary RDS
+5. **`plot_summary_region.R`** - Regional plotting (fixed coordinate system)
+
+---
+
+## 🚀 **CURRENT MAIN PIPELINE SCRIPTS**
+
+### **Production SNP Imputation (After Bug Fix):**
+```bash
+# Launch fixed SNP imputation pipeline
+sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# Monitor progress
+Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
+```
+
+### **Evaluation & Analysis (After SNP Imputation Completes):**
+```bash
+# Method comparison and performance analysis
+Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# Create comprehensive summary file
+Rscript scripts/create_summary_file_chunked.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+
+# Plot specific regions
+Rscript scripts/plot_summary_region.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE 870
+```
+
+---
+
+## 🐛 **CRITICAL BUG FIX DETAILS**
+
+### **Bug Description:**
+- **Symptom**: All SNP imputation methods showed identical RMSE despite wildly different haplotype estimates
+- **Root Cause**: Data type mismatch in `calculate_imputed_snp_frequency()` function
+- **Technical Issue**: Haplotype frequencies passed as data frames instead of numeric vectors
+- **Impact**: Element-wise multiplication failed silently, causing random baseline performance
+
+### **Fix Applied:**
+```r
+# BEFORE (BROKEN):
+imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states)
+
+# AFTER (FIXED):
+haplotype_freqs_numeric <- as.numeric(haplotype_freqs[1, ])
+imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_founder_states)
+```
+
+### **Verification:**
+- Added debug output showing founder ordering (B1, B2, B3, B4, B5, B6, B7, AB8)
+- Verified haplotype frequencies and founder states are properly aligned
+- Expected result: Different RMSE values correlating with haplotype frequency differences
 
 ---
 
