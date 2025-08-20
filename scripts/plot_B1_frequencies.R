@@ -41,10 +41,30 @@ for (size in fixed_sizes) {
   
   if (file.exists(file_path)) {
     results <- readRDS(file_path)
+    
+    # Debug: Show raw data structure
+    cat("\nDEBUG - Raw data for", file_name, ":\n")
+    cat("File size:", file.size(file_path), "bytes\n")
+    cat("Columns:", paste(names(results), collapse=", "), "\n")
+    cat("First few rows:\n")
+    print(head(results))
+    
+    # Check if this file has unique content
+    file_hash <- digest::digest(results, algo="md5")
+    cat("File content hash:", substr(file_hash, 1, 8), "\n")
+    
     # Filter to sample and add method info
     results <- results %>%
       filter(sample == sample_name) %>%
       mutate(method = paste0("fixed_", size, "kb"))
+    
+    # Debug: Show filtered data
+    cat("\nAfter filtering to", sample_name, ":\n")
+    cat("Rows:", nrow(results), "\n")
+    cat("Unique positions:", length(unique(results$pos)), "\n")
+    cat("Position range:", min(results$pos), "-", max(results$pos), "\n")
+    cat("B1 range:", min(results$B1, na.rm=TRUE), "-", max(results$B1, na.rm=TRUE), "\n")
+    
     all_results[[length(all_results) + 1]] <- results
     cat("✓ Loaded:", file_name, "\n")
   } else {
@@ -59,10 +79,30 @@ for (h in h_cutoffs) {
   
   if (file.exists(file_path)) {
     results <- readRDS(file_path)
+    
+    # Debug: Show raw data structure
+    cat("\nDEBUG - Raw data for", file_name, ":\n")
+    cat("File size:", file.size(file_path), "bytes\n")
+    cat("Columns:", paste(names(results), collapse=", "), "\n")
+    cat("First few rows:\n")
+    print(head(results))
+    
+    # Check if this file has unique content
+    file_hash <- digest::digest(results, algo="md5")
+    cat("File content hash:", substr(file_hash, 1, 8), "\n")
+    
     # Filter to sample and add method info
     results <- results %>%
       filter(sample == sample_name) %>%
       mutate(method = paste0("adaptive_h", h))
+    
+    # Debug: Show filtered data
+    cat("\nAfter filtering to", sample_name, ":\n")
+    cat("Rows:", nrow(results), "\n")
+    cat("Unique positions:", length(unique(results$pos)), "\n")
+    cat("Position range:", min(results$pos), "-", max(results$pos), "\n")
+    cat("B1 range:", min(results$B1, na.rm=TRUE), "-", max(results$B1, na.rm=TRUE), "\n")
+    
     all_results[[length(all_results) + 1]] <- results
     cat("✓ Loaded:", file_name, "\n")
   } else {
@@ -72,6 +112,28 @@ for (h in h_cutoffs) {
 
 # Combine all results
 combined_results <- bind_rows(all_results)
+
+# Check for identical positions across methods
+cat("\n=== CHECKING FOR IDENTICAL POSITIONS ===\n")
+positions_by_method <- combined_results %>%
+  group_by(method) %>%
+  summarise(
+    positions = list(sort(unique(pos))),
+    n_pos = length(unique(pos))
+  )
+
+# Compare each method's positions to fixed_500kb
+base_positions <- positions_by_method$positions[positions_by_method$method == "fixed_500kb"][[1]]
+for (i in 1:nrow(positions_by_method)) {
+  method <- positions_by_method$method[i]
+  if (method != "fixed_500kb") {
+    current_positions <- positions_by_method$positions[[i]]
+    identical_pos <- identical(current_positions, base_positions)
+    cat(sprintf("%s: %d positions, identical to fixed_500kb: %s\n", 
+                method, positions_by_method$n_pos[i], 
+                ifelse(identical_pos, "YES ⚠️", "no")))
+  }
+}
 
 # Create plot
 cat("\nCreating plot...\n")
@@ -216,4 +278,28 @@ for (m in unique(combined_results$method)) {
     cor_val <- cor(method_data$B1, method_data$base_B1, use = "complete.obs")
     cat(sprintf("%s: r = %.3f\n", m, cor_val))
   }
+}
+
+# Identify which method is "smooth" vs "oscillating"
+cat("\n=== SMOOTHNESS ANALYSIS ===\n")
+smoothness_analysis <- combined_results %>%
+  group_by(method) %>%
+  arrange(pos) %>%
+  mutate(
+    b1_diff = abs(B1 - lag(B1)),
+    b1_diff_squared = b1_diff^2
+  ) %>%
+  summarise(
+    mean_step_change = mean(b1_diff, na.rm = TRUE),
+    total_variation = sum(b1_diff_squared, na.rm = TRUE),
+    max_step_change = max(b1_diff, na.rm = TRUE)
+  ) %>%
+  arrange(mean_step_change)
+
+cat("Methods ordered by smoothness (lowest mean step change = smoothest):\n")
+for (i in 1:nrow(smoothness_analysis)) {
+  method <- smoothness_analysis$method[i]
+  mean_change <- smoothness_analysis$mean_step_change[i]
+  max_change <- smoothness_analysis$max_step_change[i]
+  cat(sprintf("%d. %s: mean=%.4f, max=%.4f\n", i, method, mean_change, max_change))
 }
