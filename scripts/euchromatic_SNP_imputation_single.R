@@ -511,11 +511,23 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       
       if (length(snp_founder_states) == 0) next
       
+      # CRITICAL FIX: Convert haplotype_freqs to numeric vector in correct order
+      haplotype_freqs_numeric <- as.numeric(haplotype_freqs[1, ])
+      
       # Founder states are now already in correct order (B1, B2, B3, ..., AB8)
       # No need for reordering - the pivot_wider + select ensures correct order
       
       # Calculate imputed frequency with correctly ordered founder states
-      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states)
+      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_founder_states)
+      
+      # DEBUG: Check founder ordering for first few SNPs
+      if (snp_idx <= 3) {
+        cat("    DEBUG SNP", snp_idx, "at position", snp_pos, ":\n")
+        cat("      Haplotype freqs:", paste(round(haplotype_freqs_numeric, 4), collapse = ", "), "\n")
+        cat("      Founder states:", paste(snp_founder_states, collapse = ", "), "\n")
+        cat("      Imputed freq:", round(imputed_freq, 4), "\n")
+        cat("      Expected order: B1, B2, B3, B4, B5, B6, B7, AB8\n")
+      }
       
       # Store result
       results_list[[length(results_list) + 1]] <- list(
