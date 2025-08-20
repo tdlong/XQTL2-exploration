@@ -38,79 +38,106 @@ results_dir <- file.path(output_dir, "haplotype_results")
 # Load all haplotype files
 all_results <- list()
 
-# Load fixed window results
-for (size in fixed_sizes) {
-  file_name <- paste0("fixed_window_", size, "kb_results_", chr, ".RDS")
-  file_path <- file.path(results_dir, file_name)
-  
-  if (file.exists(file_path)) {
-    results <- readRDS(file_path)
-    
-    # Debug: Show raw data structure
-    cat("\nDEBUG - Raw data for", file_name, ":\n")
-    cat("File size:", file.size(file_path), "bytes\n")
-    cat("Columns:", paste(names(results), collapse=", "), "\n")
-    cat("First few rows:\n")
-    print(head(results))
-    
-    # Check if this file has unique content
-    file_hash <- digest::digest(results, algo="md5")
-    cat("File content hash:", substr(file_hash, 1, 8), "\n")
-    
-    # Filter to sample and add method info
-    results <- results %>%
-      filter(sample == sample_name) %>%
-      mutate(method = paste0("fixed_", size, "kb"))
-    
-    # Debug: Show filtered data
-    cat("\nAfter filtering to", sample_name, ":\n")
-    cat("Rows:", nrow(results), "\n")
-    cat("Unique positions:", length(unique(results$pos)), "\n")
-    cat("Position range:", min(results$pos), "-", max(results$pos), "\n")
-    cat("B1 range:", min(results$B1, na.rm=TRUE), "-", max(results$B1, na.rm=TRUE), "\n")
-    
-    all_results[[length(all_results) + 1]] <- results
-    cat("✓ Loaded:", file_name, "\n")
-  } else {
-    cat("❌ Missing:", file_name, "\n")
-  }
-}
+# Check if saved subsetted data exists for this region
+subset_file <- file.path(results_dir, paste0("zoomed_data_", chr, "_", sample_name, "_", format(zoom_range_bp[1], big.mark=""), "_", format(zoom_range_bp[2], big.mark=""), ".RDS"))
 
-# Load adaptive window results
-for (h in h_cutoffs) {
-  file_name <- paste0("adaptive_window_h", h, "_results_", chr, ".RDS")
-  file_path <- file.path(results_dir, file_name)
+if (file.exists(subset_file)) {
+  cat("✓ Loading saved subsetted data for faster processing...\n")
+  saved_data <- readRDS(subset_file)
+  zoomed_haplo_data <- saved_data$haplo_data
+  zoomed_snp_data <- saved_data$snp_data
+  zoom_range_bp <- saved_data$zoom_range
+  zoom_range_10kb <- saved_data$zoom_range_10kb
+  cat("✓ Loaded data for region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=","), "\n")
+} else {
+  cat("Loading haplotype results...\n")
   
-  if (file.exists(file_path)) {
-    results <- readRDS(file_path)
+  # Load fixed window results
+  for (size in fixed_sizes) {
+    file_name <- paste0("fixed_window_", size, "kb_results_", chr, ".RDS")
+    file_path <- file.path(results_dir, file_name)
     
-    # Debug: Show raw data structure
-    cat("\nDEBUG - Raw data for", file_name, ":\n")
-    cat("File size:", file.size(file_path), "bytes\n")
-    cat("Columns:", paste(names(results), collapse=", "), "\n")
-    cat("First few rows:\n")
-    print(head(results))
+    if (file.exists(file_path)) {
+      results <- readRDS(file_path)
+      
+      # Filter to sample and add method info
+      results <- results %>%
+        filter(sample == sample_name) %>%
+        mutate(method = paste0("fixed_", size, "kb"))
+      
+      all_results[[length(all_results) + 1]] <- results
+      cat("✓ Loaded:", file_name, "\n")
+    } else {
+      cat("❌ Missing:", file_name, "\n")
+    }
+  }
+
+  # Load adaptive window results
+  for (h in h_cutoffs) {
+    file_name <- paste0("adaptive_window_h", h, "_results_", chr, ".RDS")
+    file_path <- file.path(results_dir, file_name)
     
-    # Check if this file has unique content
-    file_hash <- digest::digest(results, algo="md5")
-    cat("File content hash:", substr(file_hash, 1, 8), "\n")
+    if (file.exists(file_path)) {
+      results <- readRDS(file_path)
+      
+      # Filter to sample and add method info
+      results <- results %>%
+        filter(sample == sample_name) %>%
+        mutate(method = paste0("adaptive_h", h))
+      
+      all_results[[length(all_results) + 1]] <- results
+      cat("✓ Loaded:", file_name, "\n")
+    } else {
+      cat("❌ Missing:", file_name, "\n")
+    }
+  }
+  
+  # Combine all results
+  combined_results <- bind_rows(all_results)
+  
+  # Convert positions to 10kb units for cleaner x-axis
+  combined_results <- combined_results %>%
+    mutate(pos_10kb = pos / 10000)
+  
+  # Filter data for zoomed region
+  zoomed_haplo_data <- combined_results %>% 
+    filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2])
+  
+  # Load SNP imputation results for bottom panel
+  cat("\nLoading SNP imputation results for RMSE analysis...\n")
+  snp_results <- list()
+  
+  for (method in unique(combined_results$method)) {
+    # Extract estimator name from method
+    if (grepl("fixed_", method)) {
+      size <- gsub("fixed_", "", method)
+      estimator <- paste0("fixed_", size)
+    } else {
+      h <- gsub("adaptive_h", "", method)
+      estimator <- paste0("adaptive_h", h)
+    }
     
-    # Filter to sample and add method info
-    results <- results %>%
-      filter(sample == sample_name) %>%
-      mutate(method = paste0("adaptive_h", h))
+    snp_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
     
-    # Debug: Show filtered data
-    cat("\nAfter filtering to", sample_name, ":\n")
-    cat("Rows:", nrow(results), "\n")
-    cat("Unique positions:", length(unique(results$pos)), "\n")
-    cat("Position range:", min(results$pos), "-", max(results$pos), "\n")
-    cat("B1 range:", min(results$B1, na.rm=TRUE), "-", max(results$B1, na.rm=TRUE), "\n")
+    if (file.exists(snp_file)) {
+      snp_data <- readRDS(snp_file) %>%
+        filter(sample == sample_name) %>%
+        mutate(method = method)
+      snp_results[[length(snp_results) + 1]] <- snp_data
+      cat("✓ Loaded SNP data for", method, "\n")
+    } else {
+      cat("❌ Missing SNP file for", method, ":", snp_file, "\n")
+    }
+  }
+  
+  # Combine SNP results and calculate RMSE by position
+  if (length(snp_results) > 0) {
+    snp_combined <- bind_rows(snp_results) %>%
+      mutate(pos_10kb = pos / 10000)
     
-    all_results[[length(all_results) + 1]] <- results
-    cat("✓ Loaded:", file_name, "\n")
-  } else {
-    cat("❌ Missing:", file_name, "\n")
+    # Filter SNP data for zoomed region
+    zoomed_snp_data <- snp_combined %>%
+      filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2])
   }
 }
 
