@@ -306,16 +306,54 @@ if (length(snp_results) > 0) {
   zoomed_snp_data <- snp_combined %>%
     filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2])
   
-  # Calculate RMSE for zoomed region
-  zoomed_rmse_data <- zoomed_snp_data %>%
-    group_by(method, pos_10kb) %>%
-    summarise(
-      rmse = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
-      n_snps = n(),
-      .groups = "drop"
-    )
+  # Save subsetted data for faster debugging
+  subset_file <- file.path(results_dir, paste0("zoomed_data_", chr, "_", sample_name, "_", format(zoom_range_bp[1], big.mark=""), "_", format(zoom_range_bp[2], big.mark=""), ".RDS"))
+  saveRDS(list(
+    haplo_data = zoomed_haplo_data,
+    snp_data = zoomed_snp_data,
+    zoom_range = zoom_range_bp,
+    zoom_range_10kb = zoom_range_10kb
+  ), subset_file)
+  cat("✓ Saved subsetted data for debugging:", subset_file, "\n")
   
-  p_zoom_rmse <- ggplot(zoomed_rmse_data, aes(x = pos_10kb, y = rmse, color = method)) +
+  # Calculate RMSE for each haplotype position (average over SNPs within ±5kb)
+  rmse_by_haplo_position <- data.frame()
+  
+  for (method in unique(zoomed_haplo_data$method)) {
+    haplo_positions <- zoomed_haplo_data %>%
+      filter(method == !!method) %>%
+      pull(pos_10kb)
+    
+    method_snp_data <- zoomed_snp_data %>%
+      filter(method == !!method)
+    
+    for (haplo_pos in haplo_positions) {
+      # Find SNPs within ±5kb of this haplotype position
+      haplo_pos_bp <- haplo_pos * 10000
+      nearby_snps <- method_snp_data %>%
+        filter(pos >= haplo_pos_bp - 5000 & pos <= haplo_pos_bp + 5000)
+      
+      if (nrow(nearby_snps) > 0) {
+        rmse_val <- sqrt(mean((nearby_snps$observed - nearby_snps$imputed)^2, na.rm = TRUE))
+        n_snps <- nrow(nearby_snps)
+      } else {
+        rmse_val <- NA
+        n_snps <- 0
+      }
+      
+      rmse_by_haplo_position <- rbind(rmse_by_haplo_position, data.frame(
+        method = method,
+        pos_10kb = haplo_pos,
+        rmse = rmse_val,
+        n_snps = n_snps
+      ))
+    }
+  }
+  
+  cat("✓ Calculated RMSE for", nrow(rmse_by_haplo_position), "haplotype positions\n")
+  cat("✓ Average SNPs per position:", round(mean(rmse_by_haplo_position$n_snps, na.rm=TRUE), 1), "\n")
+  
+  p_zoom_rmse <- ggplot(rmse_by_haplo_position, aes(x = pos_10kb, y = rmse, color = method)) +
     geom_line(alpha = 0.7) +
     geom_point(size = 1) +
     scale_color_manual(values = method_colors) +
@@ -325,7 +363,7 @@ if (length(snp_results) > 0) {
     ) +
     labs(
       title = paste("SNP Imputation RMSE (200kb Zoom) -", sample_name),
-      subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=",")),
+      subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=","), "\nAveraged over SNPs within ±5kb of each haplotype position"),
       x = "Position (10kb units)",
       y = "RMSE",
       color = "Method"
