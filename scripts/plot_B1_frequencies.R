@@ -8,14 +8,18 @@ suppressPackageStartupMessages({
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4) {
-  stop("Usage: Rscript plot_B1_frequencies.R <chr> <param_file> <output_dir> <sample_name>")
+if (length(args) < 4 || length(args) > 6) {
+  stop("Usage: Rscript scripts/plot_B1_frequencies.R <chr> <param_file> <output_dir> <sample_name> [zoom_center_10kb] [zoom_width_10kb]")
 }
 
 chr <- args[1]
 param_file <- args[2]
 output_dir <- args[3]
 sample_name <- args[4]
+
+# Optional zoom parameters
+zoom_center_10kb <- if (length(args) >= 5) as.numeric(args[5]) else NULL
+zoom_width_10kb <- if (length(args) >= 6) as.numeric(args[6]) else 20  # Default 200kb window
 
 cat("=== PLOTTING B1 FREQUENCIES ACROSS METHODS ===\n")
 cat("Chromosome:", chr, "\n")
@@ -261,17 +265,30 @@ if (length(snp_results) > 0) {
   cat("✓ Haplotype plot saved:", output_file, "\n")
 }
 
-# Create zoomed two-panel plot of a region with rapid changes (2x larger window)
-# Find region with high variance
-region_stats <- combined_results %>%
-  mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
-  group_by(region) %>%
-  summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
-  arrange(desc(var_B1))
+# Create zoomed two-panel plot
+# Determine zoom region
+if (!is.null(zoom_center_10kb)) {
+  # Use custom zoom region
+  cat("Using custom zoom region: center =", zoom_center_10kb, ", width =", zoom_width_10kb, "\n")
+  zoom_start_10kb <- zoom_center_10kb - zoom_width_10kb/2
+  zoom_end_10kb <- zoom_center_10kb + zoom_width_10kb/2
+  zoom_range_10kb <- c(zoom_start_10kb, zoom_end_10kb)
+  zoom_range_bp <- c(zoom_start_10kb * 10000, zoom_end_10kb * 10000)
+  zoom_description <- paste("Custom region centered at", zoom_center_10kb)
+} else {
+  # Find region with high variance
+  cat("Finding region with highest variance...\n")
+  region_stats <- combined_results %>%
+    mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
+    group_by(region) %>%
+    summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
+    arrange(desc(var_B1))
 
-high_var_region_10kb <- region_stats$region[1]
-zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + 20)  # 200kb window (20 units of 10kb)
-zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + 20) * 10000)
+  high_var_region_10kb <- region_stats$region[1]
+  zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + zoom_width_10kb)
+  zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + zoom_width_10kb) * 10000)
+  zoom_description <- paste("Highest variance region starting at", high_var_region_10kb)
+}
 
 # Filter data for zoomed region
 zoomed_haplo_data <- combined_results %>% 
@@ -287,8 +304,8 @@ p_zoom_haplo <- ggplot(zoomed_haplo_data, aes(x = pos_10kb, y = B1, color = meth
     breaks = seq(zoom_range_10kb[1], zoom_range_10kb[2], by = 2)  # Every 20kb
   ) +
   labs(
-    title = paste("B1 Haplotype Frequencies (200kb Zoom) -", sample_name),
-    subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=",")),
+    title = paste("B1 Haplotype Frequencies (", zoom_width_10kb*10, "kb Zoom) -", sample_name),
+    subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=","), "\n", zoom_description),
     x = NULL,  # No x-axis label for top panel
     y = "B1 Frequency",
     color = "Method"
@@ -362,7 +379,7 @@ if (length(snp_results) > 0) {
       breaks = seq(zoom_range_10kb[1], zoom_range_10kb[2], by = 2)  # Every 20kb
     ) +
     labs(
-      title = paste("SNP Imputation RMSE (200kb Zoom) -", sample_name),
+      title = paste("SNP Imputation RMSE (", zoom_width_10kb*10, "kb Zoom) -", sample_name),
       subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=","), "\nAveraged over SNPs within ±5kb of each haplotype position"),
       x = "Position (10kb units)",
       y = "RMSE",
