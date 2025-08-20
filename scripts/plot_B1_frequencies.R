@@ -370,6 +370,80 @@ if (length(snp_results) > 0) {
   cat("✓ Calculated RMSE for", nrow(rmse_by_haplo_position), "haplotype positions\n")
   cat("✓ Average SNPs per position:", round(mean(rmse_by_haplo_position$n_snps, na.rm=TRUE), 1), "\n")
   
+  # Create comprehensive table for the zoomed region
+  cat("\n=== COMPREHENSIVE TABLE FOR ZOOMED REGION ===\n")
+  
+  # Get haplotype data for the zoomed region
+  zoomed_haplo_table <- zoomed_haplo_data %>%
+    select(method, pos_10kb, sample, B1, estimate_OK) %>%
+    arrange(pos_10kb, method)
+  
+  # Get SNP counts for each haplotype position
+  snp_counts <- zoomed_snp_data %>%
+    group_by(method, pos_10kb) %>%
+    summarise(
+      n_snps = n(),
+      .groups = "drop"
+    )
+  
+  # Combine haplotype and SNP data
+  comprehensive_table <- zoomed_haplo_table %>%
+    left_join(snp_counts, by = c("method", "pos_10kb")) %>%
+    mutate(
+      pos_bp = pos_10kb * 10000,
+      estimate_status = case_when(
+        estimate_OK == 1 ~ "OK",
+        estimate_OK == 0 ~ "FAIL",
+        is.na(estimate_OK) ~ "NA"
+      )
+    ) %>%
+    select(method, pos_10kb, pos_bp, sample, B1, estimate_status, n_snps) %>%
+    arrange(pos_10kb, method)
+  
+  # Print table
+  cat("Position (10kb) | Position (bp)    | Method        | Sample | B1     | Status | SNPs\n")
+  cat("----------------|------------------|---------------|--------|--------|--------|------\n")
+  
+  for (i in 1:nrow(comprehensive_table)) {
+    row <- comprehensive_table[i, ]
+    pos_10kb_str <- sprintf("%-14.0f", row$pos_10kb)
+    pos_bp_str <- sprintf("%-16.0f", row$pos_bp)
+    method_str <- sprintf("%-13s", row$method)
+    sample_str <- sprintf("%-6s", row$sample)
+    b1_str <- sprintf("%-6.3f", row$B1)
+    status_str <- sprintf("%-6s", row$estimate_status)
+    snps_str <- sprintf("%-4d", row$n_snps)
+    
+    cat(pos_10kb_str, "|", pos_bp_str, "|", method_str, "|", sample_str, "|", b1_str, "|", status_str, "|", snps_str, "\n")
+  }
+  
+  # Summary statistics
+  cat("\n=== SUMMARY STATISTICS ===\n")
+  
+  # Estimate_OK summary by method
+  ok_summary <- comprehensive_table %>%
+    group_by(method) %>%
+    summarise(
+      total_positions = n(),
+      ok_count = sum(estimate_status == "OK"),
+      fail_count = sum(estimate_status == "FAIL"),
+      na_count = sum(estimate_status == "NA"),
+      ok_rate = ok_count / total_positions,
+      avg_snps = mean(n_snps, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  cat("Method         | Positions | OK | FAIL | NA | OK Rate | Avg SNPs\n")
+  cat("---------------|-----------|----|------|----|---------|---------\n")
+  for (i in 1:nrow(ok_summary)) {
+    row <- ok_summary[i, ]
+    method_str <- sprintf("%-13s", row$method)
+    cat(method_str, "|", sprintf("%-9d", row$total_positions), "|", 
+        sprintf("%-2d", row$ok_count), "|", sprintf("%-4d", row$fail_count), "|", 
+        sprintf("%-2d", row$na_count), "|", sprintf("%-7.3f", row$ok_rate), "|", 
+        sprintf("%-7.1f", row$avg_snps), "\n")
+  }
+  
   p_zoom_rmse <- ggplot(rmse_by_haplo_position, aes(x = pos_10kb, y = rmse, color = method)) +
     geom_line(alpha = 0.7) +
     geom_point(size = 1) +
