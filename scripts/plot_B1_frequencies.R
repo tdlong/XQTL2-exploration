@@ -108,23 +108,95 @@ p <- ggplot(combined_results, aes(x = pos, y = B1, color = method)) +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
-# Save plot
+# Save full plot
 output_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, ".png"))
 ggsave(output_file, p, width = 12, height = 8, dpi = 300)
-cat("✓ Plot saved:", output_file, "\n")
+cat("✓ Full plot saved:", output_file, "\n")
+
+# Create zoomed plot of a region with rapid changes
+# Find region with high variance
+region_stats <- combined_results %>%
+  mutate(region = floor(pos / 100000) * 100000) %>%  # 100kb regions
+  group_by(region) %>%
+  summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
+  arrange(desc(var_B1))
+
+high_var_region <- region_stats$region[1]
+zoom_range <- c(high_var_region, high_var_region + 100000)
+
+p_zoom <- ggplot(
+  combined_results %>% filter(pos >= zoom_range[1] & pos <= zoom_range[2]),
+  aes(x = pos, y = B1, color = method)
+) +
+  geom_line(alpha = 0.7) +
+  geom_point(size = 1) +  # Add points to see exact positions
+  scale_color_manual(values = method_colors) +
+  scale_x_continuous(labels = function(x) format(x, scientific = FALSE, big.mark = ",")) +
+  labs(
+    title = paste("B1 Frequencies (100kb Zoom) -", sample_name),
+    subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range[1], big.mark=","), "-", format(zoom_range[2], big.mark=",")),
+    x = "Position",
+    y = "B1 Frequency",
+    color = "Method"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    legend.position = "bottom",
+    legend.text = element_text(size = 8),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+# Save zoomed plot
+zoom_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, "_zoom.png"))
+ggsave(zoom_file, p_zoom, width = 12, height = 8, dpi = 300)
+cat("✓ Zoomed plot saved:", zoom_file, "\n")
 
 # Print some summary statistics
 cat("\nSummary Statistics:\n")
+
+# Verify sample filtering worked
+sample_counts <- combined_results %>%
+  group_by(method) %>%
+  summarise(
+    unique_samples = n_distinct(sample),
+    sample_list = paste(unique(sample), collapse=", ")
+  )
+cat("\nSample check:\n")
+print(sample_counts)
+
+# Check position spacing
+pos_spacing <- combined_results %>%
+  group_by(method) %>%
+  arrange(pos) %>%
+  mutate(pos_diff = pos - lag(pos)) %>%
+  summarise(
+    min_spacing = min(pos_diff, na.rm = TRUE),
+    median_spacing = median(pos_diff, na.rm = TRUE),
+    max_spacing = max(pos_diff, na.rm = TRUE),
+    total_positions = n()
+  )
+cat("\nPosition spacing (bp):\n")
+print(pos_spacing)
+
+# Basic B1 frequency stats
 summary_stats <- combined_results %>%
   group_by(method) %>%
   summarise(
     mean_B1 = mean(B1, na.rm = TRUE),
     sd_B1 = sd(B1, na.rm = TRUE),
+    min_B1 = min(B1, na.rm = TRUE),
+    max_B1 = max(B1, na.rm = TRUE),
     na_count = sum(is.na(B1)),
-    total_pos = n()
+    total_pos = n(),
+    rapid_changes = sum(abs(B1 - lag(B1)) > 0.5, na.rm = TRUE)  # Count big jumps
   ) %>%
-  mutate(na_pct = na_count / total_pos * 100)
+  mutate(
+    na_pct = na_count / total_pos * 100,
+    rapid_change_pct = rapid_changes / total_pos * 100
+  )
 
+cat("\nB1 frequency statistics:\n")
 print(summary_stats)
 
 # Check correlation between methods
