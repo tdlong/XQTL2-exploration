@@ -22,9 +22,9 @@ cat("=== CREATING SUMMARY FILE (CHUNKED) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
-# Define methods (matching actual filenames)
-methods <- c("fixed_window_20kb", "fixed_window_50kb", "fixed_window_100kb", "fixed_window_200kb", "fixed_window_500kb", 
-             "adaptive_window_h4", "adaptive_window_h6", "adaptive_window_h8", "adaptive_window_h10")
+# Define methods (matching the working plotting script logic)
+methods <- c("fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb", 
+             "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10")
 
 # Get all positions divisible by 10kb (10,000)
 cat("Loading haplotype data to determine positions...\n")
@@ -61,16 +61,16 @@ for (chunk_idx in 1:n_chunks) {
   for (method in methods) {
     cat("  Processing", method, "...\n")
     
-    # Extract estimator name
-    if (grepl("fixed_window_", method)) {
-      size <- gsub("fixed_window_", "", method)
+    # Extract estimator name (matching the working plotting script logic)
+    if (grepl("fixed_", method)) {
+      size <- gsub("fixed_", "", method)
       size <- gsub("kb", "", size)  # Remove "kb" suffix
       estimator <- paste0("fixed_", size, "kb")
-      haplo_file <- file.path(results_dir, paste0(method, "_results_", chr, ".RDS"))
+      haplo_file <- file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))
     } else {
-      h <- gsub("adaptive_window_h", "", method)
+      h <- gsub("adaptive_h", "", method)
       estimator <- paste0("adaptive_h", h)
-      haplo_file <- file.path(results_dir, paste0(method, "_results_", chr, ".RDS"))
+      haplo_file <- file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))
     }
     
     snp_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
