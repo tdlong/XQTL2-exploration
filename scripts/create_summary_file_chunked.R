@@ -18,7 +18,7 @@ output_dir <- args[3]
 source(param_file)
 results_dir <- file.path(output_dir, "haplotype_results")
 
-cat("=== CREATING SUMMARY FILE (USING WORKING CODE APPROACH) ===\n")
+cat("=== CREATING SUMMARY FILE (SIMPLE LOOP APPROACH) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
@@ -26,61 +26,7 @@ cat("Output directory:", output_dir, "\n\n")
 fixed_sizes <- c(20, 50, 100, 200, 500)
 h_cutoffs <- c(4, 6, 8, 10)
 
-cat("Loading haplotype results...\n")
-
-# Load all haplotype files (matching the working plotting script logic)
-all_results <- list()
-
-# Load fixed window results
-for (size in fixed_sizes) {
-  file_name <- paste0("fixed_window_", size, "kb_results_", chr, ".RDS")
-  file_path <- file.path(results_dir, file_name)
-  
-  if (file.exists(file_path)) {
-    results <- readRDS(file_path)
-    
-    # Add method info (matching the working plotting script)
-    results <- results %>%
-      mutate(method = paste0("fixed_", size, "kb"))
-    
-    all_results[[length(all_results) + 1]] <- results
-    cat("✓ Loaded:", file_name, "\n")
-  } else {
-    cat("❌ Missing:", file_name, "\n")
-  }
-}
-
-# Load adaptive window results
-for (h in h_cutoffs) {
-  file_name <- paste0("adaptive_window_h", h, "_results_", chr, ".RDS")
-  file_path <- file.path(results_dir, file_name)
-  
-  if (file.exists(file_path)) {
-    results <- readRDS(file_path)
-    
-    # Add method info (matching the working plotting script)
-    results <- results %>%
-      mutate(method = paste0("adaptive_h", h))
-    
-    all_results[[length(all_results) + 1]] <- results
-    cat("✓ Loaded:", file_name, "\n")
-  } else {
-    cat("❌ Missing:", file_name, "\n")
-  }
-}
-
-# Combine all haplotype results
-haplo_data <- bind_rows(all_results)
-
-# Get positions every 10kb from haplotype files
-positions_10kb <- sort(unique(haplo_data$pos))
-positions_10kb <- positions_10kb[positions_10kb %% 10000 == 0]  # Only positions divisible by 10kb
-
-cat("Found", length(positions_10kb), "positions divisible by 10kb\n")
-cat("Position range:", min(positions_10kb), "-", max(positions_10kb), "\n\n")
-
-# Now use the exact working approach for each method
-cat("Processing each method using working code approach...\n")
+cat("Processing each estimator using working code approach...\n")
 
 all_summaries <- list()
 
@@ -90,10 +36,9 @@ for (size in fixed_sizes) {
   cat("Processing", method, "...\n")
   
   # Haplotype data (exact working code approach)
-  h_data <- haplo_data %>%
-    filter(method == !!method) %>%
-    select(pos, method, estimate_OK, B1, sample) %>%
-    mutate(chr = chr)  # Add chr column since it's not in the data
+  h_data <- readRDS(file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))) %>%
+    select(chr, pos, estimate_OK, B1, sample) %>%
+    mutate(method = method)
   
   # SNP imputation data (exact working code approach)
   snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_chr", chr, ".RDS"))
@@ -116,14 +61,14 @@ for (size in fixed_sizes) {
           cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
         }
       ) %>%
-      select(pos_binned, SE, sample) %>%
-      group_by(pos_binned, sample) %>%
+      select(chr, pos_binned, SE, sample) %>%
+      group_by(chr, pos_binned, sample) %>%
       summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
       rename(pos = pos_binned) %>% 
       mutate(pos = as.numeric(as.character(pos)))
     
     # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("pos", "sample"))
+    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
@@ -138,10 +83,9 @@ for (h in h_cutoffs) {
   cat("Processing", method, "...\n")
   
   # Haplotype data (exact working code approach)
-  h_data <- haplo_data %>%
-    filter(method == !!method) %>%
-    select(pos, method, estimate_OK, B1, sample) %>%
-    mutate(chr = chr)  # Add chr column since it's not in the data
+  h_data <- readRDS(file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))) %>%
+    select(chr, pos, estimate_OK, B1, sample) %>%
+    mutate(method = method)
   
   # SNP imputation data (exact working code approach)
   snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_chr", chr, ".RDS"))
@@ -164,14 +108,14 @@ for (h in h_cutoffs) {
           cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
         }
       ) %>%
-      select(pos_binned, SE, sample) %>%
-      group_by(pos_binned, sample) %>%
+      select(chr, pos_binned, SE, sample) %>%
+      group_by(chr, pos_binned, sample) %>%
       summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
       rename(pos = pos_binned) %>% 
       mutate(pos = as.numeric(as.character(pos)))
     
     # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("pos", "sample"))
+    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
@@ -180,7 +124,7 @@ for (h in h_cutoffs) {
   }
 }
 
-# Combine all summaries
+# Combine all summaries using row bind
 final_summary <- bind_rows(all_summaries) %>%
   # Ensure proper column order and names
   select(chr, pos, method, B1_freq = B1, estimate_OK, RMSE, NSNPs, sample)
