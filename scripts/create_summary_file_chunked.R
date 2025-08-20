@@ -22,21 +22,62 @@ cat("=== CREATING SUMMARY FILE (CHUNKED) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
-# Define methods (matching the working plotting script logic)
-methods <- c("fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb", 
-             "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10")
+# Define expected files (matching the working plotting script)
+fixed_sizes <- c(20, 50, 100, 200, 500)
+h_cutoffs <- c(4, 6, 8, 10)
 
-# Get all positions divisible by 10kb (10,000)
-cat("Loading haplotype data to determine positions...\n")
-first_file <- file.path(results_dir, "fixed_window_20kb_results_chr2R.RDS")
-if (!file.exists(first_file)) {
-  stop("Haplotype results not found: ", first_file)
+cat("Loading haplotype results...\n")
+
+# Load all haplotype files (matching the working plotting script logic)
+all_results <- list()
+
+# Load fixed window results
+for (size in fixed_sizes) {
+  file_name <- paste0("fixed_window_", size, "kb_results_", chr, ".RDS")
+  file_path <- file.path(results_dir, file_name)
+  
+  if (file.exists(file_path)) {
+    results <- readRDS(file_path)
+    
+    # Add method info (matching the working plotting script)
+    results <- results %>%
+      mutate(method = paste0("fixed_", size, "kb"))
+    
+    all_results[[length(all_results) + 1]] <- results
+    cat("✓ Loaded:", file_name, "\n")
+  } else {
+    cat("❌ Missing:", file_name, "\n")
+  }
 }
 
-first_data <- readRDS(first_file)
-all_positions <- sort(unique(first_data$pos))
-positions_10kb <- all_positions[all_positions %% 10000 == 0]  # Only positions divisible by 10kb
+# Load adaptive window results
+for (h in h_cutoffs) {
+  file_name <- paste0("adaptive_window_h", h, "_results_", chr, ".RDS")
+  file_path <- file.path(results_dir, file_name)
+  
+  if (file.exists(file_path)) {
+    results <- readRDS(file_path)
+    
+    # Add method info (matching the working plotting script)
+    results <- results %>%
+      mutate(method = paste0("adaptive_h", h))
+    
+    all_results[[length(all_results) + 1]] <- results
+    cat("✓ Loaded:", file_name, "\n")
+  } else {
+    cat("❌ Missing:", file_name, "\n")
+  }
+}
 
+# Combine all haplotype results (matching the working plotting script)
+combined_results <- bind_rows(all_results)
+
+# Convert positions to 10kb units for cleaner processing
+combined_results <- combined_results %>%
+  mutate(pos_10kb = pos / 10000)
+
+# Get all positions divisible by 10kb (10,000)
+positions_10kb <- sort(unique(combined_results$pos_10kb))
 cat("Found", length(positions_10kb), "positions divisible by 10kb\n")
 cat("Position range:", min(positions_10kb), "-", max(positions_10kb), "\n\n")
 
@@ -58,42 +99,40 @@ for (chunk_idx in 1:n_chunks) {
   cat("Processing chunk", chunk_idx, "/", n_chunks, "(positions", start_idx, "-", end_idx, ")...\n")
   
   # Process each method for this chunk
-  for (method in methods) {
+  for (method in unique(combined_results$method)) {
     cat("  Processing", method, "...\n")
     
-    # Extract estimator name (matching the working plotting script logic)
-    if (grepl("fixed_", method)) {
-      size <- gsub("fixed_", "", method)
-      size <- gsub("kb", "", size)  # Remove "kb" suffix
-      estimator <- paste0("fixed_", size, "kb")
-      haplo_file <- file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))
-    } else {
-      h <- gsub("adaptive_h", "", method)
-      estimator <- paste0("adaptive_h", h)
-      haplo_file <- file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))
-    }
+    # Get haplotype data for this method and chunk positions
+    method_haplo <- combined_results %>%
+      filter(method == !!method, pos_10kb %in% chunk_positions)
     
-    snp_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
-    
-    # Load haplotype data
-    if (file.exists(haplo_file)) {
-      haplo_data <- readRDS(haplo_file)
+    if (nrow(method_haplo) > 0) {
+      # Extract estimator name from method (matching the working plotting script)
+      if (grepl("fixed_", method)) {
+        size <- gsub("fixed_", "", method)
+        estimator <- paste0("fixed_", size)
+      } else {
+        h <- gsub("adaptive_h", "", method)
+        estimator <- paste0("adaptive_h", h)
+      }
       
-      # Load SNP data
+      # Load SNP data (matching the working plotting script logic)
+      snp_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
+      
       if (file.exists(snp_file)) {
-        snp_data <- readRDS(snp_file)
+        snp_data <- readRDS(snp_file) %>%
+          mutate(method = method, pos_10kb = pos / 10000)
         
         # Process each position in this chunk
-        for (pos in chunk_positions) {
+        for (pos_10kb in chunk_positions) {
           # Get haplotype data for this position
-          pos_haplo <- haplo_data %>%
-            filter(pos == !!pos) %>%
-            select(sample, B1, B2, B3, B4, B5, B6, B7, B8, estimate_OK)
+          pos_haplo <- method_haplo %>%
+            filter(pos_10kb == !!pos_10kb)
           
           if (nrow(pos_haplo) > 0) {
             # Get SNP data within ±5kb of this position
             pos_snps <- snp_data %>%
-              filter(pos >= pos - 5000 & pos <= pos + 5000)
+              filter(pos_10kb >= pos_10kb - 0.5 & pos_10kb <= pos_10kb + 0.5)
             
             # Calculate RMSE and SNP count for each sample
             for (sample_name in unique(pos_haplo$sample)) {
@@ -111,21 +150,19 @@ for (chunk_idx in 1:n_chunks) {
               # Add to summary data
               summary_row <- data.frame(
                 method = method,
-                pos = pos,
-                pos_10kb = pos / 10000,
+                pos = pos_10kb * 10000,  # Convert back to base pairs
+                pos_10kb = pos_10kb,
                 sample = sample_name,
-                B1 = sample_haplo$B1,
-                B2 = sample_haplo$B2,
-                B3 = sample_haplo$B3,
-                B4 = sample_haplo$B4,
-                B5 = sample_haplo$B5,
-                B6 = sample_haplo$B6,
-                B7 = sample_haplo$B7,
-                B8 = sample_haplo$B8,
                 estimate_OK = sample_haplo$estimate_OK,
                 n_snps = n_snps,
                 rmse = rmse_val
               )
+              
+              # Add founder frequency columns dynamically (whatever exists in the data)
+              founder_cols <- names(sample_haplo)[grepl("^B", names(sample_haplo))]
+              for (col in founder_cols) {
+                summary_row[[col]] <- sample_haplo[[col]]
+              }
               
               summary_data <- rbind(summary_data, summary_row)
             }
@@ -136,8 +173,6 @@ for (chunk_idx in 1:n_chunks) {
       } else {
         cat("    ❌ Missing SNP file:", snp_file, "\n")
       }
-    } else {
-      cat("    ❌ Missing haplotype file:", haplo_file, "\n")
     }
   }
   
