@@ -138,66 +138,156 @@ for (i in 1:nrow(positions_by_method)) {
 # Create plot
 cat("\nCreating plot...\n")
 
-# Set a colorblind-friendly palette
+# Set color scheme: reds for fixed windows, greens for adaptive
 method_colors <- c(
-  "fixed_20kb" = "#E69F00",
-  "fixed_50kb" = "#56B4E9", 
-  "fixed_100kb" = "#009E73",
-  "fixed_200kb" = "#F0E442",
-  "fixed_500kb" = "#D55E00",
-  "adaptive_h4" = "#0072B2",
-  "adaptive_h6" = "#CC79A7",
-  "adaptive_h8" = "#000000",
-  "adaptive_h10" = "#990099"
+  "fixed_20kb" = "#8B0000",    # Dark red
+  "fixed_50kb" = "#DC143C",    # Crimson
+  "fixed_100kb" = "#FF6347",   # Tomato
+  "fixed_200kb" = "#FF7F7F",   # Light coral
+  "fixed_500kb" = "#FFB6C1",   # Light pink
+  "adaptive_h4" = "#006400",   # Dark green
+  "adaptive_h6" = "#228B22",   # Forest green
+  "adaptive_h8" = "#32CD32",   # Lime green
+  "adaptive_h10" = "#90EE90"   # Light green
 )
 
-p <- ggplot(combined_results, aes(x = pos, y = B1, color = method)) +
+# Convert positions to 10kb units for cleaner x-axis
+combined_results <- combined_results %>%
+  mutate(pos_10kb = pos / 10000)
+
+# Create haplotype frequency plot (top panel)
+p_haplo <- ggplot(combined_results, aes(x = pos_10kb, y = B1, color = method)) +
   geom_line(alpha = 0.7) +
+  geom_point(size = 1) +
   scale_color_manual(values = method_colors) +
-  scale_x_continuous(labels = function(x) format(x, scientific = FALSE, big.mark = ",")) +
+  scale_x_continuous(
+    labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+    breaks = seq(0, max(combined_results$pos_10kb), by = 50)  # Every 500kb
+  ) +
   labs(
-    title = paste("B1 Frequencies Across Methods -", sample_name),
-    subtitle = paste("Chromosome:", chr),
-    x = "Position",
+    title = paste("B1 Haplotype Frequencies -", sample_name),
+    subtitle = paste("Chromosome:", chr, "(positions in 10kb units)"),
+    x = NULL,  # No x-axis label for top panel
     y = "B1 Frequency",
     color = "Method"
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 14, face = "bold"),
-    legend.position = "bottom",
-    legend.text = element_text(size = 8),
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    plot.title = element_text(size = 12, face = "bold"),
+    legend.position = "none",  # Legend only on bottom panel
+    axis.text.x = element_blank()  # No x-axis text for top panel
   )
 
-# Save full plot
-output_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, ".png"))
-ggsave(output_file, p, width = 12, height = 8, dpi = 300)
-cat("✓ Full plot saved:", output_file, "\n")
+# Load SNP imputation results for bottom panel
+cat("\nLoading SNP imputation results for RMSE analysis...\n")
+snp_results <- list()
 
-# Create zoomed plot of a region with rapid changes
+for (method in unique(combined_results$method)) {
+  # Extract estimator name from method
+  if (grepl("fixed_", method)) {
+    size <- gsub("fixed_", "", method)
+    estimator <- paste0("fixed_", size)
+  } else {
+    h <- gsub("adaptive_h", "", method)
+    estimator <- paste0("adaptive_h", h)
+  }
+  
+  snp_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
+  
+  if (file.exists(snp_file)) {
+    snp_data <- readRDS(snp_file) %>%
+      filter(sample == sample_name) %>%
+      mutate(method = method)
+    snp_results[[length(snp_results) + 1]] <- snp_data
+    cat("✓ Loaded SNP data for", method, "\n")
+  } else {
+    cat("❌ Missing SNP file for", method, ":", snp_file, "\n")
+  }
+}
+
+# Combine SNP results and calculate RMSE by position
+if (length(snp_results) > 0) {
+  snp_combined <- bind_rows(snp_results) %>%
+    mutate(pos_10kb = pos / 10000)
+  
+  # Calculate RMSE for each haplotype position (average over SNPs within ±5kb)
+  rmse_by_position <- snp_combined %>%
+    group_by(method, pos_10kb) %>%
+    summarise(
+      rmse = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+      n_snps = n(),
+      .groups = "drop"
+    )
+  
+  # Create RMSE plot (bottom panel)
+  p_rmse <- ggplot(rmse_by_position, aes(x = pos_10kb, y = rmse, color = method)) +
+    geom_line(alpha = 0.7) +
+    geom_point(size = 1) +
+    scale_color_manual(values = method_colors) +
+    scale_x_continuous(
+      labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+      breaks = seq(0, max(rmse_by_position$pos_10kb), by = 50)  # Every 500kb
+    ) +
+    labs(
+      title = paste("SNP Imputation RMSE -", sample_name),
+      subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
+      x = "Position (10kb units)",
+      y = "RMSE",
+      color = "Method"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      legend.position = "bottom",
+      legend.text = element_text(size = 8),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Create combined two-panel plot
+  library(patchwork)
+  p_combined <- p_haplo / p_rmse + 
+    plot_layout(heights = c(1, 1))
+  
+  # Save combined plot
+  output_file <- file.path(results_dir, paste0("B1_frequencies_and_RMSE_", chr, "_", sample_name, ".png"))
+  ggsave(output_file, p_combined, width = 14, height = 10, dpi = 300)
+  cat("✓ Combined plot saved:", output_file, "\n")
+  
+} else {
+  cat("❌ No SNP imputation data found - saving haplotype plot only\n")
+  # Save haplotype plot only
+  output_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, ".png"))
+  ggsave(output_file, p_haplo, width = 12, height = 8, dpi = 300)
+  cat("✓ Haplotype plot saved:", output_file, "\n")
+}
+
+# Create zoomed plot of a region with rapid changes (2x larger window)
 # Find region with high variance
 region_stats <- combined_results %>%
-  mutate(region = floor(pos / 100000) * 100000) %>%  # 100kb regions
+  mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
   group_by(region) %>%
   summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
   arrange(desc(var_B1))
 
-high_var_region <- region_stats$region[1]
-zoom_range <- c(high_var_region, high_var_region + 100000)
+high_var_region_10kb <- region_stats$region[1]
+zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + 20)  # 200kb window (20 units of 10kb)
+zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + 20) * 10000)
 
 p_zoom <- ggplot(
-  combined_results %>% filter(pos >= zoom_range[1] & pos <= zoom_range[2]),
-  aes(x = pos, y = B1, color = method)
+  combined_results %>% filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2]),
+  aes(x = pos_10kb, y = B1, color = method)
 ) +
   geom_line(alpha = 0.7) +
   geom_point(size = 1) +  # Add points to see exact positions
   scale_color_manual(values = method_colors) +
-  scale_x_continuous(labels = function(x) format(x, scientific = FALSE, big.mark = ",")) +
+  scale_x_continuous(
+    labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+    breaks = seq(zoom_range_10kb[1], zoom_range_10kb[2], by = 2)  # Every 20kb
+  ) +
   labs(
-    title = paste("B1 Frequencies (100kb Zoom) -", sample_name),
-    subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range[1], big.mark=","), "-", format(zoom_range[2], big.mark=",")),
-    x = "Position",
+    title = paste("B1 Frequencies (200kb Zoom) -", sample_name),
+    subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=",")),
+    x = "Position (10kb units)",
     y = "B1 Frequency",
     color = "Method"
   ) +
