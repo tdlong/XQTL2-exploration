@@ -394,6 +394,15 @@ if (length(snp_results) > 0) {
     }
   }
   
+  # Filter out positions with no SNPs for RMSE plot
+  rmse_by_haplo_position_filtered <- rmse_by_haplo_position %>%
+    filter(!is.na(rmse) & n_snps > 0)
+  
+  cat("✓ Calculated RMSE for", nrow(rmse_by_haplo_position), "haplotype positions\n")
+  cat("✓ Positions with SNPs:", nrow(rmse_by_haplo_position_filtered), "\n")
+  cat("✓ Positions without SNPs:", sum(rmse_by_haplo_position$n_snps == 0), "\n")
+  cat("✓ Average SNPs per position:", round(mean(rmse_by_haplo_position$n_snps[rmse_by_haplo_position$n_snps > 0], na.rm=TRUE), 1), "\n")
+  
   cat("✓ Calculated RMSE for", nrow(rmse_by_haplo_position), "haplotype positions\n")
   cat("✓ Average SNPs per position:", round(mean(rmse_by_haplo_position$n_snps, na.rm=TRUE), 1), "\n")
   
@@ -471,7 +480,7 @@ if (length(snp_results) > 0) {
         sprintf("%-7.1f", row$avg_snps), "\n")
   }
   
-  p_zoom_rmse <- ggplot(rmse_by_haplo_position, aes(x = pos_10kb, y = rmse, color = method)) +
+  p_zoom_rmse <- ggplot(rmse_by_haplo_position_filtered, aes(x = pos_10kb, y = rmse, color = method)) +
     geom_line(alpha = 0.7) +
     geom_point(size = 1) +
     scale_color_manual(values = method_colors) +
