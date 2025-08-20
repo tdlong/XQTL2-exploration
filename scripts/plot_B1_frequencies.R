@@ -169,27 +169,6 @@ if (file.exists(subset_file)) {
 combined_results <- bind_rows(all_results)
 
 # Check for identical positions across methods
-cat("\n=== CHECKING FOR IDENTICAL POSITIONS ===\n")
-positions_by_method <- combined_results %>%
-  group_by(method) %>%
-  summarise(
-    positions = list(sort(unique(pos))),
-    n_pos = length(unique(pos))
-  )
-
-# Compare each method's positions to fixed_500kb
-base_positions <- positions_by_method$positions[positions_by_method$method == "fixed_500kb"][[1]]
-for (i in 1:nrow(positions_by_method)) {
-  method <- positions_by_method$method[i]
-  if (method != "fixed_500kb") {
-    current_positions <- positions_by_method$positions[[i]]
-    identical_pos <- identical(current_positions, base_positions)
-    cat(sprintf("%s: %d positions, identical to fixed_500kb: %s\n", 
-                method, positions_by_method$n_pos[i], 
-                ifelse(identical_pos, "YES ⚠️", "no")))
-  }
-}
-
 # Create plot
 cat("\nCreating plot...\n")
 
@@ -206,12 +185,8 @@ method_colors <- c(
   "adaptive_h10" = "#90EE90"   # Light green
 )
 
-# Convert positions to 10kb units for cleaner x-axis
-combined_results <- combined_results %>%
-  mutate(pos_10kb = pos / 10000)
-
 # Create haplotype frequency plot (top panel)
-p_haplo <- ggplot(combined_results, aes(x = pos_10kb, y = B1, color = method)) +
+p_haplo <- ggplot(zoomed_haplo_data, aes(x = pos_10kb, y = B1, color = method)) +
   geom_line(alpha = 0.7) +
   geom_point(size = 1) +
   scale_color_manual(values = method_colors) +
