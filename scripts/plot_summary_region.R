@@ -135,19 +135,19 @@ rmse_data <- region_data %>%
   p_combined <- p_haplo / p_rmse + 
     plot_layout(heights = c(1, 1))
   
-  # Save combined plot
-  plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.RDS"))
-  ggsave(plot_file, p_combined, width = 12, height = 8, dpi = 300)
-  
-  cat("✓ Combined plot saved to:", plot_file, "\n")
-} else {
-  # Save haplotype plot only if no RMSE data
-  plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.RDS"))
-  ggsave(plot_file, p_haplo, width = 12, height = 6, dpi = 300)
-  
-  cat("⚠️ No RMSE data found, saved haplotype plot only\n")
-  cat("✓ Plot saved to:", plot_file, "\n")
-}
+                # Save combined plot
+              plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.png"))
+              ggsave(plot_file, p_combined, width = 12, height = 8, dpi = 300)
+
+              cat("✓ Combined plot saved to:", plot_file, "\n")
+            } else {
+              # Save haplotype plot only if no RMSE data
+              plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.png"))
+              ggsave(plot_file, p_haplo, width = 12, height = 6, dpi = 300)
+
+              cat("⚠️ No RMSE data found, saved haplotype plot only\n")
+              cat("✓ Plot saved to:", plot_file, "\n")
+            }
 
             # Print summary table for the region
             cat("\n=== SUMMARY TABLE FOR REGION ===\n")
