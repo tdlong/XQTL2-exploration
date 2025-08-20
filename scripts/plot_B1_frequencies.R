@@ -38,6 +38,30 @@ results_dir <- file.path(output_dir, "haplotype_results")
 # Load all haplotype files
 all_results <- list()
 
+# Determine zoom region first
+if (!is.null(zoom_center_10kb)) {
+  # Use custom zoom region
+  cat("Using custom zoom region: center =", zoom_center_10kb, ", width =", zoom_width_10kb, "\n")
+  zoom_start_10kb <- zoom_center_10kb - zoom_width_10kb/2
+  zoom_end_10kb <- zoom_center_10kb + zoom_width_10kb/2
+  zoom_range_10kb <- c(zoom_start_10kb, zoom_end_10kb)
+  zoom_range_bp <- c(zoom_start_10kb * 10000, zoom_end_10kb * 10000)
+  zoom_description <- paste("Custom region centered at", zoom_center_10kb)
+} else {
+  # Find region with high variance
+  cat("Finding region with highest variance...\n")
+  region_stats <- combined_results %>%
+    mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
+    group_by(region) %>%
+    summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
+    arrange(desc(var_B1))
+
+  high_var_region_10kb <- region_stats$region[1]
+  zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + zoom_width_10kb)
+  zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + zoom_width_10kb) * 10000)
+  zoom_description <- paste("Highest variance region starting at", high_var_region_10kb)
+}
+
 # Check if saved subsetted data exists for this region
 subset_file <- file.path(results_dir, paste0("zoomed_data_", chr, "_", sample_name, "_", format(zoom_range_bp[1], big.mark=""), "_", format(zoom_range_bp[2], big.mark=""), ".RDS"))
 
@@ -290,31 +314,6 @@ if (length(snp_results) > 0) {
   output_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, ".png"))
   ggsave(output_file, p_haplo, width = 12, height = 8, dpi = 300)
   cat("✓ Haplotype plot saved:", output_file, "\n")
-}
-
-# Create zoomed two-panel plot
-# Determine zoom region
-if (!is.null(zoom_center_10kb)) {
-  # Use custom zoom region
-  cat("Using custom zoom region: center =", zoom_center_10kb, ", width =", zoom_width_10kb, "\n")
-  zoom_start_10kb <- zoom_center_10kb - zoom_width_10kb/2
-  zoom_end_10kb <- zoom_center_10kb + zoom_width_10kb/2
-  zoom_range_10kb <- c(zoom_start_10kb, zoom_end_10kb)
-  zoom_range_bp <- c(zoom_start_10kb * 10000, zoom_end_10kb * 10000)
-  zoom_description <- paste("Custom region centered at", zoom_center_10kb)
-} else {
-  # Find region with high variance
-  cat("Finding region with highest variance...\n")
-  region_stats <- combined_results %>%
-    mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
-    group_by(region) %>%
-    summarise(var_B1 = var(B1, na.rm = TRUE)) %>%
-    arrange(desc(var_B1))
-
-  high_var_region_10kb <- region_stats$region[1]
-  zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + zoom_width_10kb)
-  zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + zoom_width_10kb) * 10000)
-  zoom_description <- paste("Highest variance region starting at", high_var_region_10kb)
 }
 
 # Filter data for zoomed region
