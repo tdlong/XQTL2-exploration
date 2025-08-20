@@ -92,7 +92,8 @@ for (size in fixed_sizes) {
   # Haplotype data (exact working code approach)
   h_data <- haplo_data %>%
     filter(method == !!method) %>%
-    select(chr = CHROM, pos, method, estimate_OK, B1, sample)
+    select(pos, method, estimate_OK, B1, sample) %>%
+    mutate(chr = chr)  # Add chr column since it's not in the data
   
   # SNP imputation data (exact working code approach)
   snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_chr", chr, ".RDS"))
@@ -115,14 +116,14 @@ for (size in fixed_sizes) {
           cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
         }
       ) %>%
-      select(chr, pos_binned, SE, sample) %>%
-      group_by(chr, pos_binned, sample) %>%
+      select(pos_binned, SE, sample) %>%
+      group_by(pos_binned, sample) %>%
       summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
       rename(pos = pos_binned) %>% 
       mutate(pos = as.numeric(as.character(pos)))
     
     # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
+    s_data <- h_data %>% left_join(i_data, by = c("pos", "sample"))
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
@@ -139,7 +140,8 @@ for (h in h_cutoffs) {
   # Haplotype data (exact working code approach)
   h_data <- haplo_data %>%
     filter(method == !!method) %>%
-    select(chr = CHROM, pos, method, estimate_OK, B1, sample)
+    select(pos, method, estimate_OK, B1, sample) %>%
+    mutate(chr = chr)  # Add chr column since it's not in the data
   
   # SNP imputation data (exact working code approach)
   snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_chr", chr, ".RDS"))
@@ -162,14 +164,14 @@ for (h in h_cutoffs) {
           cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
         }
       ) %>%
-      select(chr, pos_binned, SE, sample) %>%
-      group_by(chr, pos_binned, sample) %>%
+      select(pos_binned, SE, sample) %>%
+      group_by(pos_binned, sample) %>%
       summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
       rename(pos = pos_binned) %>% 
       mutate(pos = as.numeric(as.character(pos)))
     
     # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
+    s_data <- h_data %>% left_join(i_data, by = c("pos", "sample"))
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
