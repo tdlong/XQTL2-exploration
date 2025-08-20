@@ -41,7 +41,7 @@ for (size in fixed_sizes) {
     mutate(method = method)
   
   # SNP imputation data (exact working code approach)
-  snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_chr", chr, ".RDS"))
+  snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_", chr, ".RDS"))
   
   if (file.exists(snp_file)) {
     i_data <- readRDS(snp_file) %>%
@@ -88,7 +88,7 @@ for (h in h_cutoffs) {
     mutate(method = method)
   
   # SNP imputation data (exact working code approach)
-  snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_chr", chr, ".RDS"))
+  snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_", chr, ".RDS"))
   
   if (file.exists(snp_file)) {
     i_data <- readRDS(snp_file) %>%
