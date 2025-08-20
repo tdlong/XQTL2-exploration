@@ -261,7 +261,7 @@ if (length(snp_results) > 0) {
   cat("✓ Haplotype plot saved:", output_file, "\n")
 }
 
-# Create zoomed plot of a region with rapid changes (2x larger window)
+# Create zoomed two-panel plot of a region with rapid changes (2x larger window)
 # Find region with high variance
 region_stats <- combined_results %>%
   mutate(region = floor(pos_10kb / 10) * 10) %>%  # 100kb regions (10 units of 10kb)
@@ -273,36 +273,87 @@ high_var_region_10kb <- region_stats$region[1]
 zoom_range_10kb <- c(high_var_region_10kb, high_var_region_10kb + 20)  # 200kb window (20 units of 10kb)
 zoom_range_bp <- c(high_var_region_10kb * 10000, (high_var_region_10kb + 20) * 10000)
 
-p_zoom <- ggplot(
-  combined_results %>% filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2]),
-  aes(x = pos_10kb, y = B1, color = method)
-) +
+# Filter data for zoomed region
+zoomed_haplo_data <- combined_results %>% 
+  filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2])
+
+# Create haplotype frequency plot for zoomed region (top panel)
+p_zoom_haplo <- ggplot(zoomed_haplo_data, aes(x = pos_10kb, y = B1, color = method)) +
   geom_line(alpha = 0.7) +
-  geom_point(size = 1) +  # Add points to see exact positions
+  geom_point(size = 1) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE, big.mark = ","),
     breaks = seq(zoom_range_10kb[1], zoom_range_10kb[2], by = 2)  # Every 20kb
   ) +
   labs(
-    title = paste("B1 Frequencies (200kb Zoom) -", sample_name),
+    title = paste("B1 Haplotype Frequencies (200kb Zoom) -", sample_name),
     subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=",")),
-    x = "Position (10kb units)",
+    x = NULL,  # No x-axis label for top panel
     y = "B1 Frequency",
     color = "Method"
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(size = 14, face = "bold"),
-    legend.position = "bottom",
-    legend.text = element_text(size = 8),
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    plot.title = element_text(size = 12, face = "bold"),
+    legend.position = "none",  # Legend only on bottom panel
+    axis.text.x = element_blank()  # No x-axis text for top panel
   )
 
-# Save zoomed plot
-zoom_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, "_zoom.png"))
-ggsave(zoom_file, p_zoom, width = 12, height = 8, dpi = 300)
-cat("✓ Zoomed plot saved:", zoom_file, "\n")
+# Create RMSE plot for zoomed region (bottom panel)
+if (length(snp_results) > 0) {
+  # Filter SNP data for zoomed region
+  zoomed_snp_data <- snp_combined %>%
+    filter(pos_10kb >= zoom_range_10kb[1] & pos_10kb <= zoom_range_10kb[2])
+  
+  # Calculate RMSE for zoomed region
+  zoomed_rmse_data <- zoomed_snp_data %>%
+    group_by(method, pos_10kb) %>%
+    summarise(
+      rmse = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+      n_snps = n(),
+      .groups = "drop"
+    )
+  
+  p_zoom_rmse <- ggplot(zoomed_rmse_data, aes(x = pos_10kb, y = rmse, color = method)) +
+    geom_line(alpha = 0.7) +
+    geom_point(size = 1) +
+    scale_color_manual(values = method_colors) +
+    scale_x_continuous(
+      labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+      breaks = seq(zoom_range_10kb[1], zoom_range_10kb[2], by = 2)  # Every 20kb
+    ) +
+    labs(
+      title = paste("SNP Imputation RMSE (200kb Zoom) -", sample_name),
+      subtitle = paste("Chromosome:", chr, "Region:", format(zoom_range_bp[1], big.mark=","), "-", format(zoom_range_bp[2], big.mark=",")),
+      x = "Position (10kb units)",
+      y = "RMSE",
+      color = "Method"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      legend.position = "bottom",
+      legend.text = element_text(size = 8),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
+  # Create combined zoomed two-panel plot
+  library(patchwork)
+  p_zoom_combined <- p_zoom_haplo / p_zoom_rmse + 
+    plot_layout(heights = c(1, 1))
+  
+  # Save combined zoomed plot
+  zoom_file <- file.path(results_dir, paste0("B1_frequencies_and_RMSE_", chr, "_", sample_name, "_zoom.png"))
+  ggsave(zoom_file, p_zoom_combined, width = 14, height = 10, dpi = 300)
+  cat("✓ Combined zoomed plot saved:", zoom_file, "\n")
+  
+} else {
+  # Save haplotype zoom plot only if no SNP data
+  zoom_file <- file.path(results_dir, paste0("B1_frequencies_", chr, "_", sample_name, "_zoom.png"))
+  ggsave(zoom_file, p_zoom_haplo, width = 12, height = 8, dpi = 300)
+  cat("✓ Zoomed haplotype plot saved:", zoom_file, "\n")
+}
 
 # Print some summary statistics
 cat("\nSummary Statistics:\n")
