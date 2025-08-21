@@ -44,10 +44,10 @@ cat("✓ Parameter file loaded\n")
 cat("Founders:", paste(founders, collapse = ", "), "\n")
 
 # Get sample name from index
-if (sample_index < 1 || sample_index > length(samples)) {
-  stop("Invalid sample index. Must be between 1 and", length(samples))
+if (sample_index < 1 || sample_index > length(names_in_bam)) {
+  stop("Invalid sample index. Must be between 1 and", length(names_in_bam))
 }
-sample_name <- samples[sample_index]
+sample_name <- names_in_bam[sample_index]
 cat("Sample name:", sample_name, "\n\n")
 
 # Define euchromatin boundaries for each chromosome
