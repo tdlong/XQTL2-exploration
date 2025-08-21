@@ -47,10 +47,10 @@ euchromatin_end <- euchromatin_boundaries[[chr]][2]
 # Load haplotype results
 haplotype_file <- if (str_detect(estimator, "^fixed_")) {
   window_size_kb <- str_extract(estimator, "\\d+")
-  file.path(output_dir, paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
+  file.path(output_dir, "haplotype_results", paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
 } else if (str_detect(estimator, "^adaptive_h")) {
   h_cutoff <- str_extract(estimator, "\\d+")
-  file.path(output_dir, paste0("adaptive_h", h_cutoff, "_results_", chr, ".RDS"))
+  file.path(output_dir, "haplotype_results", paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
 } else {
   stop("Invalid estimator format")
 }
@@ -335,9 +335,9 @@ if (debug_mode) {
 # Step 6: Save results
 if (nrow(results) > 0) {
   output_file <- if (debug_mode) {
-    file.path(output_dir, paste0("snp_imputation_", estimator, "_", sample_name, "_", chr, "_DEBUG.RDS"))
+    file.path(output_dir, "haplotype_results", paste0("snp_imputation_", estimator, "_", sample_name, "_", chr, "_DEBUG.RDS"))
   } else {
-    file.path(output_dir, paste0("snp_imputation_", estimator, "_", sample_name, "_", chr, ".RDS"))
+    file.path(output_dir, "haplotype_results", paste0("snp_imputation_", estimator, "_", sample_name, "_", chr, ".RDS"))
   }
   
   write_rds(results, output_file)

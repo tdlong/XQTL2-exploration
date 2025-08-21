@@ -48,7 +48,12 @@ adaptive   h10        100.0%     0.0%         0.0%
 - Completed method evaluation and comparison
 
 **Results available**: 
+- All haplotype files: `process/JUICE/haplotype_results/*_results_chr2R.RDS`
+  - Fixed: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`, etc.
+  - Adaptive: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h6_results_chr2R.RDS`, etc.
 - All SNP imputation files: `process/JUICE/haplotype_results/snp_imputation_*_chr2R.RDS`
+  - Fixed: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`, etc.
+  - Adaptive: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h6_chr2R.RDS`, etc.
 - Method evaluation metrics and comparisons
 - Performance analysis across all 9 haplotype estimation methods
 
@@ -78,6 +83,29 @@ Rscript scripts/plot_B1_frequencies.R chr2R helpfiles/JUICE_haplotype_parameters
 - 🔄 Comprehensive summary file generation
 - 🔄 Regional visualization and comparison
 - 🔄 Final reporting and recommendations
+
+---
+
+## 📁 **FILE NAMING CONVENTIONS**
+
+### **Haplotype Estimation Files**
+- **Fixed Window**: `fixed_window_<size>kb_results_chr2R.RDS`
+  - Examples: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`
+- **Adaptive Window**: `adaptive_window_h<cutoff>_results_chr2R.RDS`
+  - Examples: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h8_results_chr2R.RDS`
+
+### **SNP Imputation Files**
+- **Fixed Window**: `snp_imputation_fixed_<size>kb_chr2R.RDS`
+  - Examples: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`
+- **Adaptive Window**: `snp_imputation_adaptive_h<cutoff>_chr2R.RDS`
+  - Examples: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h8_chr2R.RDS`
+
+### **Input Files**
+- **REFALT Data**: `process/JUICE/RefAlt.chr2R.txt`
+
+### **All Files Location**
+- **Directory**: `process/JUICE/haplotype_results/`
+- **Complete Path Example**: `process/JUICE/haplotype_results/adaptive_window_h8_results_chr2R.RDS`
 
 ---
 
@@ -285,7 +313,11 @@ git pull origin main
 #### **Key Data Files**
 - **Input**: `process/JUICE/RefAlt.chr2R.txt` (REFALT allele counts)
 - **Haplotype Output**: `process/JUICE/haplotype_results/<estimator>_results_chr2R.RDS`
+  - Fixed window: `fixed_window_<size>kb_results_chr2R.RDS` (e.g., `fixed_window_20kb_results_chr2R.RDS`)
+  - Adaptive window: `adaptive_window_h<cutoff>_results_chr2R.RDS` (e.g., `adaptive_window_h8_results_chr2R.RDS`)
 - **SNP Output**: `process/JUICE/haplotype_results/snp_imputation_<estimator>_chr2R.RDS`
+  - Fixed window: `snp_imputation_fixed_<size>kb_chr2R.RDS` (e.g., `snp_imputation_fixed_20kb_chr2R.RDS`)
+  - Adaptive window: `snp_imputation_adaptive_h<cutoff>_chr2R.RDS` (e.g., `snp_imputation_adaptive_h8_chr2R.RDS`)
 
 ---
 
