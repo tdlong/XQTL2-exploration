@@ -35,7 +35,20 @@ cat("\n")
 # Check which files exist
 results_dir <- file.path(output_dir, "haplotype_results")
 cat("=== CHECKING SNP IMPUTATION RESULTS ===\n")
-cat("Results directory:", results_dir, "\n\n")
+cat("Results directory:", results_dir, "\n")
+cat("Directory exists:", dir.exists(results_dir), "\n")
+if (dir.exists(results_dir)) {
+  cat("Files in directory:\n")
+  files_in_dir <- list.files(results_dir, pattern = "snp_imputation.*\\.RDS$")
+  if (length(files_in_dir) > 0) {
+    for (f in files_in_dir) {
+      cat("  ", f, "\n")
+    }
+  } else {
+    cat("  No SNP imputation files found\n")
+  }
+}
+cat("\n")
 
 status_list <- list()
 
@@ -47,10 +60,10 @@ for (i in 1:nrow(params)) {
   # Generate estimator name and file path
   if (method == "fixed") {
     estimator <- paste0("fixed_", param, "kb")
-    expected_file <- file.path(results_dir, paste0("snp_imputation_fixed_", param, "kb_results_", chr, ".RDS"))
+    expected_file <- file.path(results_dir, paste0("snp_imputation_fixed_", param, "kb_", chr, ".RDS"))
   } else {
     estimator <- paste0("adaptive_h", param)
-    expected_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", param, "_results_", chr, ".RDS"))
+    expected_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", param, "_", chr, ".RDS"))
   }
   
   # Check if file exists
