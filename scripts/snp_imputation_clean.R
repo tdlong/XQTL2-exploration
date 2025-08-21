@@ -50,7 +50,7 @@ haplotype_file <- if (str_detect(estimator, "^fixed_")) {
   file.path(output_dir, paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
 } else if (str_detect(estimator, "^adaptive_h")) {
   h_cutoff <- str_extract(estimator, "\\d+")
-  file.path(output_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
+  file.path(output_dir, paste0("adaptive_h", h_cutoff, "_results_", chr, ".RDS"))
 } else {
   stop("Invalid estimator format")
 }
