@@ -88,17 +88,17 @@ Rscript scripts/plot_B1_frequencies.R chr2R helpfiles/JUICE_haplotype_parameters
 
 ## 📁 **FILE NAMING CONVENTIONS**
 
-### **Haplotype Estimation Files**
+### **Haplotype Estimation Files** (ACTUAL FILES FROM LS)
 - **Fixed Window**: `fixed_window_<size>kb_results_chr2R.RDS`
-  - Examples: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`
+  - Examples: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`, `fixed_window_100kb_results_chr2R.RDS`, `fixed_window_200kb_results_chr2R.RDS`, `fixed_window_500kb_results_chr2R.RDS`
 - **Adaptive Window**: `adaptive_window_h<cutoff>_results_chr2R.RDS`
-  - Examples: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h8_results_chr2R.RDS`
+  - Examples: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h6_results_chr2R.RDS`, `adaptive_window_h8_results_chr2R.RDS`, `adaptive_window_h10_results_chr2R.RDS`
 
-### **SNP Imputation Files**
+### **SNP Imputation Files** (ACTUAL FILES FROM LS)
 - **Fixed Window**: `snp_imputation_fixed_<size>kb_chr2R.RDS`
-  - Examples: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`
+  - Examples: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`, `snp_imputation_fixed_100kb_chr2R.RDS`, `snp_imputation_fixed_200kb_chr2R.RDS`, `snp_imputation_fixed_500kb_chr2R.RDS`
 - **Adaptive Window**: `snp_imputation_adaptive_h<cutoff>_chr2R.RDS`
-  - Examples: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h8_chr2R.RDS`
+  - Examples: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h6_chr2R.RDS`, `snp_imputation_adaptive_h8_chr2R.RDS`, `snp_imputation_adaptive_h10_chr2R.RDS`
 
 ### **Input Files**
 - **REFALT Data**: `process/JUICE/RefAlt.chr2R.txt`
