@@ -1,16 +1,20 @@
 #!/usr/bin/env Rscript
 
-# Clean SNP Imputation - Vectorized Approach
-# This follows proper tidyverse principles and is transparent/validatable
+# Clean SNP Imputation - Tidyverse Approach
+# Based on clean dataframe structure with founder genotypes and haplotype frequencies
+# 
+# Usage: Rscript snp_imputation_clean.R <chr> <param_file> <output_dir> <estimator> <sample_index> [test_n_snps]
 
+# Load required libraries
 suppressPackageStartupMessages({
   library(tidyverse)
   library(readr)
+  library(stringr)
 })
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 5) {
+if (length(args) < 5 || length(args) > 6) {
   stop("Usage: Rscript snp_imputation_clean.R <chr> <param_file> <output_dir> <estimator> <sample_index> [test_n_snps]")
 }
 
@@ -18,10 +22,10 @@ chr <- args[1]
 param_file <- args[2]
 output_dir <- args[3]
 estimator <- args[4]
-sample_index <- as.integer(args[5])
-test_n_snps <- if (length(args) >= 6) as.integer(args[6]) else NULL
+sample_index <- as.numeric(args[5])
+test_n_snps <- if (length(args) >= 6) as.numeric(args[6]) else NULL
 
-# Debug mode if test_n_snps is specified
+# Determine if we're in debug mode
 debug_mode <- !is.null(test_n_snps)
 
 cat("=== Clean SNP Imputation ===\n")
@@ -33,86 +37,113 @@ if (debug_mode) {
 }
 cat("\n")
 
-# Load parameters
+# Load parameter file
+cat("Loading parameter file...\n")
 source(param_file)
+cat("✓ Parameter file loaded\n")
+cat("Founders:", paste(founders, collapse = ", "), "\n")
 
-# Define founder order consistently
-founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+# Get sample name from index
+if (sample_index < 1 || sample_index > length(samples)) {
+  stop("Invalid sample index. Must be between 1 and", length(samples))
+}
+sample_name <- samples[sample_index]
+cat("Sample name:", sample_name, "\n\n")
 
-# Euchromatin boundaries
-euchromatin_boundaries <- list(chr2R = c(5398184, 24684540))
-euchromatin_start <- euchromatin_boundaries[[chr]][1]
-euchromatin_end <- euchromatin_boundaries[[chr]][2]
+# Define euchromatin boundaries for each chromosome
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
 
-# Load haplotype results
-haplotype_file <- if (str_detect(estimator, "^fixed_")) {
-  window_size_kb <- str_extract(estimator, "\\d+")
-  file.path(output_dir, "haplotype_results", paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
-} else if (str_detect(estimator, "^adaptive_h")) {
-  h_cutoff <- str_extract(estimator, "\\d+")
-  file.path(output_dir, "haplotype_results", paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
-} else {
-  stop("Invalid estimator format")
+# Get boundaries for this chromosome
+if (!chr %in% names(euchromatin_boundaries)) {
+  stop("Invalid chromosome: ", chr, ". Valid chromosomes: ", paste(names(euchromatin_boundaries), collapse = ", "))
 }
 
-haplotype_results <- read_rds(haplotype_file)
+euchromatin_start <- euchromatin_boundaries[[chr]][1]
+euchromatin_end <- euchromatin_boundaries[[chr]][2]
+cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end, "bp\n\n")
+
+# Load haplotype results for this estimator
+cat("Loading haplotype estimation results...\n")
+if (grepl("^fixed_", estimator)) {
+  # Fixed window estimator
+  window_size_kb <- as.numeric(gsub("fixed_", "", gsub("kb", "", estimator)))
+  haplotype_file <- file.path(output_dir, "haplotype_results", paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
+  haplotype_results <- read_rds(haplotype_file)
+  cat("✓ Fixed window results loaded for", window_size_kb, "kb window\n")
+} else if (grepl("^adaptive_h", estimator)) {
+  # Adaptive window estimator
+  h_cutoff <- as.numeric(gsub("adaptive_h", "", estimator))
+  haplotype_file <- file.path(output_dir, "haplotype_results", paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
+  haplotype_results <- read_rds(haplotype_file)
+  cat("✓ Adaptive window results loaded for h_cutoff =", h_cutoff, "\n")
+} else {
+  stop("Invalid estimator format. Must be 'fixed_<size>kb' or 'adaptive_h<number>'")
+}
+
 cat("✓ Haplotype results loaded:", nrow(haplotype_results), "rows\n")
 
-# Load REFALT data
+# Load observed SNP data from REFALT files (keep working preprocessing)
+cat("Loading observed SNP data from REFALT files...\n")
 refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
-refalt_data <- read_tsv(refalt_file, show_col_types = FALSE)
-cat("✓ REFALT data loaded:", nrow(refalt_data), "rows\n")
+if (!file.exists(refalt_file)) {
+  stop("REFALT data file not found: ", refalt_file)
+}
 
-# Step 1: Process REFALT data to get clean SNP data
-cat("Processing REFALT data...\n")
-snp_data <- refalt_data %>%
-  # Convert to long format
-  pivot_longer(
-    cols = -c(CHROM, POS),
-    names_to = "sample",
-    values_to = "count"
-  ) %>%
-  # Extract REF/ALT and sample name
+# Load and process REFALT data (keep working preprocessing)
+df <- read.table(refalt_file, header = TRUE)
+cat("✓ Raw REFALT data loaded:", nrow(df), "rows\n")
+
+# Transform REF/ALT counts to frequencies (keep working preprocessing)
+cat("Converting counts to frequencies...\n")
+df2 <- df %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
-    ref_alt = str_sub(sample, 1, 3),
-    sample_name = str_sub(sample, 5)
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
   ) %>%
-  select(-sample) %>%
-  # Convert to wide format with REF/ALT columns
-  pivot_wider(
-    names_from = ref_alt,
-    values_from = count
-  ) %>%
-  # Calculate frequencies
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
   mutate(
     freq = REF / (REF + ALT),
-    total_count = REF + ALT
+    N = REF + ALT
   ) %>%
-  select(-c(REF, ALT)) %>%
-  # Filter for high-quality SNPs
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+cat("✓ Processed REFALT data:", nrow(df2), "rows\n")
+
+# Filter for high-quality SNPs (keep working preprocessing)
+cat("Filtering for high-quality SNPs...\n")
+good_snps <- df2 %>%
+  filter(name %in% founders) %>%
   group_by(CHROM, POS) %>%
-  filter(
-    # No missing data in founders
-    all(total_count > 0 | !(sample_name %in% founders)),
-    # Not fixed in founders
-    sum(freq > 0.03 & freq < 0.97, na.rm = TRUE) == 0,
-    # Informative
-    sum(freq, na.rm = TRUE) > 0.05 | sum(freq, na.rm = TRUE) < 0.95
+  summarize(
+    zeros = sum(N == 0),
+    not_fixed = sum(N != 0 & freq > 0.03 & freq < 0.97),
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95)
   ) %>%
   ungroup() %>%
-  # Filter to euchromatin
-  filter(POS >= euchromatin_start, POS <= euchromatin_end)
+  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
+  select(c(CHROM, POS))
 
-cat("✓ Processed SNP data:", n_distinct(snp_data$POS), "SNPs\n")
+# Get valid SNPs for evaluation (euchromatin only)
+valid_snps <- good_snps %>%
+  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
+  left_join(df2, multiple = "all")
+
+cat("✓ Valid euchromatic SNPs for evaluation:", nrow(valid_snps %>% distinct(CHROM, POS)), "\n\n")
 
 # Apply test filters if in debug mode
 if (debug_mode) {
-  snp_positions <- snp_data %>%
-    distinct(POS) %>%
-    pull(POS)
+  snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS)
   
   # Sample random SNPs with reproducible seed based on estimator
-  # This ensures same SNPs are tested across different estimators
   seed_value <- sum(utf8ToInt(estimator)) + test_n_snps
   set.seed(seed_value)
   if (length(snp_positions) > test_n_snps) {
@@ -121,108 +152,132 @@ if (debug_mode) {
     test_positions <- snp_positions
   }
   
-  snp_data <- snp_data %>%
-    filter(POS %in% test_positions)
+  valid_snps <- valid_snps %>% filter(POS %in% test_positions)
   
   cat("✓ DEBUG MODE: Using", length(test_positions), "random SNPs (seed:", seed_value, ")\n")
 }
 
-# Step 2: Create base SNP dataframe with founder genotypes
-cat("Creating base SNP dataframe...\n")
-base_snp_df <- snp_data %>%
-  # Get founder genotypes
-  filter(sample_name %in% founders) %>%
-  select(CHROM, POS, sample_name, freq) %>%
-  pivot_wider(
-    names_from = sample_name,
-    values_from = freq
-  ) %>%
+# Get SNP positions for this sample
+snp_positions <- valid_snps %>% distinct(CHROM, POS) %>% pull(POS)
+cat("SNP positions:", length(snp_positions), "\n\n")
+
+# Get haplotype results for this sample
+sample_haplotypes <- haplotype_results %>%
+  filter(sample == sample_name)
+
+if (nrow(sample_haplotypes) == 0) {
+  stop("No haplotype results for sample", sample_name)
+}
+
+# Filter haplotype results to euchromatin
+sample_haplotypes <- sample_haplotypes %>%
+  filter(pos >= euchromatin_start & pos <= euchromatin_end)
+
+cat("Haplotype positions for sample:", nrow(sample_haplotypes), "\n")
+
+# Define founder order consistently
+founder_order <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+
+# Create clean dataframe structure with founder genotypes and haplotype frequencies
+cat("Creating clean dataframe structure...\n")
+
+# Step 1: Get founder genotypes for each SNP position
+founder_genotypes <- valid_snps %>%
+  filter(name %in% founders) %>%
+  select(CHROM, POS, name, freq) %>%
+  pivot_wider(names_from = name, values_from = freq) %>%
   # Ensure founder columns are in correct order
   select(CHROM, POS, all_of(founder_order)) %>%
-  # Add sample frequencies
-  left_join(
-    snp_data %>%
-      filter(!(sample_name %in% founders)) %>%
-      select(CHROM, POS, sample_name, freq) %>%
-      pivot_wider(
-        names_from = sample_name,
-        values_from = freq
-      ),
-    by = c("CHROM", "POS")
-  )
+  # Rename columns to indicate these are genotypes
+  rename_with(~paste0(.x, "_geno"), -c(CHROM, POS))
 
-cat("✓ Base SNP dataframe created:", nrow(base_snp_df), "rows\n")
+# Step 2: Get observed frequencies for this sample
+sample_observed <- valid_snps %>%
+  filter(name == sample_name) %>%
+  select(CHROM, POS, freq) %>%
+  rename(observed = freq)
 
-# Step 3: Function to interpolate haplotype frequencies for a sample
-interpolate_haplotypes_for_sample <- function(haplotype_data, snp_positions, sample_name) {
-  # Filter haplotype data for this sample and euchromatin
-  sample_haplotypes <- haplotype_data %>%
-    filter(sample == sample_name) %>%
-    filter(pos >= euchromatin_start, pos <= euchromatin_end)
+# Step 3: Interpolate haplotype frequencies to SNP positions
+cat("Interpolating haplotype frequencies to SNP positions...\n")
+
+# Get haplotype positions (sorted)
+haplotype_positions <- sort(unique(sample_haplotypes$pos))
+
+# Create interpolation function
+interpolate_haplotypes <- function(snp_pos, haplotype_data, founder_order) {
+  # Find left and right haplotype positions
+  left_pos <- haplotype_positions[haplotype_positions <= snp_pos]
+  right_pos <- haplotype_positions[haplotype_positions >= snp_pos]
   
-  if (nrow(sample_haplotypes) == 0) {
-    return(tibble())
+  if (length(left_pos) == 0 || length(right_pos) == 0) {
+    return(rep(NA, length(founder_order)))
   }
   
-  # Get haplotype positions
-  haplotype_positions <- sort(unique(sample_haplotypes$pos))
+  left_pos <- max(left_pos)
+  right_pos <- min(right_pos)
   
-  # For each SNP position, find interpolated haplotype frequencies
-  interpolated <- tibble(
-    POS = snp_positions
-  ) %>%
-    # Find left and right haplotype positions
-    mutate(
-      left_pos = map_dbl(POS, ~{
-        positions <- haplotype_positions[haplotype_positions <= .x]
-        if (length(positions) == 0) NA else max(positions)
-      }),
-      right_pos = map_dbl(POS, ~{
-        positions <- haplotype_positions[haplotype_positions >= .x]
-        if (length(positions) == 0) NA else min(positions)
-      })
-    ) %>%
-    # Calculate interpolation weights
-    mutate(
-      alpha = (right_pos - POS) / (right_pos - left_pos),
-      alpha = if_else(is.infinite(alpha) | is.nan(alpha), 0, alpha)
-    ) %>%
-    # Get haplotype frequencies for left and right positions
-    left_join(
-      sample_haplotypes %>%
-        select(pos, all_of(founder_order)) %>%
-        rename_with(~paste0("left_", .x), -pos) %>%
-        rename(left_pos = pos),
-      by = "left_pos"
-    ) %>%
-    left_join(
-      sample_haplotypes %>%
-        select(pos, all_of(founder_order)) %>%
-        rename_with(~paste0("right_", .x), -pos) %>%
-        rename(right_pos = pos),
-      by = "right_pos"
-    ) %>%
-    # Interpolate each founder frequency
-    mutate(across(
-      starts_with("left_") & !starts_with("left_pos"),
-      ~{
-        founder <- str_remove(cur_column(), "left_")
-        right_col <- paste0("right_", founder)
-        alpha * .x + (1 - alpha) * !!sym(right_col)
-      },
-      .names = "{.col}"
-    )) %>%
-    # Select only interpolated frequencies
-    select(POS, starts_with("left_") & !starts_with("left_pos")) %>%
-    rename_with(~str_remove(.x, "left_"), -POS)
+  # If SNP is exactly at a haplotype position, use that
+  if (left_pos == right_pos) {
+    haplotype_row <- haplotype_data %>% filter(pos == left_pos)
+    if (nrow(haplotype_row) == 0) return(rep(NA, length(founder_order)))
+    return(as.numeric(haplotype_row[1, founder_order]))
+  }
   
-  return(interpolated)
+  # Linear interpolation
+  left_freqs <- haplotype_data %>% filter(pos == left_pos) %>% select(all_of(founder_order))
+  right_freqs <- haplotype_data %>% filter(pos == right_pos) %>% select(all_of(founder_order))
+  
+  if (nrow(left_freqs) == 0 || nrow(right_freqs) == 0) {
+    return(rep(NA, length(founder_order)))
+  }
+  
+  left_freqs <- as.numeric(left_freqs[1, ])
+  right_freqs <- as.numeric(right_freqs[1, ])
+  
+  # Interpolation weight
+  alpha <- (right_pos - snp_pos) / (right_pos - left_pos)
+  
+  # Interpolate each founder frequency
+  interpolated_freqs <- alpha * left_freqs + (1 - alpha) * right_freqs
+  
+  return(interpolated_freqs)
 }
 
-# Step 4: Function to calculate imputed frequency
-calculate_imputed_frequency <- function(haplotype_freqs, founder_genotypes) {
-  sum(haplotype_freqs * founder_genotypes, na.rm = TRUE)
-}
+# Apply interpolation to each SNP position
+interpolated_haplotypes <- map_dfr(snp_positions, function(pos) {
+  freqs <- interpolate_haplotypes(pos, sample_haplotypes, founder_order)
+  tibble(
+    POS = pos,
+    !!!setNames(as.list(freqs), paste0(founder_order, "_freq"))
+  )
+}, .id = NULL)
+
+# Step 4: Combine everything into clean dataframe
+cat("Combining into clean dataframe structure...\n")
+
+results <- founder_genotypes %>%
+  left_join(sample_observed, by = c("CHROM", "POS")) %>%
+  left_join(interpolated_haplotypes, by = "POS") %>%
+  # Calculate imputed frequency: sum(haplotype_freqs * founder_genotypes)
+  mutate(
+    imputed = pmap_dbl(
+      list(
+        haplotype_freqs = select(cur_data(), ends_with("_freq")),
+        founder_genotypes = select(cur_data(), ends_with("_geno"))
+      ),
+      ~sum(as.numeric(..1) * as.numeric(..2), na.rm = TRUE)
+    )
+  ) %>%
+  # Add sample and estimator info
+  mutate(
+    sample = sample_name,
+    estimator = estimator
+  ) %>%
+  # Select columns in logical order
+  select(CHROM, POS, sample, estimator, observed, imputed, 
+         ends_with("_geno"), ends_with("_freq"))
+
+cat("✓ Clean dataframe created:", nrow(results), "rows\n")
 
 # Function to print compact debug output
 print_compact_debug <- function(results, founder_order) {
@@ -246,9 +301,6 @@ print_compact_debug <- function(results, founder_order) {
   for (i in 1:min(20, nrow(results))) { # Show first 20 SNPs
     row <- results[i, ]
     
-    # SNP position (7 spaces)
-    pos_str <- sprintf("%7d", row$POS)
-    
     # Founder genotypes as percentages (4 spaces each: 3 for number + 1 for separation)
     founder_genos <- sapply(founder_order, function(f) {
       geno_val <- row[[paste0(f, "_geno")]]
@@ -263,21 +315,12 @@ print_compact_debug <- function(results, founder_order) {
     })
     haplotype_str <- paste(haplotype_freqs, collapse = "")
     
-    # Sample frequency (4 spaces, 0-100)
-    sample_freq_str <- sprintf("%4.0f", round(row$observed * 100))
-    
-    # Imputed value (4 spaces, 0-100)
-    imputed_str <- sprintf("%4.0f", round(row$imputed * 100))
-    
-    # Absolute difference (3 spaces, 0-100)
-    diff_str <- sprintf("%3.0f", round(abs(row$observed - row$imputed) * 100))
-    
-              # Combine all parts with proper spacing using sprintf
-          data_line <- sprintf("%7d %32s %32s %4.0f %4.0f %3.0f", 
-                              row$POS, founder_str, haplotype_str, 
-                              round(row$observed * 100), round(row$imputed * 100), 
-                              round(abs(row$observed - row$imputed) * 100))
-          cat(data_line, "\n")
+    # Combine all parts with proper spacing using sprintf
+    data_line <- sprintf("%7d %32s %32s %4.0f %4.0f %3.0f", 
+                        row$POS, founder_str, haplotype_str, 
+                        round(row$observed * 100), round(row$imputed * 100), 
+                        round(abs(row$observed - row$imputed) * 100))
+    cat(data_line, "\n")
   }
   
   if (nrow(results) > 20) {
@@ -286,53 +329,12 @@ print_compact_debug <- function(results, founder_order) {
   cat("\n")
 }
 
-# Step 5: Get sample name from index
-non_founder_samples <- setdiff(unique(snp_data$sample_name), founders)
-if (sample_index < 1 || sample_index > length(non_founder_samples)) {
-  stop("Sample index ", sample_index, " out of range. Valid range: 1-", length(non_founder_samples))
-}
-
-sample_name <- non_founder_samples[sample_index]
-cat("Processing sample:", sample_name, "(index", sample_index, ")\n")
-
-# Get interpolated haplotype frequencies for this sample
-interpolated_haplotypes <- interpolate_haplotypes_for_sample(
-  haplotype_results, base_snp_df$POS, sample_name
-)
-
-if (nrow(interpolated_haplotypes) == 0) {
-  stop("No haplotype results for sample ", sample_name)
-}
-
-# Join with base SNP data
-results <- base_snp_df %>%
-  select(CHROM, POS, all_of(founder_order), !!sample_name) %>%
-  rename(observed = !!sample_name) %>%
-  left_join(interpolated_haplotypes, by = "POS", suffix = c("_geno", "_freq")) %>%
-  # Calculate imputed frequency
-  mutate(
-    imputed = pmap_dbl(
-      list(
-        haplotype_freqs = select(cur_data(), ends_with("_freq")),
-        founder_genotypes = select(cur_data(), ends_with("_geno"))
-      ),
-      ~calculate_imputed_frequency(as.numeric(..1), as.numeric(..2))
-    )
-  ) %>%
-  select(CHROM, POS, all_of(paste0(founder_order, "_geno")), all_of(paste0(founder_order, "_freq")), observed, imputed) %>%
-  mutate(
-    sample = sample_name,
-    estimator = estimator
-  )
-
-cat("  Completed:", nrow(results), "imputations\n")
-
 # Print debug output if in debug mode
-if (debug_mode) {
+if (debug_mode && nrow(results) > 0) {
   print_compact_debug(results, founder_order)
 }
 
-# Step 6: Save results
+# Save results
 if (nrow(results) > 0) {
   output_file <- if (debug_mode) {
     file.path(output_dir, "haplotype_results", paste0("snp_imputation_", estimator, "_", sample_name, "_", chr, "_DEBUG.RDS"))
@@ -344,7 +346,7 @@ if (nrow(results) > 0) {
   
   # Summary statistics
   summary_stats <- results %>%
-    summarise(
+    summarize(
       n_imputations = n(),
       mean_observed = mean(observed, na.rm = TRUE),
       mean_imputed = mean(imputed, na.rm = TRUE),
@@ -354,13 +356,12 @@ if (nrow(results) > 0) {
   
   cat("\n✓ SNP Imputation completed successfully!\n")
   cat("Results saved to:", output_file, "\n")
-  cat("Total imputations:", nrow(results), "\n\n")
-  
-  cat("Summary for", sample_name, ":\n")
-  print(summary_stats)
+  cat("Total imputations:", nrow(results), "\n")
+  cat("Correlation:", round(summary_stats$correlation, 4), "\n")
+  cat("RMSE:", round(summary_stats$rmse, 4), "\n")
   
 } else {
   cat("\n❌ No SNP imputation results obtained!\n")
 }
 
-cat("\n=== Clean SNP Imputation Complete ===\n")
+cat("\n=== SNP Imputation Complete ===\n")
