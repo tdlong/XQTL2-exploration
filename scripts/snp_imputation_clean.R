@@ -259,15 +259,15 @@ results <- founder_genotypes %>%
   left_join(sample_observed, by = c("CHROM", "POS")) %>%
   left_join(interpolated_haplotypes, by = "POS") %>%
   # Calculate imputed frequency: sum(haplotype_freqs * founder_genotypes)
+  rowwise() %>%
   mutate(
-    imputed = pmap_dbl(
-      list(
-        haplotype_freqs = select(cur_data(), ends_with("_freq")),
-        founder_genotypes = select(cur_data(), ends_with("_geno"))
-      ),
-      ~sum(as.numeric(..1) * as.numeric(..2), na.rm = TRUE)
+    imputed = sum(
+      B1_freq * B1_geno + B2_freq * B2_geno + B3_freq * B3_geno + B4_freq * B4_geno +
+      B5_freq * B5_geno + B6_freq * B6_geno + B7_freq * B7_geno + AB8_freq * AB8_geno,
+      na.rm = TRUE
     )
   ) %>%
+  ungroup() %>%
   # Add sample and estimator info
   mutate(
     sample = sample_name,
