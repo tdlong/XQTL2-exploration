@@ -101,11 +101,14 @@ Rscript scripts/plot_B1_frequencies.R chr2R helpfiles/JUICE_haplotype_parameters
   - Examples: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h6_chr2R.RDS`, `snp_imputation_adaptive_h8_chr2R.RDS`, `snp_imputation_adaptive_h10_chr2R.RDS`
 
 ### **Input Files**
-- **REFALT Data**: `process/JUICE/RefAlt.chr2R.txt`
+- **REFALT Data**: `process/JUICE/RefAlt.chr2R.txt` (SNP allele count data)
 
 ### **All Files Location**
-- **Directory**: `process/JUICE/haplotype_results/`
-- **Complete Path Example**: `process/JUICE/haplotype_results/adaptive_window_h8_results_chr2R.RDS`
+- **Haplotype Results Directory**: `process/JUICE/haplotype_results/`
+- **REFALT Data Directory**: `process/JUICE/`
+- **Complete Path Examples**: 
+  - Haplotype: `process/JUICE/haplotype_results/adaptive_window_h8_results_chr2R.RDS`
+  - REFALT: `process/JUICE/RefAlt.chr2R.txt`
 
 ---
 
