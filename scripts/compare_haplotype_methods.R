@@ -18,11 +18,14 @@ sample_index <- which(names_in_bam == sample_name)
 cat("=== Comparing All Haplotype Methods ===\n")
 cat("Sample:", sample_name, "(index:", sample_index, ")\n\n")
 
-# Define estimators - just focus on fixed_50kb vs alternative method
-estimators <- c("fixed_50kb")
-
-# Load our haplotype estimates for all estimators
+# Load all estimators to get the full comparison dataframe
 cat("Loading our haplotype estimates for all estimators...\n")
+
+# Define all estimators
+all_estimators <- c(
+  "fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb",
+  "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10"
+)
 
 load_estimator_haplotypes <- function(estimator) {
   if (grepl("^fixed_", estimator)) {
@@ -49,20 +52,14 @@ load_estimator_haplotypes <- function(estimator) {
 }
 
 # Load all estimators
-our_haplotypes_list <- map(estimators, load_estimator_haplotypes)
+our_haplotypes_list <- map(all_estimators, load_estimator_haplotypes)
 our_haplotypes_list <- our_haplotypes_list[!sapply(our_haplotypes_list, is.null)]
 
 # Combine all estimators into one wide dataframe
 cat("Combining all estimators...\n")
-cat("Starting with first estimator:", names(our_haplotypes_list[[1]]), "\n")
-
-our_haplotypes_wide <- our_haplotypes_list[[1]]
-for (i in 2:length(our_haplotypes_list)) {
-  cat("Joining estimator", i, ":", names(our_haplotypes_list[[i]]), "\n")
-  our_haplotypes_wide <- left_join(our_haplotypes_wide, our_haplotypes_list[[i]], 
-                                   by = c("chr", "pos", "estimate_OK", "sample"))
-  cat("After join, columns:", names(our_haplotypes_wide), "\n")
-}
+our_haplotypes_wide <- reduce(our_haplotypes_list, function(x, y) {
+  left_join(x, y, by = c("chr", "pos", "estimate_OK", "sample"))
+}, .init = our_haplotypes_list[[1]])
 
 cat("Our estimates combined:", nrow(our_haplotypes_wide), "positions\n")
 cat("Columns:", names(our_haplotypes_wide), "\n\n")
@@ -163,52 +160,44 @@ comparison <- our_haplotypes_wide %>%
   select(CHROM, pos, starts_with("B1_")) %>%
   arrange(pos)
 
+# Now subset to just the two methods we want to compare
+comparison_subset <- comparison %>%
+  select(CHROM, pos, B1_fixed_50kb, B1_methodalt) %>%
+  filter(!is.na(B1_fixed_50kb) & !is.na(B1_methodalt))
+
+cat("Subset for comparison (fixed_50kb vs alternative):", nrow(comparison_subset), "positions\n")
+
 cat("Final comparison dataframe:", nrow(comparison), "rows\n")
 cat("Columns:", names(comparison), "\n\n")
 
-# Show first 50 rows for reality check with better formatting
-cat("First 50 rows of final comparison dataframe:\n")
-cat("Total columns:", ncol(comparison), "\n")
-cat("Column names:", paste(names(comparison), collapse = ", "), "\n\n")
+# Show the subset for the two methods we want to compare
+cat("First 50 rows of comparison subset (fixed_50kb vs alternative):\n")
+cat("Columns:", paste(names(comparison_subset), collapse = ", "), "\n\n")
 
-# Print with options to show all columns clearly
+# Print the subset clearly
 options(width = 200)
-print(head(comparison, 50), n = 50, width = Inf)
+print(head(comparison_subset, 50), n = 50, width = Inf)
 
 # Show summary of the two methods being compared
 cat("\n=== METHOD COMPARISON SUMMARY ===\n")
-cat("fixed_50kb: N =", sum(!is.na(comparison$B1_fixed_50kb)), 
-    ", Mean =", round(mean(comparison$B1_fixed_50kb, na.rm = TRUE), 4),
-    ", NA =", sum(is.na(comparison$B1_fixed_50kb)), "\n")
-cat("B1_methodalt: N =", sum(!is.na(comparison$B1_methodalt)), 
-    ", Mean =", round(mean(comparison$B1_methodalt, na.rm = TRUE), 4),
-    ", NA =", sum(is.na(comparison$B1_methodalt)), "\n")
+cat("fixed_50kb: N =", sum(!is.na(comparison_subset$B1_fixed_50kb)), 
+    ", Mean =", round(mean(comparison_subset$B1_fixed_50kb, na.rm = TRUE), 4),
+    ", NA =", sum(is.na(comparison_subset$B1_fixed_50kb)), "\n")
+cat("B1_methodalt: N =", sum(!is.na(comparison_subset$B1_methodalt)), 
+    ", Mean =", round(mean(comparison_subset$B1_methodalt, na.rm = TRUE), 4),
+    ", NA =", sum(is.na(comparison_subset$B1_methodalt)), "\n")
 
-# Calculate differences between each method and alternative
+# Calculate differences between fixed_50kb and alternative method
 cat("\n=== DIFFERENCE ANALYSIS ===\n")
-diff_cols <- names(comparison)[grepl("^B1_", names(comparison)) & names(comparison) != "B1_methodalt"]
+cat("Comparing fixed_50kb vs alternative method:\n")
 
-for (col in diff_cols) {
-  method_name <- sub("^B1_", "", col)
-  
-  # Get valid pairs (both values non-NA)
-  valid_pairs <- !is.na(comparison[[col]]) & !is.na(comparison$B1_methodalt)
-  n_valid <- sum(valid_pairs)
-  
-  if (n_valid > 0) {
-    # Calculate RMSE (Root Mean Square Error) only on valid pairs
-    differences <- comparison[[col]][valid_pairs] - comparison$B1_methodalt[valid_pairs]
-    rmse <- sqrt(mean(differences^2))
-    
-    # Also calculate mean absolute difference for reference
-    mean_abs_diff <- mean(abs(differences))
-    
-    cat(sprintf("%-15s: RMSE = %.4f, Mean abs diff = %.4f (N = %d)\n", 
-                method_name, rmse, mean_abs_diff, n_valid))
-  } else {
-    cat(sprintf("%-15s: No valid pairs for comparison (all NA)\n", method_name))
-  }
-}
+# Calculate RMSE and mean absolute difference
+differences <- comparison_subset$B1_fixed_50kb - comparison_subset$B1_methodalt
+rmse <- sqrt(mean(differences^2))
+mean_abs_diff <- mean(abs(differences))
+
+cat(sprintf("fixed_50kb vs alternative: RMSE = %.4f, Mean abs diff = %.4f (N = %d)\n", 
+            rmse, mean_abs_diff, nrow(comparison_subset)))
 
 # Show positions with large differences for any method (using RMSE-like threshold)
 cat("\n=== POSITIONS WITH LARGE DIFFERENCES ===\n")
