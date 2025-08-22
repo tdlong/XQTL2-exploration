@@ -110,6 +110,39 @@ Rscript scripts/plot_B1_frequencies.R chr2R helpfiles/JUICE_haplotype_parameters
   - Haplotype: `process/JUICE/haplotype_results/adaptive_window_h8_results_chr2R.RDS`
   - REFALT: `process/JUICE/RefAlt.chr2R.txt`
 
+### **Haplotype File Format & Reading Instructions**
+**IMPORTANT: Use this exact code pattern - do not reinvent the wheel!**
+
+#### **File Structure:**
+- **Columns**: `chr`, `pos`, `estimate_OK`, `B1`, `B2`, `B3`, `B4`, `B5`, `B6`, `B7`, `AB8`, `sample`
+- **Founder frequencies**: `B1`, `B2`, etc. contain haplotype frequencies (0-1)
+- **Position**: `pos` (lowercase) contains genomic positions
+- **Sample**: `sample` contains sample names (e.g., "AJ_1_1")
+
+#### **Working Code Pattern (COPY THIS EXACTLY):**
+```r
+# Fixed window estimators
+h_data <- readRDS(file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))) %>%
+  select(chr, pos, estimate_OK, B1, sample) %>%
+  mutate(method = method)
+
+# Adaptive window estimators  
+h_data <- readRDS(file.path(results_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))) %>%
+  select(chr, pos, estimate_OK, B1, sample) %>%
+  mutate(method = method)
+
+# To combine multiple estimators, join on common columns:
+combined <- reduce(haplotype_list, function(x, y) {
+  left_join(x, y, by = c("chr", "pos", "estimate_OK", "sample"))
+}, .init = haplotype_list[[1]])
+```
+
+#### **Reference Scripts:**
+- **`scripts/create_summary_file_chunked.R`** - Working example of reading all 9 estimators
+- **`scripts/compare_haplotype_methods.R`** - Working example of comparing against alternative method
+
+**DO NOT GUESS COLUMN NAMES - USE THE WORKING CODE ABOVE!**
+
 ---
 
 ## 🏗️ **ACTIVE PRODUCTION ARCHITECTURE**
