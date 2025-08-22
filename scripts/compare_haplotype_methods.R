@@ -95,16 +95,25 @@ extract_B1_freqs <- function(alt_data, target_sample) {
   # Debug the first few extractions
   cat("Debugging first 5 extractions:\n")
   for (i in 1:5) {
-    hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
-    cat("  Position", i, ":", alt_data$pos[i], "-> B1 =", hap_freqs["B1"], "\n")
+    cat("  Position", i, ":", alt_data$pos[i], "\n")
+    cat("    Haps structure:", str(alt_data$Haps[[i]]), "\n")
+    if (length(alt_data$Haps[[i]]) > 0 && length(alt_data$Haps[[i]][[1]]) > 0) {
+      hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
+      cat("    -> B1 =", hap_freqs["B1"], "\n")
+    } else {
+      cat("    -> No haplotype data\n")
+    }
   }
   
   # Extract B1 frequencies for our target sample
   B1_freqs <- map_dbl(1:nrow(alt_data), function(i) {
     # Get haplotype frequencies for this position and sample
-    hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
-    # Return B1 frequency
-    hap_freqs["B1"]
+    if (length(alt_data$Haps[[i]]) > 0 && length(alt_data$Haps[[i]][[1]]) > 0) {
+      hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
+      return(as.numeric(hap_freqs["B1"]))
+    } else {
+      return(NA_real_)
+    }
   })
   
   cat("Extracted B1 frequencies summary:\n")
