@@ -99,7 +99,7 @@ extract_B1_freqs <- function(alt_data, target_sample) {
     cat("    Haps structure:", str(alt_data$Haps[[i]]), "\n")
     if (length(alt_data$Haps[[i]]) > 0) {
       # Try to access the haplotype data for our target sample
-      hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
+      hap_freqs <- alt_data$Haps[[i]][[target_index]]
       cat("    -> B1 =", hap_freqs["B1"], "\n")
       cat("    -> B1 class:", class(hap_freqs["B1"]), "\n")
       cat("    -> Full haplotype vector:", paste(names(hap_freqs), "=", hap_freqs, collapse = ", "), "\n")
@@ -112,7 +112,7 @@ extract_B1_freqs <- function(alt_data, target_sample) {
   B1_freqs <- map_dbl(1:nrow(alt_data), function(i) {
     # Get haplotype frequencies for this position and sample
     if (length(alt_data$Haps[[i]]) > 0) {
-      hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
+      hap_freqs <- alt_data$Haps[[i]][[target_index]]
       # Extract B1 and convert to numeric
       b1_value <- hap_freqs["B1"]
       return(as.numeric(b1_value))
