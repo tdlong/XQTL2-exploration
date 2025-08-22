@@ -57,9 +57,15 @@ our_haplotypes_list <- our_haplotypes_list[!sapply(our_haplotypes_list, is.null)
 
 # Combine all estimators into one wide dataframe
 cat("Combining all estimators...\n")
-our_haplotypes_wide <- reduce(our_haplotypes_list, function(x, y) {
-  left_join(x, y, by = c("chr", "pos", "estimate_OK", "sample"))
-}, .init = our_haplotypes_list[[1]])
+cat("Starting with first estimator:", names(our_haplotypes_list[[1]]), "\n")
+
+our_haplotypes_wide <- our_haplotypes_list[[1]]
+for (i in 2:length(our_haplotypes_list)) {
+  cat("Joining estimator", i, ":", names(our_haplotypes_list[[i]]), "\n")
+  our_haplotypes_wide <- left_join(our_haplotypes_wide, our_haplotypes_list[[i]], 
+                                   by = c("chr", "pos", "estimate_OK", "sample"))
+  cat("After join, columns:", names(our_haplotypes_wide), "\n")
+}
 
 cat("Our estimates combined:", nrow(our_haplotypes_wide), "positions\n")
 cat("Columns:", names(our_haplotypes_wide), "\n\n")
@@ -112,9 +118,26 @@ comparison <- our_haplotypes_wide %>%
 cat("Final comparison dataframe:", nrow(comparison), "rows\n")
 cat("Columns:", names(comparison), "\n\n")
 
-# Show first 50 rows for reality check
+# Show first 50 rows for reality check with better formatting
 cat("First 50 rows of final comparison dataframe:\n")
-print(head(comparison, 50))
+cat("Total columns:", ncol(comparison), "\n")
+cat("Column names:", paste(names(comparison), collapse = ", "), "\n\n")
+
+# Print with options to show all columns
+options(width = 200)
+print(head(comparison, 50), n = 50, width = Inf)
+
+# Also show summary of each column
+cat("\n=== COLUMN SUMMARIES ===\n")
+for (col in names(comparison)) {
+  if (grepl("^B1_", col)) {
+    cat(sprintf("%-20s: N = %d, Mean = %.4f, NA = %d\n", 
+                col, 
+                sum(!is.na(comparison[[col]])), 
+                mean(comparison[[col]], na.rm = TRUE),
+                sum(is.na(comparison[[col]]))))
+  }
+}
 
 # Calculate differences between each method and alternative
 cat("\n=== DIFFERENCE ANALYSIS ===\n")
