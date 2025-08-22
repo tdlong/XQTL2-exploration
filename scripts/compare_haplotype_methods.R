@@ -160,62 +160,73 @@ comparison <- our_haplotypes_wide %>%
   select(CHROM, pos, starts_with("B1_")) %>%
   arrange(pos)
 
-# Now subset to just the two methods we want to compare
+# Now subset to just the three methods we want to compare
 comparison_subset <- comparison %>%
-  select(CHROM, pos, B1_fixed_50kb, B1_methodalt) %>%
-  filter(!is.na(B1_fixed_50kb) & !is.na(B1_methodalt))
+  select(CHROM, pos, B1_fixed_50kb, B1_fixed_100kb, B1_methodalt) %>%
+  filter(!is.na(B1_fixed_50kb) & !is.na(B1_fixed_100kb) & !is.na(B1_methodalt))
 
-cat("Subset for comparison (fixed_50kb vs alternative):", nrow(comparison_subset), "positions\n")
+cat("Subset for comparison (fixed_50kb, fixed_100kb vs alternative):", nrow(comparison_subset), "positions\n")
 
 cat("Final comparison dataframe:", nrow(comparison), "rows\n")
 cat("Columns:", names(comparison), "\n\n")
 
-# Show the subset for the two methods we want to compare
-cat("First 50 rows of comparison subset (fixed_50kb vs alternative):\n")
+# Show the subset for the three methods we want to compare
+cat("First 50 rows of comparison subset (fixed_50kb, fixed_100kb vs alternative):\n")
 cat("Columns:", paste(names(comparison_subset), collapse = ", "), "\n\n")
 
 # Print the subset clearly
 options(width = 200)
 print(head(comparison_subset, 50), n = 50, width = Inf)
 
-# Show summary of the two methods being compared
+# Show summary of the three methods being compared
 cat("\n=== METHOD COMPARISON SUMMARY ===\n")
 cat("fixed_50kb: N =", sum(!is.na(comparison_subset$B1_fixed_50kb)), 
     ", Mean =", round(mean(comparison_subset$B1_fixed_50kb, na.rm = TRUE), 4),
     ", NA =", sum(is.na(comparison_subset$B1_fixed_50kb)), "\n")
+cat("fixed_100kb: N =", sum(!is.na(comparison_subset$B1_fixed_100kb)), 
+    ", Mean =", round(mean(comparison_subset$B1_fixed_100kb, na.rm = TRUE), 4),
+    ", NA =", sum(is.na(comparison_subset$B1_fixed_100kb)), "\n")
 cat("B1_methodalt: N =", sum(!is.na(comparison_subset$B1_methodalt)), 
     ", Mean =", round(mean(comparison_subset$B1_methodalt, na.rm = TRUE), 4),
     ", NA =", sum(is.na(comparison_subset$B1_methodalt)), "\n")
 
-# Calculate differences between fixed_50kb and alternative method
+# Calculate differences between both estimators and alternative method
 cat("\n=== DIFFERENCE ANALYSIS ===\n")
-cat("Comparing fixed_50kb vs alternative method:\n")
+cat("Comparing both estimators vs alternative method:\n")
 
-# Calculate RMSE and mean absolute difference
-differences <- comparison_subset$B1_fixed_50kb - comparison_subset$B1_methodalt
-rmse <- sqrt(mean(differences^2))
-mean_abs_diff <- mean(abs(differences))
+# Calculate RMSE and mean absolute difference for fixed_50kb
+diff_50kb <- comparison_subset$B1_fixed_50kb - comparison_subset$B1_methodalt
+rmse_50kb <- sqrt(mean(diff_50kb^2))
+mean_abs_diff_50kb <- mean(abs(diff_50kb))
+
+# Calculate RMSE and mean absolute difference for fixed_100kb
+diff_100kb <- comparison_subset$B1_fixed_100kb - comparison_subset$B1_methodalt
+rmse_100kb <- sqrt(mean(diff_100kb^2))
+mean_abs_diff_100kb <- mean(abs(diff_100kb))
 
 cat(sprintf("fixed_50kb vs alternative: RMSE = %.4f, Mean abs diff = %.4f (N = %d)\n", 
-            rmse, mean_abs_diff, nrow(comparison_subset)))
+            rmse_50kb, mean_abs_diff_50kb, nrow(comparison_subset)))
+cat(sprintf("fixed_100kb vs alternative: RMSE = %.4f, Mean abs diff = %.4f (N = %d)\n", 
+            rmse_100kb, mean_abs_diff_100kb, nrow(comparison_subset)))
 
-# Show positions with large differences for any method (using RMSE-like threshold)
+# Show positions with large differences between both estimators and alternative
 cat("\n=== POSITIONS WITH LARGE DIFFERENCES ===\n")
-cat("Showing positions where any method differs from alternative by >0.1:\n")
+cat("Showing positions where either estimator differs from alternative by >0.1:\n")
 
-large_diffs <- comparison %>%
-  select(CHROM, pos, starts_with("B1_")) %>%
-  mutate(across(starts_with("B1_") & !ends_with("methodalt"), 
-                ~abs(. - B1_methodalt), 
-                .names = "diff_{.col}")) %>%
-  filter(if_any(starts_with("diff_"), ~. > 0.1)) %>%
-  select(CHROM, pos, starts_with("diff_"))
+# Check for large differences for both estimators
+large_diff_positions <- comparison_subset %>%
+  mutate(
+    diff_50kb = abs(B1_fixed_50kb - B1_methodalt),
+    diff_100kb = abs(B1_fixed_100kb - B1_methodalt)
+  ) %>%
+  filter(diff_50kb > 0.1 | diff_100kb > 0.1) %>%
+  arrange(desc(pmax(diff_50kb, diff_100kb)))
 
-if (nrow(large_diffs) > 0) {
-  print(head(large_diffs, 10))
-  cat("... (showing first 10 of", nrow(large_diffs), "positions with large differences)\n")
+if (nrow(large_diff_positions) > 0) {
+  cat("Found", nrow(large_diff_positions), "positions with large differences:\n")
+  print(large_diff_positions, n = min(20, nrow(large_diff_positions)))
 } else {
-  cat("All differences are small (≤0.1) for all methods\n")
+  cat("All differences are small (≤0.1) between both estimators and alternative\n")
 }
 
 cat("\n=== COMPARISON COMPLETE ===\n")
