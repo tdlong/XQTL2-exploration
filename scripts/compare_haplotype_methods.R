@@ -100,8 +100,9 @@ extract_B1_freqs <- function(alt_data, target_sample) {
     if (length(alt_data$Haps[[i]]) > 0) {
       # Try to access the haplotype data for our target sample
       hap_freqs <- alt_data$Haps[[i]][[target_index]]
-      cat("    -> B1 =", hap_freqs["B1"], "\n")
-      cat("    -> B1 class:", class(hap_freqs["B1"]), "\n")
+      b1_freq <- hap_freqs[1]  # First founder frequency (B1)
+      cat("    -> B1 =", b1_freq, "\n")
+      cat("    -> B1 class:", class(b1_freq), "\n")
       cat("    -> Full haplotype vector:", paste(names(hap_freqs), "=", hap_freqs, collapse = ", "), "\n")
     } else {
       cat("    -> No haplotype data\n")
@@ -113,8 +114,8 @@ extract_B1_freqs <- function(alt_data, target_sample) {
     # Get haplotype frequencies for this position and sample
     if (length(alt_data$Haps[[i]]) > 0) {
       hap_freqs <- alt_data$Haps[[i]][[target_index]]
-      # Extract B1 and convert to numeric
-      b1_value <- hap_freqs["B1"]
+      # Extract B1 (first founder frequency) and convert to numeric
+      b1_value <- hap_freqs[1]
       return(as.numeric(b1_value))
     } else {
       return(NA_real_)
