@@ -18,11 +18,8 @@ sample_index <- which(names_in_bam == sample_name)
 cat("=== Comparing All Haplotype Methods ===\n")
 cat("Sample:", sample_name, "(index:", sample_index, ")\n\n")
 
-# Define all estimators
-estimators <- c(
-  "fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb",
-  "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10"
-)
+# Define estimators - just focus on fixed_50kb vs alternative method
+estimators <- c("fixed_50kb")
 
 # Load our haplotype estimates for all estimators
 cat("Loading our haplotype estimates for all estimators...\n")
@@ -174,21 +171,18 @@ cat("First 50 rows of final comparison dataframe:\n")
 cat("Total columns:", ncol(comparison), "\n")
 cat("Column names:", paste(names(comparison), collapse = ", "), "\n\n")
 
-# Print with options to show all columns
+# Print with options to show all columns clearly
 options(width = 200)
 print(head(comparison, 50), n = 50, width = Inf)
 
-# Also show summary of each column
-cat("\n=== COLUMN SUMMARIES ===\n")
-for (col in names(comparison)) {
-  if (grepl("^B1_", col)) {
-    cat(sprintf("%-20s: N = %d, Mean = %.4f, NA = %d\n", 
-                col, 
-                sum(!is.na(comparison[[col]])), 
-                mean(comparison[[col]], na.rm = TRUE),
-                sum(is.na(comparison[[col]]))))
-  }
-}
+# Show summary of the two methods being compared
+cat("\n=== METHOD COMPARISON SUMMARY ===\n")
+cat("fixed_50kb: N =", sum(!is.na(comparison$B1_fixed_50kb)), 
+    ", Mean =", round(mean(comparison$B1_fixed_50kb, na.rm = TRUE), 4),
+    ", NA =", sum(is.na(comparison$B1_fixed_50kb)), "\n")
+cat("B1_methodalt: N =", sum(!is.na(comparison$B1_methodalt)), 
+    ", Mean =", round(mean(comparison$B1_methodalt, na.rm = TRUE), 4),
+    ", NA =", sum(is.na(comparison$B1_methodalt)), "\n")
 
 # Calculate differences between each method and alternative
 cat("\n=== DIFFERENCE ANALYSIS ===\n")
