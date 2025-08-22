@@ -85,8 +85,18 @@ extract_B1_freqs <- function(alt_data, target_sample) {
   sample_names <- unlist(alt_data$sample[[1]])
   target_index <- which(sample_names == target_sample)
   
+  cat("Target sample:", target_sample, "found at index:", target_index, "\n")
+  cat("Sample names:", paste(sample_names, collapse = ", "), "\n")
+  
   if (length(target_index) == 0) {
     stop("Sample", target_sample, "not found in alternative data")
+  }
+  
+  # Debug the first few extractions
+  cat("Debugging first 5 extractions:\n")
+  for (i in 1:5) {
+    hap_freqs <- alt_data$Haps[[i]][[1]][[target_index]]
+    cat("  Position", i, ":", alt_data$pos[i], "-> B1 =", hap_freqs["B1"], "\n")
   }
   
   # Extract B1 frequencies for our target sample
@@ -97,10 +107,20 @@ extract_B1_freqs <- function(alt_data, target_sample) {
     hap_freqs["B1"]
   })
   
+  cat("Extracted B1 frequencies summary:\n")
+  cat("  Total positions:", length(B1_freqs), "\n")
+  cat("  Non-NA values:", sum(!is.na(B1_freqs)), "\n")
+  cat("  NA values:", sum(is.na(B1_freqs)), "\n")
+  cat("  Range:", range(B1_freqs, na.rm = TRUE), "\n")
+  
   # Create clean dataframe
   result <- alt_data %>%
     select(CHROM, pos) %>%
     mutate(B1_methodalt = B1_freqs)
+  
+  cat("Result dataframe created:", nrow(result), "rows\n")
+  cat("Sample result rows:\n")
+  print(head(result, 5))
   
   return(result)
 }
@@ -108,8 +128,24 @@ extract_B1_freqs <- function(alt_data, target_sample) {
 alt_B1_freqs <- extract_B1_freqs(alt_haplotypes, sample_name)
 cat("Extracted B1 frequencies for", nrow(alt_B1_freqs), "positions\n\n")
 
+# Debug position ranges before join
+cat("=== POSITION RANGE DEBUG ===\n")
+cat("Our haplotype positions range:", range(our_haplotypes_wide$pos), "\n")
+cat("Alternative method positions range:", range(alt_B1_freqs$pos), "\n")
+cat("Position overlap check:\n")
+cat("  Our min pos:", min(our_haplotypes_wide$pos), "vs Alt min pos:", min(alt_B1_freqs$pos), "\n")
+cat("  Our max pos:", max(our_haplotypes_wide$pos), "vs Alt max pos:", max(alt_B1_freqs$pos), "\n")
+
+# Check for exact position matches
+common_positions <- intersect(our_haplotypes_wide$pos, alt_B1_freqs$pos)
+cat("Common positions:", length(common_positions), "out of", nrow(our_haplotypes_wide), "\n")
+
+# Show sample positions from each dataset
+cat("Sample positions from our data:", head(our_haplotypes_wide$pos, 10), "\n")
+cat("Sample positions from alt data:", head(alt_B1_freqs$pos, 10), "\n")
+
 # Join our estimators with alternative method
-cat("=== COMBINED COMPARISON ===\n")
+cat("\n=== COMBINED COMPARISON ===\n")
 comparison <- our_haplotypes_wide %>%
   left_join(alt_B1_freqs, by = "pos") %>%
   select(CHROM, pos, starts_with("B1_")) %>%
