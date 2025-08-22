@@ -37,13 +37,13 @@ load_estimator_haplotypes <- function(estimator) {
   }
   
   if (file.exists(file_path)) {
+    # Copy exact working code from create_summary_file_chunked.R
     data <- readRDS(file_path) %>%
-      filter(sample == sample_name) %>%
-      select(POS, B1_freq) %>%
-      rename(pos = POS)
+      select(chr, pos, estimate_OK, B1, sample) %>%
+      filter(sample == sample_name)
     
-    # Rename B1_freq to include estimator name
-    names(data)[names(data) == "B1_freq"] <- paste0("B1_", estimator)
+    # Rename B1 to include estimator name
+    names(data)[names(data) == "B1"] <- paste0("B1_", estimator)
     return(data)
   } else {
     cat("Warning: File not found:", file_path, "\n")
@@ -58,7 +58,7 @@ our_haplotypes_list <- our_haplotypes_list[!sapply(our_haplotypes_list, is.null)
 # Combine all estimators into one wide dataframe
 cat("Combining all estimators...\n")
 our_haplotypes_wide <- reduce(our_haplotypes_list, function(x, y) {
-  left_join(x, y, by = "pos")
+  left_join(x, y, by = c("chr", "pos", "estimate_OK", "sample"))
 }, .init = our_haplotypes_list[[1]])
 
 cat("Our estimates combined:", nrow(our_haplotypes_wide), "positions\n")
