@@ -182,13 +182,23 @@ diff_cols <- names(comparison)[grepl("^B1_", names(comparison)) & names(comparis
 for (col in diff_cols) {
   method_name <- sub("^B1_", "", col)
   
-  # Calculate RMSE (Root Mean Square Error)
-  rmse <- sqrt(mean((comparison[[col]] - comparison$B1_methodalt)^2, na.rm = TRUE))
+  # Get valid pairs (both values non-NA)
+  valid_pairs <- !is.na(comparison[[col]]) & !is.na(comparison$B1_methodalt)
+  n_valid <- sum(valid_pairs)
   
-  # Also calculate mean absolute difference for reference
-  mean_abs_diff <- mean(abs(comparison[[col]] - comparison$B1_methodalt), na.rm = TRUE)
-  
-  cat(sprintf("%-15s: RMSE = %.4f, Mean abs diff = %.4f\n", method_name, rmse, mean_abs_diff))
+  if (n_valid > 0) {
+    # Calculate RMSE (Root Mean Square Error) only on valid pairs
+    differences <- comparison[[col]][valid_pairs] - comparison$B1_methodalt[valid_pairs]
+    rmse <- sqrt(mean(differences^2))
+    
+    # Also calculate mean absolute difference for reference
+    mean_abs_diff <- mean(abs(differences))
+    
+    cat(sprintf("%-15s: RMSE = %.4f, Mean abs diff = %.4f (N = %d)\n", 
+                method_name, rmse, mean_abs_diff, n_valid))
+  } else {
+    cat(sprintf("%-15s: No valid pairs for comparison (all NA)\n", method_name))
+  }
 }
 
 # Show positions with large differences for any method (using RMSE-like threshold)
