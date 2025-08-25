@@ -193,8 +193,6 @@ dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 output_file <- file.path(results_dir, output_filename)
 
-track_mem("After processing positions")
-
 if (nrow(results_df) > 0) {
   saveRDS(results_df, output_file)
   
