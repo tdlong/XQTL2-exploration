@@ -373,15 +373,6 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
   haplotype_freqs <- rep(NA, length(founders))
   names(haplotype_freqs) <- founders
   
-  # Check founder frequency ranges for diagnostics
-  if (verbose >= 1) {
-    cat("\nFounder frequency ranges:\n")
-    for (i in seq_along(founders)) {
-      freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
-      cat(sprintf("%s: %.3f - %.3f\n", founders[i], freq_range[1], freq_range[2]))
-    }
-  }
-
   # Run LSEI with better error handling
   tryCatch({
     E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
@@ -438,16 +429,21 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
     } else {
       # LSEI failed with error code
       estimate_OK <- NA
-      if (verbose >= 1) {
-        cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
-        if (lsei_result$IsError == 3) {
-          cat("  Inequalities are contradictory - check founder matrix condition\n")
-          # Show matrix condition number if available
-          tryCatch({
-            cond <- kappa(founder_matrix_clean)
-            cat("  Matrix condition number:", format(cond, scientific = TRUE), "\n")
-          }, error = function(e) {})
+      # Only show diagnostics on actual error
+      cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
+      if (lsei_result$IsError == 3) {
+        cat("  Position:", pos, "Sample:", sample_name, "\n")
+        cat("  Inequalities are contradictory - showing diagnostics:\n")
+        # Show founder ranges for this problematic case
+        for (i in seq_along(founders)) {
+          freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
+          cat(sprintf("  %s: %.3f - %.3f\n", founders[i], freq_range[1], freq_range[2]))
         }
+        # Show matrix condition if available
+        tryCatch({
+          cond <- kappa(founder_matrix_clean)
+          cat("  Matrix condition number:", format(cond, scientific = TRUE), "\n")
+        }, error = function(e) {})
       }
     }
   }, error = function(e) {
