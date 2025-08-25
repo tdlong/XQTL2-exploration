@@ -58,9 +58,6 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
                   format(window_end, big.mark=",")))
     }
     
-    # Memory tracking for window operations
-    if (exists("track_mem")) track_mem(sprintf("Start window %.0f kb", window_size_bp/1000))
-    
     # Get data (same as test script)
     window_data <- df3 %>%
       filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))

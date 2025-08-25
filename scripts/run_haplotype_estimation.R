@@ -8,15 +8,6 @@
 # Example: Rscript run_haplotype_estimation.R chr2R adaptive 6 <output_dir> <param_file>
 
 library(tidyverse)
-library(pryr)  # For memory tracking
-
-# Memory tracking function
-track_mem <- function(label) {
-  gc_stats <- gc(reset = TRUE)  # Force GC and get stats
-  mem_used <- mem_used()  # Current memory usage
-  cat(sprintf("\nMEMORY [%s]: %.2f GB used (%.2f GB gc trigger)\n", 
-              label, mem_used / 1e9, gc_stats[2,6] / 1e9))
-}
 
 # Source unified function
 source("scripts/haplotype_estimation_functions.R")
@@ -91,15 +82,14 @@ if (!file.exists(filein)) {
   quit(status = 1)
 }
 
-track_mem("Before data load")
+cat("\nMemory before data load:\n")
+print(gc())
 df <- read.table(filein, header = TRUE)
-track_mem("After data load")
+cat("\nMemory after data load:\n")
+print(gc())
 
-# Clear large objects we don't need anymore
-rm(df)
-gc()
-
-track_mem("Before data transform")
+cat("\nMemory before data transform:\n")
+print(gc())
 df2 <- df %>%
   pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
@@ -134,7 +124,8 @@ df3 <- df2 %>%
 
 cat("Quality-filtered positions:", length(quality_filtered_positions), "\n")
 cat("✓ Data ready:", nrow(df3), "rows\n")
-track_mem("After data preparation")
+cat("\nMemory after data preparation:\n")
+print(gc())
 
 # Clear intermediate objects
 rm(df2, founder_wide, quality_filtered_positions)
@@ -167,7 +158,8 @@ if (method == "fixed") {
 
 # Use expand_grid + purrr::pmap_dfr (same as test wrapper)
 cat("Processing", length(scan_positions), "positions ×", length(names_in_bam), "samples...\n")
-track_mem("Before processing positions")
+cat("\nMemory before processing positions:\n")
+print(gc())
 
 results_df <- expand_grid(
   pos = scan_positions,
