@@ -4,8 +4,8 @@
 # Runs chromosome-wide haplotype estimation for a specific method and parameter combination
 
 # Usage: Rscript run_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file>
-# Example: Rscript run_haplotype_estimation.R chr2R fixed 50 process/JUICE helpfiles/JUICE_haplotype_parameters.R
-# Example: Rscript run_haplotype_estimation.R chr2R adaptive 6 process/JUICE helpfiles/JUICE_haplotype_parameters.R
+# Example: Rscript run_haplotype_estimation.R chr2R fixed 50 <output_dir> <param_file>
+# Example: Rscript run_haplotype_estimation.R chr2R adaptive 6 <output_dir> <param_file>
 
 library(tidyverse)
 
@@ -17,8 +17,8 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 5) {
   cat("Usage: Rscript run_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file>\n")
   cat("Examples:\n")
-  cat("  Fixed window:   Rscript run_haplotype_estimation.R chr2R fixed 50 process/JUICE helpfiles/JUICE_haplotype_parameters.R\n")
-  cat("  Adaptive window: Rscript run_haplotype_estimation.R chr2R adaptive 6 process/JUICE helpfiles/JUICE_haplotype_parameters.R\n")
+  cat("  Fixed window:   Rscript run_haplotype_estimation.R chr2R fixed 50 <output_dir> <param_file>\n")
+  cat("  Adaptive window: Rscript run_haplotype_estimation.R chr2R adaptive 6 <output_dir> <param_file>\n")
   quit(status = 1)
 }
 
