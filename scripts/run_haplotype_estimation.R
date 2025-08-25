@@ -8,6 +8,15 @@
 # Example: Rscript run_haplotype_estimation.R chr2R adaptive 6 <output_dir> <param_file>
 
 library(tidyverse)
+library(pryr)  # For memory tracking
+
+# Memory tracking function
+track_mem <- function(label) {
+  gc_stats <- gc(reset = TRUE)  # Force GC and get stats
+  mem_used <- mem_used()  # Current memory usage
+  cat(sprintf("\nMEMORY [%s]: %.2f GB used (%.2f GB gc trigger)\n", 
+              label, mem_used / 1e9, gc_stats[2,6] / 1e9))
+}
 
 # Source unified function
 source("scripts/haplotype_estimation_functions.R")
@@ -82,8 +91,15 @@ if (!file.exists(filein)) {
   quit(status = 1)
 }
 
+track_mem("Before data load")
 df <- read.table(filein, header = TRUE)
+track_mem("After data load")
 
+# Clear large objects we don't need anymore
+rm(df)
+gc()
+
+track_mem("Before data transform")
 df2 <- df %>%
   pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
@@ -118,6 +134,11 @@ df3 <- df2 %>%
 
 cat("Quality-filtered positions:", length(quality_filtered_positions), "\n")
 cat("✓ Data ready:", nrow(df3), "rows\n")
+track_mem("After data preparation")
+
+# Clear intermediate objects
+rm(df2, founder_wide, quality_filtered_positions)
+gc()
 
 # 3. Define scan positions (chromosome-wide grid)
 cat("\n3. Defining scan positions...\n")
@@ -146,6 +167,7 @@ if (method == "fixed") {
 
 # Use expand_grid + purrr::pmap_dfr (same as test wrapper)
 cat("Processing", length(scan_positions), "positions ×", length(names_in_bam), "samples...\n")
+track_mem("Before processing positions")
 
 results_df <- expand_grid(
   pos = scan_positions,
@@ -178,6 +200,8 @@ results_dir <- file.path(output_dir, "haplotype_results")
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 output_file <- file.path(results_dir, output_filename)
+
+track_mem("After processing positions")
 
 if (nrow(results_df) > 0) {
   saveRDS(results_df, output_file)

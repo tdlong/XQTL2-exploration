@@ -58,6 +58,9 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
                   format(window_end, big.mark=",")))
     }
     
+    # Memory tracking for window operations
+    if (exists("track_mem")) track_mem(sprintf("Start window %.0f kb", window_size_bp/1000))
+    
     # Get data (same as test script)
     window_data <- df3 %>%
       filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
@@ -105,9 +108,19 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       show_snp_diagnostics(wide_data, founders, founder_matrix_clean)
     }
     
+    # Memory tracking before LSEI
+    if (exists("track_mem")) track_mem("Before LSEI")
+    
     # Run LSEI and clustering
     result <- run_lsei_and_clustering(founder_matrix_clean, sample_freqs_clean, 
                                      founders, h_cutoff, verbose)
+                                     
+    # Memory tracking after LSEI
+    if (exists("track_mem")) track_mem("After LSEI")
+    
+    # Force cleanup
+    rm(founder_matrix_clean, sample_freqs_clean)
+    gc()
     
     # Return result
     return(create_result(chr, pos, sample_name, method, window_size_bp, 
