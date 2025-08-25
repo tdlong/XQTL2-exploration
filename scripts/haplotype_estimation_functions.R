@@ -105,19 +105,9 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       show_snp_diagnostics(wide_data, founders, founder_matrix_clean)
     }
     
-    # Memory tracking before LSEI
-    if (exists("track_mem")) track_mem("Before LSEI")
-    
     # Run LSEI and clustering
     result <- run_lsei_and_clustering(founder_matrix_clean, sample_freqs_clean, 
                                      founders, h_cutoff, verbose)
-                                     
-    # Memory tracking after LSEI
-    if (exists("track_mem")) track_mem("After LSEI")
-    
-    # Force cleanup
-    rm(founder_matrix_clean, sample_freqs_clean)
-    gc()
     
     # Return result
     return(create_result(chr, pos, sample_name, method, window_size_bp, 
@@ -383,20 +373,46 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
   haplotype_freqs <- rep(NA, length(founders))
   names(haplotype_freqs) <- founders
   
-  # Run LSEI (same algorithm as main test)
+  # Check founder frequency ranges for diagnostics
+  if (verbose >= 1) {
+    cat("\nFounder frequency ranges:\n")
+    for (i in seq_along(founders)) {
+      freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
+      cat(sprintf("%s: %.3f - %.3f\n", founders[i], freq_range[1], freq_range[2]))
+    }
+  }
+
+  # Run LSEI with better error handling
   tryCatch({
-    E <- matrix(rep(1, length(founders)), nrow = 1)
+    E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
     F <- 1.0
-    G <- diag(length(founders))
-    H <- matrix(rep(0.0003, length(founders)))
+    G <- diag(length(founders))  # Non-negativity constraints
+    H <- matrix(rep(0.0003, length(founders)))  # Lower bound
     
-    lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
-                                 E = E, F = F, G = G, H = H)
+    if (verbose >= 2) {
+      cat("\nLSEI inputs:\n")
+      cat("Matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
+      cat("Number of constraints:", nrow(E), "equality +", nrow(G), "inequality\n")
+    }
+    
+    # Try LSEI with warning handler
+    withCallingHandlers({
+      lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                   E = E, F = F, G = G, H = H)
+    }, warning = function(w) {
+      if (verbose >= 1) {
+        cat("LSEI Warning:", conditionMessage(w), "\n")
+      }
+    })
     
     if (lsei_result$IsError == 0) {
       # LSEI successful - get frequencies
       haplotype_freqs <- lsei_result$X
       names(haplotype_freqs) <- founders
+      
+      if (verbose >= 1) {
+        cat("✓ LSEI successful\n")
+      }
       
       if (verbose >= 3) {
         cat("✓ LSEI successful!\n")
@@ -420,15 +436,27 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
       estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
       
     } else {
+      # LSEI failed with error code
       estimate_OK <- NA
-      if (verbose >= 2) {
+      if (verbose >= 1) {
         cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
+        if (lsei_result$IsError == 3) {
+          cat("  Inequalities are contradictory - check founder matrix condition\n")
+          # Show matrix condition number if available
+          tryCatch({
+            cond <- kappa(founder_matrix_clean)
+            cat("  Matrix condition number:", format(cond, scientific = TRUE), "\n")
+          }, error = function(e) {})
+        }
       }
     }
   }, error = function(e) {
+    # Catastrophic LSEI error
     estimate_OK <- NA
-    if (verbose >= 2) {
+    if (verbose >= 1) {
       cat("✗ LSEI error:", e$message, "\n")
+      cat("  Matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
+      cat("  Complete SNPs:", sum(complete.cases(founder_matrix_clean)), "\n")
     }
   })
   

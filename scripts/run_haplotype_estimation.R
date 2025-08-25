@@ -174,7 +174,7 @@ results_df <- expand_grid(
     method = method,
     window_size_bp = window_size_bp,
     chr = chr,
-    verbose = 0  # Silent for production
+    verbose = 1  # Show important diagnostics
   ))
 
 # 5. Save results with intelligent filename
