@@ -128,42 +128,52 @@ for (sample_name in names_in_bam) {
     filter(sample == sample_name) %>%
     filter(pos >= euchromatin_start, pos <= euchromatin_end)
   
-  cat("Haplotype positions:", nrow(sample_haplotypes), "\n")
+  cat("Haplotype positions (every 10kb):", nrow(sample_haplotypes), "\n")
   
   # Check for NA haplotypes
   na_positions <- sample_haplotypes %>%
     filter(if_any(all_of(founders), is.na))
   
-  cat("Positions with NA haplotypes:", nrow(na_positions), "\n")
+  cat("Haplotype positions with NA values:", nrow(na_positions), "\n")
   
-  if (nrow(na_positions) > 0) {
-    # Count SNPs that would be skipped due to NA haplotypes
-    # This mimics the existing pipeline logic: "if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { next }"
-    
+  # Count SNPs that can be imputed vs. skipped
+  total_snps <- nrow(valid_snps %>% distinct(CHROM, POS))
+  snps_imputable <- 0
+  snps_skipped_due_to_na <- 0
+  na_intervals <- 0
+  
+  if (nrow(sample_haplotypes) > 1) {
+    # Sort haplotype positions
     haplotype_positions <- sort(sample_haplotypes$pos)
-    snps_skipped_due_to_na <- 0
     
-    # Count SNPs in intervals where BOTH flanking haplotypes are NA
+    # Analyze each interval between haplotype positions
     for (i in 1:(length(haplotype_positions) - 1)) {
       left_pos <- haplotype_positions[i]
       right_pos <- haplotype_positions[i + 1]
       
-      # Check if both positions have NA haplotypes (this is what the existing pipeline checks)
+      # Check if both positions have NA haplotypes
       left_has_na <- any(is.na(sample_haplotypes %>% filter(pos == left_pos) %>% select(all_of(founders))))
       right_has_na <- any(is.na(sample_haplotypes %>% filter(pos == right_pos) %>% select(all_of(founders))))
       
+      # Count SNPs in this interval
+      snps_in_interval <- valid_snps %>%
+        filter(POS > left_pos, POS < right_pos) %>%
+        distinct(CHROM, POS) %>%
+        nrow()
+      
       if (left_has_na && right_has_na) {
-        # Count SNPs in this interval that would be skipped
-        snps_in_interval <- valid_snps %>%
-          filter(POS > left_pos, POS < right_pos) %>%
-          distinct(CHROM, POS) %>%
-          nrow()
-        
+        # Both flanking haplotypes are NA - SNPs in this interval get skipped
+        na_intervals <- na_intervals + 1
         snps_skipped_due_to_na <- snps_skipped_due_to_na + snps_in_interval
+        
+        if (na_intervals <= 3) {
+          cat("  NA interval", na_intervals, ":", left_pos, "-", right_pos, "(", snps_in_interval, "SNPs skipped)\n")
+        }
+      } else {
+        # At least one flanking haplotype is valid - SNPs in this interval can be imputed
+        snps_imputable <- snps_imputable + snps_in_interval
       }
     }
-    
-    cat("SNPs that would be skipped due to NA haplotypes:", snps_skipped_due_to_na, "\n")
   }
   
   # Check founder state coverage (copied from existing pipeline logic)
@@ -178,21 +188,18 @@ for (sample_name in names_in_bam) {
   
   cat("SNPs with missing founder states:", nrow(missing_founder_states), "\n")
   
-  # Summary
-  total_snps <- nrow(valid_snps %>% distinct(CHROM, POS))
-  snps_with_haplotypes <- nrow(sample_haplotypes)
-  snps_with_founder_states <- nrow(founder_states_wide) - nrow(missing_founder_states)
-  
+  # Clear summary
   cat("Coverage summary:\n")
   cat("  Total euchromatic SNPs:", total_snps, "\n")
-  cat("  SNPs with haplotypes:", snps_with_haplotypes, "\n")
-  cat("  SNPs with founder states:", snps_with_founder_states, "\n")
-  if (nrow(na_positions) > 0) {
-    cat("  SNPs that would be skipped due to NA haplotypes:", snps_skipped_due_to_na, "\n")
-  }
-  cat("  Expected imputations (if pipeline worked correctly):", min(snps_with_haplotypes, snps_with_founder_states), "\n")
+  cat("  Haplotype positions (every 10kb):", nrow(sample_haplotypes), "\n")
+  cat("  SNPs that can be imputed:", snps_imputable, "\n")
+  cat("  SNPs that get skipped due to NA haplotypes:", snps_skipped_due_to_na, "\n")
+  cat("  NA intervals (both sides NA):", na_intervals, "\n")
+  cat("  SNPs with founder states:", nrow(founder_states_wide) - nrow(missing_founder_states), "\n")
+  cat("  Expected successful imputations:", min(snps_imputable, nrow(founder_states_wide) - nrow(missing_founder_states)), "\n")
 }
 
 cat("\n=== Diagnostic Complete ===\n")
 cat("This shows what the existing pipeline logic would do.\n")
-cat("The key insight: SNPs flanked by NA haplotypes get skipped entirely.\n")
+cat("Key insight: SNPs flanked by NA haplotypes get skipped entirely.\n")
+cat("Smaller fixed windows have more NA haplotypes, so more SNPs get skipped.\n")
