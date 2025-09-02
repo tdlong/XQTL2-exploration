@@ -295,11 +295,21 @@ overall_summary <- overall_metrics %>%
     mean_correlation = mean(correlation, na.rm = TRUE),
     n_samples = n(),
     .groups = "drop"
-  ) %>%
-  arrange(mean_mse)
+  )
+
+# Create logical ordering: fixed windows (smallest to largest), then adaptive (smallest h to largest h)
+estimator_order <- c(
+  "fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb",
+  "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10"
+)
+
+# Order by this logical sequence
+overall_summary <- overall_summary %>%
+  mutate(estimator = factor(estimator, levels = estimator_order)) %>%
+  arrange(estimator)
 
 # Format the table with better precision and column handling
-cat("\nPerformance Summary (sorted by MSE):\n")
+cat("\nPerformance Summary (ordered logically: fixed windows 20kb→500kb, then adaptive h4→h10):\n")
 cat("=", strrep("=", 100), "\n", sep = "")
 cat(sprintf("%-20s %8s %10s %10s %10s %12s %8s\n", 
             "Estimator", "Coverage", "MSE", "RMSE", "MAE", "Correlation", "Samples"))
@@ -318,6 +328,20 @@ for (i in 1:nrow(overall_summary)) {
 }
 
 cat(strrep("-", 100), "\n")
+cat("\n")
+
+# Add performance ranking information
+cat("Performance Ranking (by MSE):\n")
+performance_ranking <- overall_summary %>%
+  arrange(mean_mse) %>%
+  mutate(rank = row_number()) %>%
+  select(rank, estimator, mean_mse, mean_correlation)
+
+for (i in 1:nrow(performance_ranking)) {
+  row <- performance_ranking[i, ]
+  cat(sprintf("  %d. %s (MSE: %.6f, Correlation: %.3f)\n", 
+              row$rank, row$estimator, row$mean_mse, row$mean_correlation))
+}
 cat("\n")
 
 # =============================================================================
