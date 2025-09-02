@@ -201,17 +201,46 @@ for (estimator in names(imputation_results)) {
       by = c("POS" = "pos", "name" = "sample")
     )
   
-  # Calculate metrics
+  # Diagnostic information
+  cat("  Sample coverage summary:\n")
+  sample_coverage <- comparison_data %>%
+    group_by(name) %>%
+    summarize(
+      n_total = n(),
+      n_imputed = sum(!is.na(imputed_freq)),
+      coverage_pct = round(n_imputed / n_total * 100, 1),
+      .groups = "drop"
+    )
+  
+  for (i in 1:nrow(sample_coverage)) {
+    row <- sample_coverage[i, ]
+    cat(sprintf("    %s: %d/%d SNPs (%.1f%%)\n", 
+                row$name, row$n_imputed, row$n_total, row$coverage_pct))
+  }
+  
+  # Calculate metrics (only for samples with imputed data)
   metrics <- comparison_data %>%
     group_by(name) %>%
     summarize(
       n_total = n(),
       n_imputed = sum(!is.na(imputed_freq)),
       coverage = n_imputed / n_total,
+      .groups = "drop"
+    ) %>%
+    filter(n_imputed > 0) %>%  # Only include samples with some imputed data
+    left_join(
+      comparison_data %>% filter(!is.na(imputed_freq)),
+      by = "name"
+    ) %>%
+    group_by(name, n_total, n_imputed, coverage) %>%
+    summarize(
       mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
       rmse = sqrt(mse),
       mae = mean(abs(observed_freq - imputed_freq), na.rm = TRUE),
-      correlation = cor(observed_freq, imputed_freq, use = "complete.obs"),
+      correlation = ifelse(n_imputed > 1, 
+                          tryCatch(cor(observed_freq, imputed_freq, use = "complete.obs"), 
+                                  error = function(e) NA_real_), 
+                          NA_real_),
       .groups = "drop"
     ) %>%
     mutate(estimator = estimator)
