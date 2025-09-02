@@ -1,14 +1,14 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: EVALUATION PHASE - SNP IMPUTATION COMPLETE**
+## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SCRIPT REORGANIZATION COMPLETE**
 
-**STATUS**: ✅ **HAPLOTYPE ESTIMATION COMPLETE** | ✅ **SNP IMPUTATION COMPLETE** | 🔄 **METHOD EVALUATION COMPLETE**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE**
 
 ---
 
 ## 📊 **COMPLETED PHASES**
 
-### ✅ **PHASE 1: HAPLOTYPE ESTIMATION - COMPLETE**
+### ✅ **PHASE 1: JUICE DATASET ANALYSIS - COMPLETE**
 
 **Results Summary (9/9 estimators complete):**
 ```
@@ -26,204 +26,133 @@ adaptive   h10        100.0%     0.0%         0.0%
 
 **🎯 KEY ACHIEVEMENT**: Adaptive window algorithm working **perfectly** - 100% reliability across all h_cutoff values!
 
-### ✅ **PHASE 2: SNP IMPUTATION PRODUCTION - COMPLETE**
+### ✅ **PHASE 2: JUICE SNP IMPUTATION - COMPLETE**
 
 - ✅ **All 9 parameter combinations completed successfully!**
 - ✅ Critical bug fixed and re-run completed
 - ✅ All SNP imputation files generated and validated
 - ✅ Method evaluation completed with performance metrics
 
----
+### ✅ **PHASE 3: SCRIPT REORGANIZATION - COMPLETE**
 
-## ✅ **COMPLETED PHASE: SNP IMPUTATION PRODUCTION - SUCCESSFULLY COMPLETED**
-
-### **Status**: 🎉 **ALL PHASES COMPLETE** - Ready for final analysis
-
-**✅ SNP IMPUTATION SUCCESS**: All 9 parameter combinations completed successfully after critical bug fix.
-
-**What was accomplished**: 
-- Fixed critical data type bug in SNP frequency calculation
-- Successfully re-ran all SNP imputation jobs
-- Generated comprehensive performance metrics for all methods
-- Completed method evaluation and comparison
-
-**Results available**: 
-- All haplotype files: `process/JUICE/haplotype_results/*_results_chr2R.RDS`
-  - Fixed: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`, etc.
-  - Adaptive: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h6_results_chr2R.RDS`, etc.
-- All SNP imputation files: `process/JUICE/haplotype_results/snp_imputation_*_chr2R.RDS`
-  - Fixed: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`, etc.
-  - Adaptive: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h6_chr2R.RDS`, etc.
-- Method evaluation metrics and comparisons
-- Performance analysis across all 9 haplotype estimation methods
+- ✅ **Scripts directory completely reorganized** for clarity and maintainability
+- ✅ **Hard-coded JUICE references removed** from all production scripts
+- ✅ **Production scripts separated** from debug/testing code
+- ✅ **Clean directory structure** with clear documentation
 
 ---
 
-## 🎯 **NEXT STEPS - FINAL ANALYSIS AND REPORTING**
+## 🔄 **CURRENT PHASE: ZINC2 DATASET ANALYSIS - IN PROGRESS**
 
-### **PHASE 3: COMPREHENSIVE ANALYSIS (READY TO BEGIN)**
+### **Status**: 🚀 **ZINC2 PIPELINE ACTIVE** - SNP Imputation Running
 
-**Available analysis scripts:**
+**What's happening now**: 
+- Running the same successful JUICE pipeline on ZINC2 dataset
+- Using identical parameter combinations and methods
+- Output directory: `process/ZINC2/`
+
+**Current pipeline status**:
 ```bash
-# Create comprehensive summary file
-Rscript scripts/create_summary_file_chunked.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+# Haplotype testing completed
+sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
-# Plot specific regions
-Rscript scripts/plot_summary_region.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE 870
-
-# Plot B1 frequencies across methods
-Rscript scripts/plot_B1_frequencies.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+# SNP imputation currently running
+sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
 
-**Analysis includes:**
-- ✅ MSE between observed and imputed frequencies (COMPLETED)
-- ✅ Coverage and correlation metrics (COMPLETED)  
-- ✅ Regional performance (sliding windows) (COMPLETED)
-- ✅ Best method identification (COMPLETED)
-- 🔄 Comprehensive summary file generation
-- 🔄 Regional visualization and comparison
-- 🔄 Final reporting and recommendations
-
----
-
-## 📁 **FILE NAMING CONVENTIONS**
-
-### **Haplotype Estimation Files** (ACTUAL FILES FROM LS)
-- **Fixed Window**: `fixed_window_<size>kb_results_chr2R.RDS`
-  - Examples: `fixed_window_20kb_results_chr2R.RDS`, `fixed_window_50kb_results_chr2R.RDS`, `fixed_window_100kb_results_chr2R.RDS`, `fixed_window_200kb_results_chr2R.RDS`, `fixed_window_500kb_results_chr2R.RDS`
-- **Adaptive Window**: `adaptive_window_h<cutoff>_results_chr2R.RDS`
-  - Examples: `adaptive_window_h4_results_chr2R.RDS`, `adaptive_window_h6_results_chr2R.RDS`, `adaptive_window_h8_results_chr2R.RDS`, `adaptive_window_h10_results_chr2R.RDS`
-
-### **SNP Imputation Files** (ACTUAL FILES FROM LS)
-- **Fixed Window**: `snp_imputation_fixed_<size>kb_chr2R.RDS`
-  - Examples: `snp_imputation_fixed_20kb_chr2R.RDS`, `snp_imputation_fixed_50kb_chr2R.RDS`, `snp_imputation_fixed_100kb_chr2R.RDS`, `snp_imputation_fixed_200kb_chr2R.RDS`, `snp_imputation_fixed_500kb_chr2R.RDS`
-- **Adaptive Window**: `snp_imputation_adaptive_h<cutoff>_chr2R.RDS`
-  - Examples: `snp_imputation_adaptive_h4_chr2R.RDS`, `snp_imputation_adaptive_h6_chr2R.RDS`, `snp_imputation_adaptive_h8_chr2R.RDS`, `snp_imputation_adaptive_h10_chr2R.RDS`
-
-### **Input Files**
-- **REFALT Data**: `process/JUICE/RefAlt.chr2R.txt` (SNP allele count data)
-
-### **All Files Location**
-- **Haplotype Results Directory**: `process/JUICE/haplotype_results/`
-- **REFALT Data Directory**: `process/JUICE/`
-- **Complete Path Examples**: 
-  - Haplotype: `process/JUICE/haplotype_results/adaptive_window_h8_results_chr2R.RDS`
-  - REFALT: `process/JUICE/RefAlt.chr2R.txt`
-
-### **Haplotype File Format & Reading Instructions**
-**IMPORTANT: Use this exact code pattern - do not reinvent the wheel!**
-
-#### **File Structure:**
-- **Columns**: `chr`, `pos`, `estimate_OK`, `B1`, `B2`, `B3`, `B4`, `B5`, `B6`, `B7`, `AB8`, `sample`
-- **Founder frequencies**: `B1`, `B2`, etc. contain haplotype frequencies (0-1)
-- **Position**: `pos` (lowercase) contains genomic positions
-- **Sample**: `sample` contains sample names (e.g., "AJ_1_1")
-
-#### **Working Code Pattern (COPY THIS EXACTLY):**
-```r
-# Fixed window estimators
-h_data <- readRDS(file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))) %>%
-  select(chr, pos, estimate_OK, B1, sample) %>%
-  mutate(method = method)
-
-# Adaptive window estimators  
-h_data <- readRDS(file.path(results_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))) %>%
-  select(chr, pos, estimate_OK, B1, sample) %>%
-  mutate(method = method)
-
-# To combine multiple estimators, join on common columns:
-combined <- reduce(haplotype_list, function(x, y) {
-  left_join(x, y, by = c("chr", "pos", "estimate_OK", "sample"))
-}, .init = haplotype_list[[1]])
-```
-
-#### **Reference Scripts:**
-- **`scripts/create_summary_file_chunked.R`** - Working example of reading all 9 estimators
-- **`scripts/compare_haplotype_methods.R`** - Working example of comparing against alternative method
-
-**DO NOT GUESS COLUMN NAMES - USE THE WORKING CODE ABOVE!**
-
----
-
-## 🏗️ **ACTIVE PRODUCTION ARCHITECTURE**
-
-### **Haplotype Pipeline:**
-1. **`haplotype_estimation_functions.R`** - Unified core functions
-2. **`run_haplotype_estimation.R`** - Production wrapper  
-3. **`haplotype_testing_from_table.sh`** - Slurm orchestration
-
-### **SNP Imputation Pipeline:**
-1. **`euchromatic_SNP_imputation_single.R`** - Core imputation (with testing mode) ⚠️ **CRITICAL BUG FIXED**
-2. **`snp_imputation_from_table.sh`** - Slurm orchestration
-3. **`test_snp_imputation_1000.R`** - Fast testing wrapper
-
-### **Monitoring & Analysis:**
-1. **`summarize_pipeline_results.R`** - Progress tracking
-2. **`check_snp_imputation_status.R`** - SNP completion status
-3. **`evaluate_imputation_methods.R`** - Method evaluation
-4. **`create_summary_file_chunked.R`** - Create comprehensive summary RDS
-5. **`plot_summary_region.R`** - Regional plotting (fixed coordinate system)
-
----
-
-## 🚀 **CURRENT MAIN PIPELINE SCRIPTS**
-
-### **Production SNP Imputation (After Bug Fix):**
+**Next steps after SNP imputation completes**:
 ```bash
-# Launch fixed SNP imputation pipeline
-sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+# Check completion status
+Rscript production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
 
-# Monitor progress
-Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
-```
+# Evaluate methods
+Rscript production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
-### **Evaluation & Analysis (After SNP Imputation Completes):**
-```bash
-# Method comparison and performance analysis
-Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
+# Create summary
+Rscript production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
-# Create comprehensive summary file
-Rscript scripts/create_summary_file_chunked.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
-
-# Plot specific regions
-Rscript scripts/plot_summary_region.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE 870
+# Plot specific region
+Rscript production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
 ```
 
 ---
 
-## 🐛 **CRITICAL BUG FIX DETAILS**
+## 🏗️ **SCRIPT REORGANIZATION COMPLETED**
 
-### **Bug Description:**
-- **Symptom**: All SNP imputation methods showed identical RMSE despite wildly different haplotype estimates
-- **Root Cause**: Data type mismatch in `calculate_imputed_snp_frequency()` function
-- **Technical Issue**: Haplotype frequencies passed as data frames instead of numeric vectors
-- **Impact**: Element-wise multiplication failed silently, causing random baseline performance
-
-### **Fix Applied:**
-```r
-# BEFORE (BROKEN):
-imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs, snp_founder_states)
-
-# AFTER (FIXED):
-haplotype_freqs_numeric <- as.numeric(haplotype_freqs[1, ])
-imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_founder_states)
+### **New Directory Structure**:
+```
+scripts/
+├── production/          # Main scripts you actually use
+│   ├── haplotype_testing_from_table.sh
+│   ├── snp_imputation_from_table.sh
+│   ├── evaluate_imputation_methods.R
+│   ├── check_snp_imputation_status.R
+│   ├── create_summary_file_chunked.R
+│   ├── plot_summary_region.R
+│   └── haplotype_estimation_functions.R
+├── debug/              # Debug/testing scripts (one-offs)
+├── archive/            # Old/legacy scripts
+├── haps2scan/          # Specialized functionality
+├── raw2bam2REFALT/     # Data processing
+├── Heterozygosity_tests/ # Heterozygosity analysis
+└── README.md           # Documentation
 ```
 
-### **Verification:**
-- Added debug output showing founder ordering (B1, B2, B3, B4, B5, B6, B7, AB8)
-- Verified haplotype frequencies and founder states are properly aligned
-- Expected result: Different RMSE values correlating with haplotype frequency differences
+### **Key Improvements**:
+- ✅ **No more hard-coded paths** - everything parameterized
+- ✅ **Clear separation** between production and debug code
+- ✅ **Easy to find** the scripts you actually need
+- ✅ **Documentation** of what each script does
+- ✅ **Ready for any dataset** (JUICE, ZINC2, etc.)
 
 ---
 
-## 🧹 **CLEAN PROJECT ORGANIZATION**
+## 🎯 **ZINC2 ANALYSIS WORKFLOW**
 
-**Scripts folder cleaned** - no more duplicate REFALT2haps files!
+### **Current Pipeline**:
+1. ✅ **Haplotype Estimation** - Complete (9 methods)
+2. 🔄 **SNP Imputation** - Running (9 parallel jobs)
+3. ⏳ **Method Evaluation** - Waiting for imputation completion
+4. ⏳ **Summary Creation** - Waiting for evaluation
+5. ⏳ **Visualization** - Waiting for summary
 
-**Active production files only:**
-- Core pipeline scripts (tested and working)
-- Monitoring and evaluation tools
-- Legacy code archived in `old_REFALT2haps/`
+### **Parameter Combinations** (from `production_slurm_params.tsv`):
+```
+chr2R	fixed	20
+chr2R	fixed	50
+chr2R	fixed	100
+chr2R	fixed	200
+chr2R	fixed	500
+chr2R	adaptive	4
+chr2R	adaptive	6
+chr2R	adaptive	8
+chr2R	adaptive	10
+```
+
+### **Expected Output Structure**:
+```
+process/ZINC2/
+├── RefAlt.chr2R.txt                    # Input SNP data
+├── haplotype_results/                   # All results
+│   ├── fixed_window_20kb_results_chr2R.RDS
+│   ├── fixed_window_50kb_results_chr2R.RDS
+│   ├── fixed_window_100kb_results_chr2R.RDS
+│   ├── fixed_window_200kb_results_chr2R.RDS
+│   ├── fixed_window_500kb_results_chr2R.RDS
+│   ├── adaptive_window_h4_results_chr2R.RDS
+│   ├── adaptive_window_h6_results_chr2R.RDS
+│   ├── adaptive_window_h8_results_chr2R.RDS
+│   ├── adaptive_window_h10_results_chr2R.RDS
+│   ├── snp_imputation_fixed_20kb_chr2R.RDS
+│   ├── snp_imputation_fixed_50kb_chr2R.RDS
+│   ├── snp_imputation_fixed_100kb_chr2R.RDS
+│   ├── snp_imputation_fixed_200kb_chr2R.RDS
+│   ├── snp_imputation_fixed_500kb_chr2R.RDS
+│   ├── snp_imputation_adaptive_h4_chr2R.RDS
+│   ├── snp_imputation_adaptive_h6_chr2R.RDS
+│   ├── snp_imputation_adaptive_h8_chr2R.RDS
+│   └── snp_imputation_adaptive_h10_chr2R.RDS
+```
 
 ---
 
@@ -234,6 +163,8 @@ imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_fou
 3. **✅ Robust Testing**: Comprehensive local validation before cluster deployment
 4. **✅ Professional Pipeline**: Scalable, well-documented, tidyverse-compliant
 5. **✅ Clean Architecture**: Clear separation of concerns, no code duplication
+6. **✅ Script Reorganization**: Clean, maintainable script structure
+7. **✅ Multi-Dataset Ready**: Pipeline works with any dataset (JUICE, ZINC2, etc.)
 
 ---
 
@@ -249,112 +180,67 @@ imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_fou
 - Test thoroughly before any changes
 - Verify different h_cutoff values produce different results
 
+### **Script Organization**
+- **Use scripts from `production/` directory** for all analysis
+- **Debug scripts are in `debug/`** - don't use for production
+- **All paths are now parameterized** - no hard-coded references
+
 ---
 
-## 📝 **KEY COMMANDS HISTORY**
+## 📝 **ZINC2 ANALYSIS COMMANDS**
 
-### **HAPLOTYPE ESTIMATION WORKFLOW**
-
-#### **1. Initial Setup and Testing**
+### **Current Pipeline**:
 ```bash
-# Test individual haplotype functions locally
-Rscript scripts/test_haplotype_functions.R
+# Haplotype testing (COMPLETED)
+sbatch production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# SNP imputation (CURRENTLY RUNNING)
+sbatch production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
 
-#### **2. Production Haplotype Estimation**
+### **Next Steps** (after SNP imputation completes):
 ```bash
-# Run full haplotype estimation pipeline (9 parameter combinations)
-sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
-
 # Check completion status
-Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
+Rscript production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
+
+# Evaluate methods
+Rscript production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Create summary
+Rscript production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Plot specific region
+Rscript production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
 ```
 
-**Result**: 9/9 estimators completed successfully with 100% reliability for adaptive methods
-
-### **SNP IMPUTATION WORKFLOW**
-
-#### **3. SNP Imputation Testing**
+### **Monitoring Commands**:
 ```bash
-# Test SNP imputation on small subset (1000 SNPs, fast validation)
-Rscript scripts/test_snp_imputation_1000.R
+# Check job status
+squeue -u $USER
 
-# Verified:
-# - All 6 samples processed correctly
-# - Haplotype/SNP data compatibility
-# - Safe testing (separate _TEST.RDS files)
+# Check output directory
+ls -la process/ZINC2/haplotype_results/
+
+# Check specific file completion
+Rscript production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
 ```
-
-**Result**: Test passed with flying colors!
-
-#### **4. Production SNP Imputation (CURRENT)**
-```bash
-# Launch full SNP imputation pipeline (9 parallel jobs)
-sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
-
-# Monitor progress
-Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
-```
-
-**Status**: Running (may take until tomorrow)
-
-### **UPCOMING: METHOD EVALUATION**
-
-#### **6. Performance Analysis (NEXT STEP)**
-```bash
-# After SNP imputation completes, run comprehensive evaluation
-Rscript scripts/evaluate_imputation_methods.R chr2R helpfiles/JUICE_haplotype_parameters.R process/JUICE
-
-# This will generate:
-# - MSE, correlation, coverage metrics
-# - Regional sliding window analysis
-# - Method comparison and recommendations
-```
-
-### **DEBUGGING AND DEVELOPMENT COMMANDS USED**
-
-#### **Key Debugging Tools**
-```bash
-# Test specific functions during development
-Rscript scripts/test_haplotype_functions.R
-
-# Quick SNP imputation testing
-Rscript scripts/test_snp_imputation_1000.R
-
-# Monitor file completion
-ls -la process/JUICE/haplotype_results/
-Rscript scripts/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/JUICE
-
-# Overall pipeline monitoring  
-Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
-```
-
-#### **Git Workflow**
-```bash
-# Standard development cycle
-git add .
-git commit -m "descriptive message"
-git push origin main
-
-# Pull updates on cluster
-git pull origin main
-```
-
-### **PARAMETER FILES USED**
-
-#### **Core Configuration**
-- **`helpfiles/production_slurm_params.tsv`**: Method/parameter combinations (9 rows)
-- **`helpfiles/JUICE_haplotype_parameters.R`**: Founders, samples, step size
-
-#### **Key Data Files**
-- **Input**: `process/JUICE/RefAlt.chr2R.txt` (REFALT allele counts)
-- **Haplotype Output**: `process/JUICE/haplotype_results/<estimator>_results_chr2R.RDS`
-  - Fixed window: `fixed_window_<size>kb_results_chr2R.RDS` (e.g., `fixed_window_20kb_results_chr2R.RDS`)
-  - Adaptive window: `adaptive_window_h<cutoff>_results_chr2R.RDS` (e.g., `adaptive_window_h8_results_chr2R.RDS`)
-- **SNP Output**: `process/JUICE/haplotype_results/snp_imputation_<estimator>_chr2R.RDS`
-  - Fixed window: `snp_imputation_fixed_<size>kb_chr2R.RDS` (e.g., `snp_imputation_fixed_20kb_chr2R.RDS`)
-  - Adaptive window: `snp_imputation_adaptive_h<cutoff>_chr2R.RDS` (e.g., `snp_imputation_adaptive_h8_chr2R.RDS`)
 
 ---
 
-*Last Updated: 2025-01-19 - SNP Imputation Phase Active*
+## 🧹 **PROJECT ORGANIZATION STATUS**
+
+### **Scripts Directory**: ✅ **COMPLETELY REORGANIZED**
+- **Production scripts**: Clean, parameterized, ready for any dataset
+- **Debug scripts**: Separated but accessible for troubleshooting
+- **Archive scripts**: Preserved for reference
+- **Documentation**: Clear README with usage examples
+
+### **Data Organization**: ✅ **CLEAN AND SCALABLE**
+- **JUICE dataset**: Complete analysis in `process/JUICE/`
+- **ZINC2 dataset**: Active analysis in `process/ZINC2/`
+- **Parameter files**: Dataset-specific configurations
+- **Output structure**: Consistent across all datasets
+
+---
+
+*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Script Reorganization Complete*

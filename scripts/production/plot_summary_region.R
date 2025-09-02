@@ -86,7 +86,7 @@ method_colors <- c(
               geom_point(size = 1) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
-                labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+                labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
               ) +
               labs(
@@ -113,7 +113,7 @@ rmse_data <- region_data %>%
                 geom_point(size = 1) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
-                  labels = function(x) format(x, scientific = FALSE, big.mark = ","),
+                  labels = function(x) format(x, scientific = FALSE),
                   breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
                 ) +
                 labs(

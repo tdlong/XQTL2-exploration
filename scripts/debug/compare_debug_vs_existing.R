@@ -38,55 +38,55 @@ existing_file <- file.path("process/JUICE/haplotype_results",
 cat("Loading existing results from:", existing_file, "\n")
 existing_results <- readRDS(existing_file)
 
-# Filter to our sample and get the same SNPs as debug run
-set.seed(1201)  # Same seed as debug mode
-euchromatic_start <- 5398184
-euchromatic_end <- 24684540
+# Check structure of existing results
+cat("Existing results structure:\n")
+print(str(existing_results))
+cat("\n")
 
-# Get valid SNP positions from existing results
-valid_positions <- existing_results %>%
-  filter(sample == sample_name, 
-         POS >= euchromatic_start, 
-         POS <= euchromatic_end) %>%
-  pull(POS) %>%
-  unique()
-
-# Sample the same positions as debug mode
-if (length(valid_positions) >= test_n_snps) {
-  test_positions <- sample(valid_positions, test_n_snps)
-} else {
-  test_positions <- valid_positions
-  cat("Warning: Only", length(valid_positions), "positions available, using all\n")
-}
-
-# Extract existing results for comparison
+# Filter to our sample
 existing_subset <- existing_results %>%
-  filter(sample == sample_name, POS %in% test_positions) %>%
+  filter(sample == sample_name) %>%
   select(POS, observed, imputed) %>%
   arrange(POS)
 
+cat("Extracted", nrow(existing_subset), "SNPs from existing results for sample", sample_name, "\n\n")
+
 cat("Extracted", nrow(existing_subset), "SNPs from existing results\n\n")
 
-# Run our clean implementation and capture output
-cat("Running clean implementation...\n")
+# Load debug results
 debug_file <- file.path("process/JUICE/haplotype_results", 
                        paste0("snp_imputation_", estimator, "_", chr, "_DEBUG.RDS"))
 
 if (file.exists(debug_file)) {
   clean_results <- readRDS(debug_file)
   
-  # Filter to same positions
+  cat("Loaded clean results from:", debug_file, "\n")
+  cat("Clean results structure:\n")
+  print(str(clean_results))
+  cat("\n")
+  
+  # Get clean subset
   clean_subset <- clean_results %>%
-    filter(POS %in% test_positions) %>%
     select(POS, observed, imputed) %>%
     arrange(POS)
   
-  cat("Loaded clean results from:", debug_file, "\n")
   cat("Extracted", nrow(clean_subset), "SNPs from clean results\n\n")
   
-  # Compare results
+  # Simple left_join comparison
+  cat("=== DIRECT COMPARISON ===\n")
   comparison <- clean_subset %>%
-    left_join(existing_subset, by = "POS", suffix = c("_clean", "_existing")) %>%
+    left_join(existing_subset, by = "POS", suffix = c("_clean", "_existing"))
+  
+  cat("Total SNPs in clean results:", nrow(clean_subset), "\n")
+  cat("Total SNPs in existing results:", nrow(existing_subset), "\n")
+  cat("SNPs in both:", nrow(comparison), "\n\n")
+  
+  # Show first few rows
+  cat("First 10 comparisons:\n")
+  print(head(comparison, 10))
+  
+  # Calculate differences
+  comparison <- comparison %>%
     mutate(
       observed_diff = abs(observed_clean - observed_existing),
       imputed_diff = abs(imputed_clean - imputed_existing)
