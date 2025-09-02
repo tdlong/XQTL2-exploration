@@ -48,26 +48,26 @@ Scripts for testing heterozygosity patterns
 
 ## Usage
 
-For production runs, use scripts from the `production/` directory:
+For production runs, use scripts from the `scripts/production/` directory (when running from project root):
 
 ```bash
 # Run haplotype testing
-sbatch production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
 # Run SNP imputation
-sbatch production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
 # Check status
-Rscript production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
+Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
 
 # Evaluate methods
-Rscript production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
 # Create summary (preferred)
-Rscript production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+Rscript scripts/production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
 # Plot specific region
-Rscript production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
+Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
 ```
 
 ## Notes
