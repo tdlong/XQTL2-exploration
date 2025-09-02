@@ -241,15 +241,14 @@ for (estimator in names(imputation_results)) {
       by = "name"
     ) %>%
     group_by(name, n_total, n_imputed, coverage) %>%
-    summarize(
+    reframe(
       mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
       rmse = sqrt(mse),
       mae = mean(abs(observed_freq - imputed_freq), na.rm = TRUE),
       correlation = ifelse(n_imputed > 1, 
                           tryCatch(cor(observed_freq, imputed_freq, use = "complete.obs"), 
                                   error = function(e) NA_real_), 
-                          NA_real_),
-      .groups = "drop"
+                          NA_real_)
     ) %>%
     mutate(estimator = estimator)
   
@@ -264,12 +263,11 @@ for (estimator in names(imputation_results)) {
       window_mid = (window_start + window_end) / 2
     ) %>%
     group_by(window_mid) %>%
-    summarize(
+    reframe(
       n_snps = n(),
       regional_mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
       regional_rmse = sqrt(regional_mse),
-      regional_mae = mean(abs(observed_freq - imputed_freq), na.rm = TRUE),
-      .groups = "drop"
+      regional_mae = mean(abs(observed_freq - imputed_freq), na.rm = TRUE)
     ) %>%
     mutate(estimator = estimator)
   
@@ -327,12 +325,12 @@ cat("\n")
 # =============================================================================
 
 cat("\nGenerating visualizations...\n")
+cat("Note: Using simplified plots for memory efficiency with large datasets\n")
 
-# 1. MSE comparison across methods
+# 1. MSE comparison across methods (simplified for memory efficiency)
 p1 <- overall_metrics %>%
   ggplot(aes(x = reorder(estimator, mse), y = mse, fill = estimator)) +
-  geom_boxplot() +
-  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  geom_col() +  # Use bars instead of boxplots for simplicity
   labs(
     title = "Mean Squared Error by Haplotype Estimation Method",
     x = "Estimator",
@@ -341,11 +339,10 @@ p1 <- overall_metrics %>%
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# 2. Coverage comparison
+# 2. Coverage comparison (simplified for memory efficiency)
 p2 <- overall_metrics %>%
   ggplot(aes(x = reorder(estimator, coverage), y = coverage, fill = estimator)) +
-  geom_boxplot() +
-  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  geom_col() +  # Use bars instead of boxplots for simplicity
   labs(
     title = "Coverage by Haplotype Estimation Method",
     x = "Estimator", 
