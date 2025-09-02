@@ -48,6 +48,14 @@ cat("Regional window size:", window_size_kb, "kb\n\n")
 # Load parameter file
 source(param_file)
 
+# Verify that names_in_bam is defined
+if (!exists("names_in_bam")) {
+  stop("Parameter file must define 'names_in_bam' variable")
+}
+
+cat("Samples to evaluate:", paste(names_in_bam, collapse = ", "), "\n")
+cat("Total samples:", length(names_in_bam), "\n\n")
+
 # Define euchromatin boundaries
 euchromatin_boundaries <- list(
   chr2L = c(82455, 22011009),
@@ -129,10 +137,10 @@ observed_data <- good_snps %>%
 
 cat("✓ Valid euchromatic SNPs for evaluation:", nrow(observed_data %>% distinct(CHROM, POS)), "\n\n")
 
-# Filter to euchromatin and non-founder samples
+# Filter to euchromatin and only the samples we actually processed
 observed_euchromatic <- observed_data %>%
   filter(POS >= euchromatin_start, POS <= euchromatin_end) %>%
-  filter(!name %in% founders)
+  filter(name %in% names_in_bam)  # Only process samples defined in parameter file
 
 cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
 cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
@@ -201,7 +209,7 @@ for (estimator in names(imputation_results)) {
       by = c("POS" = "pos", "name" = "sample")
     )
   
-  # Diagnostic information
+  # Diagnostic information (simplified since we only process relevant samples)
   cat("  Sample coverage summary:\n")
   sample_coverage <- comparison_data %>%
     group_by(name) %>%
