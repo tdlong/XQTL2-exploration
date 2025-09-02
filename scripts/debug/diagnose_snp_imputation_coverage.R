@@ -136,44 +136,90 @@ for (sample_name in names_in_bam) {
   
   cat("Haplotype positions with NA values:", nrow(na_positions), "\n")
   
-  # Count SNPs that can be imputed vs. skipped
-  total_snps <- nrow(valid_snps %>% distinct(CHROM, POS))
-  snps_imputable <- 0
-  snps_skipped_due_to_na <- 0
-  na_intervals <- 0
-  
+  # Use vectorized operations to create consecutive position pairs
   if (nrow(sample_haplotypes) > 1) {
-    # Sort haplotype positions
-    haplotype_positions <- sort(sample_haplotypes$pos)
+    # Create consecutive position pairs using lead() - vectorized!
+    haplotype_pairs <- sample_haplotypes %>%
+      arrange(pos) %>%
+      mutate(
+        pos_left = pos,
+        pos_right = lead(pos),  # Next position
+        has_na_left = if_any(all_of(founders), is.na),  # Left flank NA status
+        has_na_right = lead(has_na_left)  # Right flank NA status
+      ) %>%
+      filter(!is.na(pos_right))  # Remove last position (no right neighbor)
     
-    # Analyze each interval between haplotype positions
-    for (i in 1:(length(haplotype_positions) - 1)) {
-      left_pos <- haplotype_positions[i]
-      right_pos <- haplotype_positions[i + 1]
+    cat("Intervals between haplotype positions:", nrow(haplotype_pairs), "\n")
+    
+    # Classify each interval
+    intervals <- haplotype_pairs %>%
+      mutate(
+        interval_na_flanked = has_na_left & has_na_right,  # Both sides NA
+        interval_imputable = !interval_na_flanked  # At least one side valid
+      )
+    
+    # Count intervals by type
+    na_flanked_intervals <- intervals %>% filter(interval_na_flanked) %>% nrow()
+    imputable_intervals <- intervals %>% filter(interval_imputable) %>% nrow()
+    
+    cat("Intervals flanked by NAs on both sides:", na_flanked_intervals, "\n")
+    cat("Intervals with at least one valid flank:", imputable_intervals, "\n")
+    
+    # Show first few NA-flanked intervals
+    if (na_flanked_intervals > 0) {
+      cat("First few NA-flanked intervals:\n")
+      na_intervals <- intervals %>%
+        filter(interval_na_flanked) %>%
+        head(3)
       
-      # Check if both positions have NA haplotypes
-      left_has_na <- any(is.na(sample_haplotypes %>% filter(pos == left_pos) %>% select(all_of(founders))))
-      right_has_na <- any(is.na(sample_haplotypes %>% filter(pos == right_pos) %>% select(all_of(founders))))
-      
-      # Count SNPs in this interval
-      snps_in_interval <- valid_snps %>%
-        filter(POS > left_pos, POS < right_pos) %>%
-        distinct(CHROM, POS) %>%
-        nrow()
-      
-      if (left_has_na && right_has_na) {
-        # Both flanking haplotypes are NA - SNPs in this interval get skipped
-        na_intervals <- na_intervals + 1
-        snps_skipped_due_to_na <- snps_skipped_due_to_na + snps_in_interval
-        
-        if (na_intervals <= 3) {
-          cat("  NA interval", na_intervals, ":", left_pos, "-", right_pos, "(", snps_in_interval, "SNPs skipped)\n")
-        }
-      } else {
-        # At least one flanking haplotype is valid - SNPs in this interval can be imputed
-        snps_imputable <- snps_imputable + snps_in_interval
+      for (i in 1:nrow(na_intervals)) {
+        row <- na_intervals[i, ]
+        cat("  NA interval", i, ":", row$pos_left, "-", row$pos_right, "\n")
       }
     }
+    
+    # Now assign SNPs to intervals and count
+    snp_intervals <- valid_snps %>%
+      distinct(CHROM, POS) %>%
+      mutate(
+        interval = cut(POS, breaks = c(haplotype_pairs$pos_left, max(haplotype_pairs$pos_right)), 
+                      labels = FALSE, include.lowest = TRUE)
+      ) %>%
+      filter(!is.na(interval))  # Remove SNPs outside haplotype range
+    
+    # Join SNPs with interval information
+    snp_analysis <- snp_intervals %>%
+      left_join(
+        haplotype_pairs %>% 
+          mutate(interval = row_number()) %>% 
+          select(interval, interval_na_flanked),
+        by = "interval"
+      ) %>%
+      group_by(interval_na_flanked) %>%
+      summarize(
+        n_snps = n(),
+        .groups = "drop"
+      )
+    
+    # Count SNPs that can be imputed vs. skipped
+    snps_imputable <- snp_analysis %>%
+      filter(!interval_na_flanked) %>%
+      summarize(total = sum(n_snps)) %>%
+      pull(total)
+    
+    snps_skipped_due_to_na <- snp_analysis %>%
+      filter(interval_na_flanked) %>%
+      summarize(total = sum(n_snps)) %>%
+      pull(total)
+    
+    cat("SNPs that can be imputed:", snps_imputable, "\n")
+    cat("SNPs that get skipped due to NA haplotypes:", snps_skipped_due_to_na, "\n")
+    
+  } else {
+    cat("Not enough haplotype positions for interval analysis\n")
+    snps_imputable <- 0
+    snps_skipped_due_to_na <- 0
+    na_flanked_intervals <- 0
   }
   
   # Check founder state coverage (copied from existing pipeline logic)
@@ -189,17 +235,18 @@ for (sample_name in names_in_bam) {
   cat("SNPs with missing founder states:", nrow(missing_founder_states), "\n")
   
   # Clear summary
+  total_snps <- nrow(valid_snps %>% distinct(CHROM, POS))
   cat("Coverage summary:\n")
   cat("  Total euchromatic SNPs:", total_snps, "\n")
   cat("  Haplotype positions (every 10kb):", nrow(sample_haplotypes), "\n")
   cat("  SNPs that can be imputed:", snps_imputable, "\n")
   cat("  SNPs that get skipped due to NA haplotypes:", snps_skipped_due_to_na, "\n")
-  cat("  NA intervals (both sides NA):", na_intervals, "\n")
+  cat("  NA-flanked intervals (both sides NA):", na_flanked_intervals, "\n")
   cat("  SNPs with founder states:", nrow(founder_states_wide) - nrow(missing_founder_states), "\n")
   cat("  Expected successful imputations:", min(snps_imputable, nrow(founder_states_wide) - nrow(missing_founder_states)), "\n")
 }
 
 cat("\n=== Diagnostic Complete ===\n")
 cat("This shows what the existing pipeline logic would do.\n")
-cat("Key insight: SNPs flanked by NA haplotypes get skipped entirely.\n")
-cat("Smaller fixed windows have more NA haplotypes, so more SNPs get skipped.\n")
+cat("Key insight: SNPs in intervals flanked by NA haplotypes on both sides get skipped.\n")
+cat("Smaller fixed windows have more NA haplotypes, so more intervals are NA-flanked.\n")
