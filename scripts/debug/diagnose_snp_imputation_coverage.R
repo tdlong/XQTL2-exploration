@@ -68,7 +68,7 @@ cat("✓ Haplotype results loaded:", nrow(haplotype_results), "rows\n")
 
 # Load REFALT data (copied from existing pipeline)
 cat("Loading REFALT data...\n")
-refalt_file <- file.path(dirname(output_dir), paste0("RefAlt.", chr, ".txt"))
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
   stop("REFALT file not found:", refalt_file)
 }
