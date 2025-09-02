@@ -46,6 +46,10 @@ if (!file.exists(haplotype_file)) {
 haplotype_results <- read_rds(haplotype_file)
 cat("✓ Haplotype results loaded:", nrow(haplotype_results), "rows\n")
 
+# Get founders from haplotype results
+founders <- names(haplotype_results)[grepl("^[A-Z][0-9]+$|^AB[0-9]+$", names(haplotype_results))]
+cat("Founders detected:", paste(founders, collapse = ", "), "\n")
+
 # Check for the specific position
 cat("\n=== Checking Position", target_position, "===\n")
 position_results <- haplotype_results %>%
