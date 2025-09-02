@@ -44,20 +44,34 @@ adaptive   h10        100.0%     0.0%         0.0%
 
 ## 🔄 **CURRENT PHASE: ZINC2 DATASET ANALYSIS - IN PROGRESS**
 
-### **Status**: 🚀 **ZINC2 PIPELINE ACTIVE** - SNP Imputation Running
+### **Status**: 🔧 **CRITICAL BUG FIXED** - Rerunning SNP Imputation Pipeline
 
 **What's happening now**: 
-- Running the same successful JUICE pipeline on ZINC2 dataset
-- Using identical parameter combinations and methods
+- **Critical bug identified and fixed** in SNP imputation logic
+- **Rerunning SNP imputation** with corrected algorithm
+- **New understanding**: Check `estimate_OK` flag, not just NA values
 - Output directory: `process/ZINC2/`
+
+**🚨 CRITICAL BUG FIXED**:
+- **Problem**: SNP imputation was only checking for `NA` haplotype values
+- **Root cause**: Not checking `estimate_OK` flag for haplotype reliability
+- **Fix**: Modified `euchromatic_SNP_imputation_single.R` to:
+  1. Check `estimate_OK` flag (not just NA values)
+  2. Return `imputed = NA` when neither boundary is reliable
+  3. Process ALL SNPs (100% coverage) with proper quality control
+
+**Expected results after fix**:
+- **Fixed 20kb**: More `imputed = NA` due to unreliable haplotype estimates
+- **Fixed 500kb**: Fewer `imputed = NA` due to more reliable estimates
+- **All methods**: Same total SNP count (1,079,052) but varying quality
 
 **Current pipeline status**:
 ```bash
 # Haplotype testing completed
-sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
-# SNP imputation currently running
-sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+# SNP imputation - RERUNNING WITH FIX
+sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
 
 **Next steps after SNP imputation completes**:
@@ -65,7 +79,7 @@ sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.ts
 # Check completion status
 Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
 
-# Evaluate methods
+# Evaluate methods (should now show proper NA handling)
 Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 
 # Create summary
@@ -74,6 +88,11 @@ Rscript scripts/production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_h
 # Plot specific region
 Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
 ```
+
+**🔍 Key test case to verify fix**:
+- **Position 6390000**: Should now get `imputed = NA` because both boundaries have `estimate_OK = 0`
+- **Coverage**: All methods should have exactly 1,079,052 SNPs processed
+- **Quality**: Smaller fixed windows should show more NA imputations than larger ones
 
 ---
 
@@ -111,10 +130,16 @@ scripts/
 
 ### **Current Pipeline**:
 1. ✅ **Haplotype Estimation** - Complete (9 methods)
-2. 🔄 **SNP Imputation** - Running (9 parallel jobs)
-3. ⏳ **Method Evaluation** - Waiting for imputation completion
+2. 🔄 **SNP Imputation** - Rerunning with critical bug fix (9 parallel jobs)
+3. ⏳ **Method Evaluation** - Waiting for corrected imputation completion
 4. ⏳ **Summary Creation** - Waiting for evaluation
 5. ⏳ **Visualization** - Waiting for summary
+
+**🔧 Bug Fix Details**:
+- **Script**: `scripts/production/euchromatic_SNP_imputation_single.R`
+- **Issue**: Not checking `estimate_OK` flag for haplotype reliability
+- **Fix**: Now properly flags unreliable estimates as `imputed = NA`
+- **Result**: 100% SNP coverage with proper quality control
 
 ### **Parameter Combinations** (from `production_slurm_params.tsv`):
 ```
@@ -243,4 +268,4 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Script Reorganization Complete*
+*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Rerunning Pipeline*
