@@ -173,14 +173,20 @@ for (sample_name in names_in_bam) {
     
     # Show first few NA-flanked intervals
     if (na_flanked_intervals > 0) {
-      cat("First few NA-flanked intervals:\n")
+      cat("All NA-flanked intervals with SNP counts:\n")
       na_intervals <- intervals %>%
         filter(interval_na_flanked) %>%
-        head(3)
+        arrange(pos_left)
       
       for (i in 1:nrow(na_intervals)) {
         row <- na_intervals[i, ]
-        cat("  NA interval", i, ":", row$pos_left, "-", row$pos_right, "\n")
+        # Count SNPs in this specific interval
+        snps_in_this_interval <- valid_snps %>%
+          filter(POS > row$pos_left, POS < row$pos_right) %>%
+          distinct(CHROM, POS) %>%
+          nrow()
+        
+        cat("  NA interval", i, ":", row$pos_left, "-", row$pos_right, "(", snps_in_this_interval, "SNPs)\n")
       }
     }
     
