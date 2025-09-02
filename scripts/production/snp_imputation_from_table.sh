@@ -176,11 +176,11 @@ echo ""
 
 echo "=== Running SNP Imputation ==="
 echo "Estimator: $ESTIMATOR"
-echo "Command: Rscript scripts/euchromatic_SNP_imputation_single.R $CHR $PARFILE $RESULTS_DIR $ESTIMATOR"
+echo "Command: Rscript scripts/production/euchromatic_SNP_imputation_single.R $CHR $PARFILE $RESULTS_DIR $ESTIMATOR"
 echo ""
 
 # Run the SNP imputation script
-Rscript scripts/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$ESTIMATOR"
+Rscript scripts/production/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$ESTIMATOR"
 STATUS=$?
 
 # Expected output file
