@@ -1,7 +1,8 @@
+
 #!/usr/bin/env Rscript
 
 # =============================================================================
-# Haplotype Method Evaluation Script
+# Haplotype Method Evaluation Script - STREAMLINED VERSION
 # =============================================================================
 # 
 # This script evaluates different haplotype estimation methods by comparing
@@ -10,40 +11,36 @@
 # METRICS CALCULATED:
 # 1. Mean Squared Error (MSE) between observed and imputed frequencies
 # 2. Coverage (proportion of positions with valid estimates)
-# 3. Regional performance (MSE by chromosomal windows)
-# 4. Method comparison summary statistics
+# 3. Method comparison summary statistics
 #
 # USAGE:
-# Rscript scripts/evaluate_haplotype_methods.R <chr> <param_file> <output_dir> [window_size_kb]
+# Rscript scripts/production/evaluate_imputation_methods.R <chr> <param_file> <output_dir>
 #
 # EXAMPLE:
-# Rscript scripts/evaluate_haplotype_methods.R chr2R helpfiles/haplotype_parameters.R process/output_dir 1000
+# Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 # =============================================================================
 
 suppressPackageStartupMessages({
   library(tidyverse)
   library(readr)
-  library(patchwork)
 })
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 3) {
-  cat("Usage: Rscript evaluate_haplotype_methods.R <chr> <param_file> <output_dir> [window_size_kb]\n")
-  cat("Example: Rscript evaluate_haplotype_methods.R chr2R helpfiles/haplotype_parameters.R process/output_dir 1000\n")
+  cat("Usage: Rscript evaluate_imputation_methods.R <chr> <param_file> <output_dir>\n")
+  cat("Example: Rscript evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2\n")
   quit(status = 1)
 }
 
 chr <- args[1]
 param_file <- args[2]
 output_dir <- args[3]
-window_size_kb <- ifelse(length(args) >= 4, as.numeric(args[4]), 1000)
 
-cat("=== Haplotype Method Evaluation ===\n")
+cat("=== Haplotype Method Evaluation (Streamlined) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Parameter file:", param_file, "\n")
-cat("Output directory:", output_dir, "\n")
-cat("Regional window size:", window_size_kb, "kb\n\n")
+cat("Output directory:", output_dir, "\n\n")
 
 # Load parameter file
 source(param_file)
@@ -96,10 +93,10 @@ if (!file.exists(refalt_file)) {
   stop("REFALT data not found: ", refalt_file)
 }
 
-# Load REFALT data - use same format as other scripts
+# Load REFALT data
 refalt_data <- read.table(refalt_file, header = TRUE)
 
-# Transform to frequencies (same as other scripts)
+# Transform to frequencies
 cat("Converting counts to frequencies...\n")
 refalt_processed <- refalt_data %>%
   pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
@@ -116,7 +113,7 @@ refalt_processed <- refalt_data %>%
   select(-c("REF", "ALT")) %>%
   as_tibble()
 
-# Filter for high-quality SNPs (same as other scripts)
+# Filter for high-quality SNPs
 cat("Filtering for high-quality SNPs...\n")
 good_snps <- refalt_processed %>%
   filter(name %in% founders) %>%
@@ -124,7 +121,8 @@ good_snps <- refalt_processed %>%
   summarize(
     zeros = sum(total_count == 0),
     not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
-    informative = (sum(freq) > 0.05 | sum(freq) < 0.95)
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95),
+    .groups = "drop"
   ) %>%
   ungroup() %>%
   filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
@@ -150,7 +148,6 @@ cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n
 # =============================================================================
 
 load_imputation_results <- function(estimator, output_dir, chr) {
-  # Look in the haplotype_results subdirectory
   results_dir <- file.path(output_dir, "haplotype_results")
   imputation_file <- file.path(results_dir, paste0("snp_imputation_", estimator, "_", chr, ".RDS"))
   
@@ -253,30 +250,10 @@ for (estimator in names(imputation_results)) {
     mutate(estimator = estimator)
   
   evaluation_results[[estimator]] <- metrics
-  
-  # Add regional analysis
-  regional_data <- comparison_data %>%
-    filter(!is.na(imputed_freq)) %>%
-    mutate(
-      window_start = floor(POS / (window_size_kb * 1000)) * (window_size_kb * 1000),
-      window_end = window_start + (window_size_kb * 1000),
-      window_mid = (window_start + window_end) / 2
-    ) %>%
-    group_by(window_mid) %>%
-    reframe(
-      n_snps = n(),
-      regional_mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
-      regional_rmse = sqrt(regional_mse),
-      regional_mae = mean(abs(observed_freq - imputed_freq), na.rm = TRUE)
-    ) %>%
-    mutate(estimator = estimator)
-  
-  evaluation_results[[paste0(estimator, "_regional")]] <- regional_data
 }
 
 # Combine results
-overall_metrics <- bind_rows(evaluation_results[!grepl("_regional$", names(evaluation_results))])
-regional_metrics <- bind_rows(evaluation_results[grepl("_regional$", names(evaluation_results))])
+overall_metrics <- bind_rows(evaluation_results)
 
 # =============================================================================
 # Generate summary statistics
@@ -342,75 +319,14 @@ for (i in 1:nrow(performance_ranking)) {
   cat(sprintf("  %d. %s (MSE: %.6f, Correlation: %.3f)\n", 
               row$rank, row$estimator, row$mean_mse, row$mean_correlation))
 }
+
 cat("\n")
-
-# =============================================================================
-# Create visualizations
-# =============================================================================
-
-cat("\nGenerating visualizations...\n")
-cat("Note: Using simplified plots for memory efficiency with large datasets\n")
-
-# 1. MSE comparison across methods (simplified for memory efficiency)
-p1 <- overall_metrics %>%
-  ggplot(aes(x = reorder(estimator, mse), y = mse, fill = estimator)) +
-  geom_col() +  # Use bars instead of boxplots for simplicity
-  labs(
-    title = "Mean Squared Error by Haplotype Estimation Method",
-    x = "Estimator",
-    y = "MSE (Observed vs Imputed Frequencies)"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# 2. Coverage comparison (simplified for memory efficiency)
-p2 <- overall_metrics %>%
-  ggplot(aes(x = reorder(estimator, coverage), y = coverage, fill = estimator)) +
-  geom_col() +  # Use bars instead of boxplots for simplicity
-  labs(
-    title = "Coverage by Haplotype Estimation Method",
-    x = "Estimator", 
-    y = "Proportion of Positions with Estimates"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# 3. Regional performance (MSE across chromosome)
-p3 <- regional_metrics %>%
-  ggplot(aes(x = window_mid / 1e6, y = regional_rmse, color = estimator)) +
-  geom_line(alpha = 0.7) +
-  geom_point(alpha = 0.5, size = 0.8) +
-  labs(
-    title = "Regional Performance: RMSE Across Chromosome",
-    x = "Position (Mb)",
-    y = "RMSE"
-  ) +
-  theme_minimal() +
-  facet_wrap(~estimator, scales = "free_y", ncol = 3)
-
-# 4. Correlation vs Coverage trade-off
-p4 <- overall_metrics %>%
-  ggplot(aes(x = coverage, y = correlation, color = estimator)) +
-  geom_point(size = 3) +
-  geom_text(aes(label = name), vjust = -0.5, size = 2.5) +
-  labs(
-    title = "Coverage vs Correlation Trade-off",
-    x = "Coverage",
-    y = "Correlation with Observed Frequencies"
-  ) +
-  theme_minimal()
-
-# Combine plots
-combined_plot <- (p1 + p2) / (p3) / (p4) +
-  plot_layout(guides = "collect") +
-  plot_annotation(
-    title = paste("Haplotype Method Evaluation:", chr),
-    subtitle = paste("Euchromatin region:", euchromatin_start, "-", euchromatin_end, "bp")
-  )
 
 # =============================================================================
 # Save results
 # =============================================================================
+
+cat("Saving results...\n")
 
 # Create results subdirectory if it doesn't exist
 results_dir <- file.path(output_dir, "haplotype_results")
@@ -419,210 +335,12 @@ dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 # Save summary statistics
 summary_file <- file.path(results_dir, paste0("haplotype_evaluation_summary_", chr, ".RDS"))
 saveRDS(overall_summary, summary_file)
+cat("✓ Saved summary statistics:", summary_file, "\n")
 
 # Save detailed metrics
 detailed_file <- file.path(results_dir, paste0("haplotype_evaluation_detailed_", chr, ".RDS"))
 saveRDS(overall_metrics, detailed_file)
-
-# Save regional analysis
-regional_file <- file.path(results_dir, paste0("haplotype_evaluation_regional_", chr, ".RDS"))
-saveRDS(regional_metrics, regional_file)
-
-# Save plot
-plot_file <- file.path(results_dir, paste0("haplotype_evaluation_plots_", chr, ".png"))
-ggsave(plot_file, combined_plot, width = 16, height = 12, dpi = 300)
-
-# =============================================================================
-# Sliding Window Analysis
-# =============================================================================
-
-cat("\n=== SLIDING WINDOW ANALYSIS ===\n")
-
-# Parameters for sliding window
-window_size <- 2500  # SNPs per window (increased from 250)
-step_size <- 500     # SNPs per step (increased from 50)
-
-# Get all unique SNP positions
-all_positions <- observed_data %>%
-  distinct(CHROM, POS) %>%
-  arrange(POS) %>%
-  pull(POS)
-
-cat("Total SNP positions:", length(all_positions), "\n")
-cat("Window size:", window_size, "SNPs\n")
-cat("Step size:", step_size, "SNPs\n")
-
-# Calculate window starts
-window_starts <- seq(1, length(all_positions) - window_size + 1, by = step_size)
-cat("Number of windows:", length(window_starts), "\n\n")
-
-# Calculate sliding window performance for all estimators
-cat("Calculating sliding windows for all estimators...\n")
-
-# Create efficient sliding window analysis using vectorized operations
-all_sliding_results <- list()
-
-for (estimator in names(imputation_results)) {
-  cat("Processing", estimator, "...\n")
-  
-  # Get imputed data for this estimator
-  imputed_data <- imputation_results[[estimator]]
-  
-  # Create window assignments for all SNP positions
-  window_assignments <- tibble(
-    pos_idx = seq_along(all_positions),
-    position = all_positions
-  ) %>%
-    mutate(
-      window_start = ((pos_idx - 1) %/% step_size) * step_size + 1,
-      window_id = (pos_idx - 1) %/% step_size + 1
-    ) %>%
-    filter(window_start <= length(all_positions) - window_size + 1) %>%
-    mutate(
-      window_end = window_start + window_size - 1,
-      in_window = pos_idx >= window_start & pos_idx <= window_end
-    ) %>%
-    filter(in_window)
-  
-  # Get observed data with window assignments
-  observed_with_windows <- observed_data %>%
-    select(CHROM, POS, name, freq) %>%
-    rename(observed_freq = freq) %>%
-    left_join(
-      window_assignments %>% select(position, window_id),
-      by = c("POS" = "position")
-    ) %>%
-    filter(!is.na(window_id))
-  
-  # Get imputed data with window assignments
-  imputed_with_windows <- imputed_data %>%
-    select(pos, sample, imputed_freq = imputed) %>%
-    left_join(
-      window_assignments %>% select(position, window_id),
-      by = c("pos" = "position")
-    ) %>%
-    filter(!is.na(window_id))
-  
-  # Calculate MSE for each window using vectorized operations
-  window_performance <- observed_with_windows %>%
-    left_join(
-      imputed_with_windows,
-      by = c("POS" = "pos", "name" = "sample", "window_id")
-    ) %>%
-    filter(!is.na(imputed_freq)) %>%
-    group_by(window_id) %>%
-    summarize(
-      mse = mean((observed_freq - imputed_freq)^2, na.rm = TRUE),
-      n_snps = n(),
-      n_samples = n_distinct(name),
-      .groups = "drop"
-    ) %>%
-    left_join(
-      window_assignments %>%
-        group_by(window_id) %>%
-        summarize(
-          mean_position = mean(position),
-          .groups = "drop"
-        ),
-      by = "window_id"
-    ) %>%
-    mutate(estimator = estimator)
-  
-  all_sliding_results[[estimator]] <- window_performance
-  
-  cat("  ✓ Completed", estimator, "(", nrow(window_performance), "windows)\n")
-}
-
-# Combine all results
-all_sliding_results <- bind_rows(all_sliding_results)
-
-cat("\n✓ Sliding window analysis complete\n")
-cat("Total windows analyzed:", nrow(all_sliding_results), "\n\n")
-
-# Create sliding window plot
-cat("Creating sliding window plot...\n")
-
-sliding_plot <- all_sliding_results %>%
-  ggplot(aes(x = mean_position / 1e6, y = sqrt(mse), color = estimator)) +
-  geom_line(alpha = 0.8, linewidth = 0.8) +
-  geom_point(alpha = 0.6, size = 0.5) +
-  labs(
-    title = paste("Sliding Window Performance:", chr),
-    subtitle = paste("2500 SNP windows, 500 SNP steps | Euchromatin:", euchromatin_start/1e6, "-", euchromatin_end/1e6, "Mb"),
-    x = "Position (Mb)",
-    y = "√MSE (Root Mean Squared Error)",
-    color = "Estimator"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    legend.text = element_text(size = 8),
-    plot.title = element_text(size = 14, face = "bold"),
-    plot.subtitle = element_text(size = 10)
-  ) +
-  scale_color_viridis_d(option = "plasma")
-
-# Create sliding window summary
-cat("\n=== SLIDING WINDOW SUMMARY ===\n")
-
-window_summary <- all_sliding_results %>%
-  group_by(estimator) %>%
-  summarize(
-    mean_sqrt_mse = mean(sqrt(mse), na.rm = TRUE),
-    median_sqrt_mse = median(sqrt(mse), na.rm = TRUE),
-    sd_sqrt_mse = sd(sqrt(mse), na.rm = TRUE),
-    min_sqrt_mse = min(sqrt(mse), na.rm = TRUE),
-    max_sqrt_mse = max(sqrt(mse), na.rm = TRUE),
-    n_windows = n(),
-    .groups = "drop"
-  ) %>%
-  arrange(mean_sqrt_mse)
-
-# Print formatted sliding window summary
-cat("\nSliding Window Summary (sorted by mean √MSE):\n")
-cat("=", strrep("=", 120), "\n", sep = "")
-cat(sprintf("%-20s %12s %12s %12s %12s %12s %8s\n", 
-            "Estimator", "Mean √MSE", "Median √MSE", "SD √MSE", "Min √MSE", "Max √MSE", "Windows"))
-cat(strrep("-", 120), "\n")
-
-for (i in 1:nrow(window_summary)) {
-  row <- window_summary[i, ]
-  cat(sprintf("%-20s %12.6f %12.6f %12.6f %12.6f %12.6f %8d\n",
-              row$estimator,
-              row$mean_sqrt_mse,
-              row$median_sqrt_mse,
-              row$sd_sqrt_mse,
-              row$min_sqrt_mse,
-              row$max_sqrt_mse,
-              row$n_windows))
-}
-
-cat(strrep("-", 120), "\n")
-cat("\n")
-
-# =============================================================================
-# Save sliding window results (computationally expensive - save for future use)
-# =============================================================================
-
-cat("Saving sliding window results (computationally expensive analysis)...\n")
-
-# Save sliding window results
-sliding_file <- file.path(results_dir, paste0("sliding_window_results_", chr, ".RDS"))
-saveRDS(all_sliding_results, sliding_file)
-cat("✓ Saved sliding window data:", sliding_file, "\n")
-cat("  (Use this file for future plot modifications without re-running analysis)\n")
-
-# Save sliding window summary
-sliding_summary_file <- file.path(results_dir, paste0("sliding_window_summary_", chr, ".RDS"))
-saveRDS(window_summary, sliding_summary_file)
-cat("✓ Saved sliding window summary:", sliding_summary_file, "\n")
-
-# Save sliding window plot
-sliding_plot_file <- file.path(results_dir, paste0("sliding_window_plot_", chr, ".png"))
-ggsave(sliding_plot_file, sliding_plot, width = 14, height = 8, dpi = 300)
-cat("✓ Saved sliding window plot:", sliding_plot_file, "\n")
-
-cat("\n")
+cat("✓ Saved detailed metrics:", detailed_file, "\n")
 
 # =============================================================================
 # Print recommendations
@@ -651,10 +369,7 @@ cat("Best balanced performance:", balanced$estimator, "(score =", round(balanced
 cat("\n=== OUTPUT FILES ===\n")
 cat("Summary statistics:", summary_file, "\n")
 cat("Detailed metrics:", detailed_file, "\n")
-cat("Regional analysis:", regional_file, "\n")
-cat("Evaluation plots:", plot_file, "\n")
-cat("Sliding window results:", sliding_file, "\n")
-cat("Sliding window summary:", sliding_summary_file, "\n")
-cat("Sliding window plot:", sliding_plot_file, "\n")
 
 cat("\n=== EVALUATION COMPLETE ===\n")
+cat("Note: This streamlined version focuses on core metrics only.\n")
+cat("For advanced visualizations and sliding window analysis, use the next step in your pipeline.\n")
