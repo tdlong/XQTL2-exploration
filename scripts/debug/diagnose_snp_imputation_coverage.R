@@ -51,10 +51,10 @@ cat("Euchromatin region:", euchromatin_start, "-", euchromatin_end, "bp\n\n")
 cat("Loading haplotype results...\n")
 if (grepl("^fixed_", estimator)) {
   window_size_kb <- as.numeric(gsub("fixed_", "", gsub("kb", "", estimator)))
-  haplotype_file <- file.path(output_dir, paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
+  haplotype_file <- file.path(output_dir, "haplotype_results", paste0("fixed_window_", window_size_kb, "kb_results_", chr, ".RDS"))
 } else if (grepl("^adaptive_h", estimator)) {
   h_cutoff <- as.numeric(gsub("adaptive_h", "", estimator))
-  haplotype_file <- file.path(output_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
+  haplotype_file <- file.path(output_dir, "haplotype_results", paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
 } else {
   stop("Invalid estimator format")
 }
