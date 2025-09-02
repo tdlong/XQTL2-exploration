@@ -151,12 +151,18 @@ for (sample_name in names_in_bam) {
     
     cat("Intervals between haplotype positions:", nrow(haplotype_pairs), "\n")
     
+    # Debug: check column names
+    cat("Haplotype pairs columns:", paste(names(haplotype_pairs), collapse = ", "), "\n")
+    
     # Classify each interval
     intervals <- haplotype_pairs %>%
       mutate(
         interval_na_flanked = has_na_left & has_na_right,  # Both sides NA
         interval_imputable = !interval_na_flanked  # At least one side valid
       )
+    
+    # Debug: check column names after mutation
+    cat("Intervals columns:", paste(names(intervals), collapse = ", "), "\n")
     
     # Count intervals by type
     na_flanked_intervals <- intervals %>% filter(interval_na_flanked) %>% nrow()
@@ -192,8 +198,11 @@ for (sample_name in names_in_bam) {
       left_join(
         haplotype_pairs %>% 
           mutate(interval = row_number()) %>% 
-          select(interval, interval_na_flanked),
+          select(interval, has_na_left, has_na_right),
         by = "interval"
+      ) %>%
+      mutate(
+        interval_na_flanked = has_na_left & has_na_right
       ) %>%
       group_by(interval_na_flanked) %>%
       summarize(
