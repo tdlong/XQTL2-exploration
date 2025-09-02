@@ -408,7 +408,7 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       existing_founders <- intersect(founder_order, names(haplotype_freqs))
       existing_founders <- existing_founders[order(match(existing_founders, founder_order))]
       
-      # Extract frequencies for left and right positions
+      # Extract frequencies and estimate_OK flags for left and right positions
       left_freqs <- haplotype_freqs %>% 
         filter(pos == left_pos) %>% 
         select(all_of(existing_founders))
@@ -417,13 +417,31 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
         filter(pos == right_pos) %>% 
         select(all_of(existing_founders))
       
+      # Get estimate_OK flags for both positions
+      left_ok <- haplotype_freqs %>% 
+        filter(pos == left_pos) %>% 
+        pull(estimate_OK)
+      
+      right_ok <- haplotype_freqs %>% 
+        filter(pos == right_pos) %>% 
+        pull(estimate_OK)
+      
       # Convert to numeric vectors
       left_freqs_numeric <- as.numeric(left_freqs[1, ])
       right_freqs_numeric <- as.numeric(right_freqs[1, ])
       
-      # If both sides are all NA, skip
-      if (all(is.na(left_freqs_numeric)) && all(is.na(right_freqs_numeric))) { 
-        next 
+      # Check if both sides are unreliable (NA or estimate_OK = 0)
+      left_reliable <- !is.na(left_ok) && left_ok == 1
+      right_reliable <- !is.na(right_ok) && right_ok == 1
+      
+      # If neither side is reliable, this SNP gets imputed = NA
+      if (!left_reliable && !right_reliable) {
+        # Store NA result instead of skipping
+        interpolated_haplotypes[[as.character(snp_pos)]] <- as.data.frame(
+          matrix(NA, nrow = 1, ncol = length(existing_founders)), 
+          col.names = existing_founders
+        )
+        next
       }
       
       # Interpolation weight
@@ -503,29 +521,37 @@ create_snp_imputation_table <- function(valid_snps, haplotype_results, founders,
       # Get haplotype frequencies for this SNP
       haplotype_freqs <- interpolated_haplotypes[[snp_pos]]
       
-      # OPTIMIZATION: Efficient founder state lookup using pre-processed table
-      snp_founder_states <- founder_states_wide %>%
-        filter(POS == snp_pos_num) %>%
-        select(all_of(founder_order)) %>%
-        as.numeric()
-      
-      if (length(snp_founder_states) == 0) next
-      
-      # CRITICAL FIX: Convert haplotype_freqs to numeric vector in correct order
+      # Check if haplotype frequencies are all NA (unreliable estimates)
       haplotype_freqs_numeric <- as.numeric(haplotype_freqs[1, ])
-      
-      # Founder states are now already in correct order (B1, B2, B3, ..., AB8)
-      # No need for reordering - the pivot_wider + select ensures correct order
-      
-      # Calculate imputed frequency with correctly ordered founder states
-      imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_founder_states)
+      if (all(is.na(haplotype_freqs_numeric))) {
+        # This SNP has unreliable haplotype estimates - set imputed = NA
+        imputed_freq <- NA
+      } else {
+        # OPTIMIZATION: Efficient founder state lookup using pre-processed table
+        snp_founder_states <- founder_states_wide %>%
+          filter(POS == snp_pos_num) %>%
+          select(all_of(founder_order)) %>%
+          as.numeric()
+        
+        if (length(snp_founder_states) == 0) next
+        
+        # Founder states are now already in correct order (B1, B2, B3, ..., AB8)
+        # No need for reordering - the pivot_wider + select ensures correct order
+        
+        # Calculate imputed frequency with correctly ordered founder states
+        imputed_freq <- calculate_imputed_snp_frequency(haplotype_freqs_numeric, snp_founder_states)
+      }
       
       # DEBUG: Check founder ordering for first few SNPs
       if (snp_idx <= 3) {
         cat("    DEBUG SNP", snp_idx, "at position", snp_pos, ":\n")
         cat("      Haplotype freqs:", paste(round(haplotype_freqs_numeric, 4), collapse = ", "), "\n")
-        cat("      Founder states:", paste(snp_founder_states, collapse = ", "), "\n")
-        cat("      Imputed freq:", round(imputed_freq, 4), "\n")
+        if (!is.na(imputed_freq)) {
+          cat("      Founder states:", paste(snp_founder_states, collapse = ", "), "\n")
+          cat("      Imputed freq:", round(imputed_freq, 4), "\n")
+        } else {
+          cat("      Imputed freq: NA (unreliable haplotype estimates)\n")
+        }
         cat("      Expected order: B1, B2, B3, B4, B5, B6, B7, AB8\n")
       }
       
