@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SCRIPT PATHS FIXED**
+## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SMOOTH_H4 ESTIMATOR INTEGRATED**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED**
 
 ---
 
@@ -46,6 +46,61 @@ adaptive   h10        100.0%     0.0%         0.0%
 - ✅ **All scripts now correctly reference** `scripts/production/` directory
 - ✅ **Usage examples updated** to show correct paths
 - ✅ **Directory structure rules established** and documented
+
+### ✅ **PHASE 5: SMOOTH_H4 ESTIMATOR INTEGRATION - COMPLETE**
+
+- ✅ **New `smooth_h4` estimator created** - 21-position sliding window mean of `adaptive_h4`
+- ✅ **Post-processing script developed** (`create_smooth_haplotype_estimator.R`)
+- ✅ **SLURM pipeline integration** - Added as 10th array element in parameter table
+- ✅ **SNP imputation compatibility** - Updated validation to accept `smooth_h4` format
+- ✅ **Quality control implemented** - `estimate_OK` based on 17/21 reliable positions
+- ✅ **Normalization applied** - Founder frequencies rescaled to sum to 1.0
+
+---
+
+## 🧬 **SMOOTH_H4 ESTIMATOR - COMPLETE**
+
+### **🎯 Overview**
+The `smooth_h4` estimator is a novel post-processing method that applies a 21-position sliding window mean to `adaptive_h4` results, creating smoother haplotype frequency estimates while maintaining biological relevance.
+
+### **🔧 Technical Implementation**
+- **Input**: `adaptive_h4` haplotype estimation results
+- **Processing**: 21-position sliding window mean applied separately to each founder
+- **Quality Control**: `estimate_OK = 1` if ≥17/21 positions are reliable, else `0`
+- **Normalization**: Founder frequencies rescaled to sum to 1.0 at each position
+- **Output**: `smooth_h4_results_<chr>.RDS` files compatible with SNP imputation
+
+### **📁 Files Created**
+```
+scripts/production/create_smooth_haplotype_estimator.R  # Post-processing script
+helpfiles/production_slurm_params.tsv                   # Updated with 10th element
+scripts/production/snp_imputation_from_table.sh         # Updated for smooth_h4
+scripts/production/euchromatic_SNP_imputation_single.R  # Updated validation
+```
+
+### **🚀 Integration Status**
+- ✅ **Parameter table updated**: `chr2R	smooth_h4	4` (10th element)
+- ✅ **SLURM array expanded**: `--array=1-10` (was 1-9)
+- ✅ **SNP imputation validated**: Accepts `smooth_h4` format
+- ✅ **File path handling**: Correctly loads `smooth_h4_results_<chr>.RDS`
+
+### **📊 Expected Benefits**
+- **Smoother estimates**: Reduced noise from 21-position averaging
+- **Maintained reliability**: Quality control based on underlying `adaptive_h4` data
+- **Biological relevance**: Preserves founder frequency relationships
+- **Pipeline compatibility**: Seamless integration with existing SNP imputation
+
+### **🎮 Usage Commands**
+```bash
+# Create smooth_h4 estimator (run once per chromosome)
+Rscript scripts/production/create_smooth_haplotype_estimator.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Run SNP imputation for smooth_h4 (10th array element)
+sbatch --array=10 scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Run all 10 SNP imputations (including smooth_h4)
+sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+```
 
 ---
 
@@ -264,6 +319,7 @@ chr2R	adaptive	4
 chr2R	adaptive	6
 chr2R	adaptive	8
 chr2R	adaptive	10
+chr2R	smooth_h4	4
 ```
 
 ### **Expected Output Structure**:
@@ -280,6 +336,7 @@ process/ZINC2/
 │   ├── adaptive_window_h6_results_chr2R.RDS
 │   ├── adaptive_window_h8_results_chr2R.RDS
 │   ├── adaptive_window_h10_results_chr2R.RDS
+│   ├── smooth_h4_results_chr2R.RDS
 │   ├── snp_imputation_fixed_20kb_chr2R.RDS
 │   ├── snp_imputation_fixed_50kb_chr2R.RDS
 │   ├── snp_imputation_fixed_100kb_chr2R.RDS
@@ -288,7 +345,8 @@ process/ZINC2/
 │   ├── snp_imputation_adaptive_h4_chr2R.RDS
 │   ├── snp_imputation_adaptive_h6_chr2R.RDS
 │   ├── snp_imputation_adaptive_h8_chr2R.RDS
-│   └── snp_imputation_adaptive_h10_chr2R.RDS
+│   ├── snp_imputation_adaptive_h10_chr2R.RDS
+│   └── snp_imputation_smooth_h4_chr2R.RDS
 ```
 
 ---
@@ -380,4 +438,4 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete, Script Paths Fixed*
+*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete, Script Paths Fixed, Smooth_h4 Estimator Integrated*
