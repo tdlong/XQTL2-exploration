@@ -84,8 +84,13 @@ if (grepl("^fixed_", estimator)) {
   haplotype_file <- file.path(output_dir, paste0("adaptive_window_h", h_cutoff, "_results_", chr, ".RDS"))
   haplotype_results <- read_rds(haplotype_file)
   cat("✓ Adaptive window results loaded for h_cutoff =", h_cutoff, "\n")
+} else if (estimator == "smooth_h4") {
+  # Smooth h4 estimator (post-processed from adaptive_h4)
+  haplotype_file <- file.path(output_dir, paste0("smooth_h4_results_", chr, ".RDS"))
+  haplotype_results <- read_rds(haplotype_file)
+  cat("✓ Smooth h4 results loaded (post-processed from adaptive_h4)\n")
 } else {
-  stop("Invalid estimator format. Must be 'fixed_<size>kb' or 'adaptive_h<number>'")
+  stop("Invalid estimator format. Must be 'fixed_<size>kb', 'adaptive_h<number>', or 'smooth_h4'")
 }
 
 cat("Haplotype estimates:", nrow(haplotype_results), "\n\n")
