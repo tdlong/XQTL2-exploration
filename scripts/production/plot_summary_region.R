@@ -95,7 +95,7 @@ method_colors <- c(
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
-                breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+                breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
               ) +
               labs(
                 title = paste("B1 Haplotype Frequencies -", first_sample),
@@ -118,7 +118,7 @@ method_colors <- c(
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
-                  breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+                  breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
                 ) +
                 labs(
                   title = paste("SNP Imputation MAE -", first_sample),
@@ -134,28 +134,14 @@ method_colors <- c(
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
 
-# Debug: Check what's in the SNP count data
-cat("\n=== SNP COUNT DATA DEBUG ===\n")
-cat("Total rows in region_data:", nrow(region_data), "\n")
-cat("NSNPs summary:\n")
-print(summary(region_data$NSNPs))
-cat("NSNPs by method:\n")
-print(region_data %>% group_by(method) %>% summarize(
-  n_total = n(),
-  n_with_snps = sum(!is.na(NSNPs)),
-  n_na = sum(is.na(NSNPs)),
-  mean_snps = mean(NSNPs, na.rm = TRUE),
-  .groups = "drop"
-))
-
 # Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
   geom_line(linewidth = 1, na.rm = TRUE) +
-  geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +
+  geom_point(size = 2, position = position_jitter(width = 200, seed = 123), na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
-    breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+    breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
   ) +
   # Use log scale for y-axis to better show differences between methods
   scale_y_log10(
