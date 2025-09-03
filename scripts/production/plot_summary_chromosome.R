@@ -101,7 +101,7 @@ method_colors <- c("adaptive_h4" = "black")  # Black
   geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.2) +
                 scale_color_manual(values = method_colors) +
                 scale_y_continuous(
-                  breaks = seq(0.00, 0.15, by = 0.01),
+                  breaks = seq(0.00, 0.15, by = 0.02),
                   labels = sprintf("%.2f", seq(0.00, 0.15, by = 0.02)),
                   limits = c(0.00, 0.15)
                 ) +
