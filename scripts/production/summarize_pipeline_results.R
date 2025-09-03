@@ -10,10 +10,10 @@
 # 3. Reporting results by parameter combination
 #
 # USAGE:
-# Rscript scripts/summarize_pipeline_results.R <output_dir> <chromosome>
+# Rscript scripts/production/summarize_pipeline_results.R <output_dir> <chromosome>
 #
 # EXAMPLE:
-# Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R
+# Rscript scripts/production/summarize_pipeline_results.R process/JUICE chr2R
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -25,8 +25,8 @@ suppressPackageStartupMessages({
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 2) {
-  cat("Usage: Rscript scripts/summarize_pipeline_results.R <output_dir> <chromosome>\n")
-  cat("Example: Rscript scripts/summarize_pipeline_results.R process/JUICE chr2R\n")
+  cat("Usage: Rscript scripts/production/summarize_pipeline_results.R <output_dir> <chromosome>\n")
+  cat("Example: Rscript scripts/production/summarize_pipeline_results.R process/JUICE chr2R\n")
   quit(status = 1)
 }
 
@@ -351,7 +351,7 @@ if (length(haplotype_summary) > 0) {
   # Next step recommendation  
   if (length(haplotype_summary) == nrow(expected_files) && length(snp_imputation_summary) == 0) {
     cat("\n🚀 Next step - Run SNP imputation:\n")
-    cat("  sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R", output_dir, "\n")
+    cat("  sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R", output_dir, "\n")
   }
 }
 

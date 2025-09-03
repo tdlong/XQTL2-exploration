@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 3) {
-  stop("Usage: Rscript scripts/create_summary_file_chunked.R <chr> <param_file> <output_dir>")
+  stop("Usage: Rscript scripts/production/create_summary_file_chunked.R <chr> <param_file> <output_dir>")
 }
 
 chr <- args[1]

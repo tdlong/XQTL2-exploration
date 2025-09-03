@@ -10,7 +10,7 @@
 library(tidyverse)
 
 # Source unified function
-source("scripts/haplotype_estimation_functions.R")
+source("scripts/production/haplotype_estimation_functions.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)

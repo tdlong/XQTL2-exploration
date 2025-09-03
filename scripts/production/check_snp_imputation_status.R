@@ -111,7 +111,7 @@ if (completed < total) {
   }
   
   cat("\nTo run missing imputation jobs:\n")
-  cat("sbatch scripts/snp_imputation_from_table.sh", params_file, "helpfiles/haplotype_parameters.R", output_dir, "\n")
+  cat("sbatch scripts/production/snp_imputation_from_table.sh", params_file, "helpfiles/haplotype_parameters.R", output_dir, "\n")
 } else {
   cat("🎉 All SNP imputation jobs complete!\n")
   
@@ -119,7 +119,7 @@ if (completed < total) {
   cat("Total data size:", round(total_size, 1), "MB\n")
   
   cat("\nNext steps:\n")
-  cat("- Run evaluation: Rscript scripts/evaluate_imputation_methods.R\n")
+  cat("- Run evaluation: Rscript scripts/production/evaluate_imputation_methods.R\n")
   cat("- Check correlations and accuracy metrics\n")
 }
 
