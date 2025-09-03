@@ -86,6 +86,7 @@ method_colors <- c(
 
             # Create haplotype frequency plot (top panel)
             p_haplo <- ggplot(region_data_reliable, aes(x = pos_10kb, y = B1_freq, color = method)) +
+              geom_line(linewidth = 1, na.rm = TRUE) +
               geom_point(size = 2, na.rm = TRUE) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
@@ -112,6 +113,7 @@ mae_data <- region_data %>%
 
             if (nrow(mae_data) > 0) {
               p_mae <- ggplot(mae_data, aes(x = pos_10kb, y = MAE, color = method)) +
+                geom_line(linewidth = 1, na.rm = TRUE) +
                 geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
@@ -145,7 +147,8 @@ mae_data <- region_data %>%
 
 # Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
-  geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +
+  geom_line(linewidth = 1, na.rm = TRUE) +
+  geom_point(size = 2, na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
