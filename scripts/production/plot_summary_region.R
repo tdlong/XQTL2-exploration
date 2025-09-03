@@ -75,43 +75,108 @@ method_colors <- c(
   "fixed_100kb" = "#FF6347"    # Tomato
 )
 
-# Create the three panels
-p_haplo <- ggplot(region_data, aes(x = pos, y = B1_freq, color = method)) +
-  geom_line(linewidth = 1, na.rm = TRUE) +
-  geom_point(size = 2, na.rm = TRUE) +
-  scale_color_manual(values = method_colors) +
-  labs(
-    title = "B1 Haplotype Frequencies",
-    x = NULL,
-    y = "B1 Frequency"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
+            # Filter data to only include reliable haplotype estimates
+            region_data_reliable <- region_data %>%
+              filter(estimate_OK == TRUE)
 
-p_mae <- ggplot(region_data, aes(x = pos, y = MAE, color = method)) +
-  geom_point(size = 2, na.rm = TRUE) +  # Remove lines, just points
-  scale_color_manual(values = method_colors) +
-  labs(
-    title = "SNP Imputation MAE",
-    x = NULL,
-    y = "Mean Absolute Error"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
+            cat("✓ Filtered to reliable estimates:", nrow(region_data_reliable), "rows\n")
+            cat("  Original data:", nrow(region_data), "rows\n")
+            cat("  Reliable estimates:", nrow(region_data_reliable), "rows\n")
+            cat("  Unreliable estimates:", nrow(region_data) - nrow(region_data_reliable), "rows\n")
 
-p_snps <- ggplot(region_data, aes(x = pos, y = NSNPs, color = method)) +
-  geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +  # Add jittering to handle overplotting
-  scale_y_log10() +
+            # Create haplotype frequency plot (top panel)
+            p_haplo <- ggplot(region_data_reliable, aes(x = pos_10kb, y = B1_freq, color = method)) +
+              geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
+              geom_point(size = 2, na.rm = TRUE) +
+              scale_color_manual(values = method_colors) +
+              scale_x_continuous(
+                labels = function(x) format(x, scientific = FALSE),
+                breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+              ) +
+              labs(
+                title = paste("B1 Haplotype Frequencies -", first_sample),
+                subtitle = paste("Chromosome:", chr, "(positions in 10kb units)"),
+                x = NULL,  # No x-axis label for top panel
+                y = "B1 Frequency",
+                color = "Method"
+              ) +
+              theme_minimal() +
+              theme(
+                plot.title = element_text(size = 12, face = "bold"),
+                legend.position = "none",  # Legend only on bottom panel
+                axis.text.x = element_blank()  # No x-axis text for top panel
+              )
+
+# Create MAE plot (middle panel) - only for positions with SNPs
+mae_data <- region_data %>%
+  filter(!is.na(MAE) & NSNPs > 0)
+
+            if (nrow(mae_data) > 0) {
+              p_mae <- ggplot(mae_data, aes(x = pos_10kb, y = MAE, color = method)) +
+                # Add light lines for h_4 only
+                geom_line(data = filter(mae_data, method == "adaptive_h4"), 
+                          linewidth = 0.5, alpha = 0.3, na.rm = TRUE) +
+                geom_point(size = 2, na.rm = TRUE) +
+                scale_color_manual(values = method_colors) +
+                scale_x_continuous(
+                  labels = function(x) format(x, scientific = FALSE),
+                  breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+                ) +
+                labs(
+                  title = paste("SNP Imputation MAE -", first_sample),
+                  subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
+                  x = NULL,  # No x-axis label for middle panel
+                  y = "MAE",
+                  color = "Method"
+                ) +
+                theme_minimal() +
+                theme(
+                  plot.title = element_text(size = 12, face = "bold"),
+                  legend.position = "none",  # Legend only on bottom panel
+                  axis.text.x = element_blank()  # No x-axis text for middle panel
+                )
+            } else {
+              # Create empty MAE plot if no data
+              p_mae <- ggplot() +
+                annotate("text", x = 0.5, y = 0.5, label = "No MAE data available", size = 6) +
+                theme_minimal() +
+                theme(
+                  axis.text = element_blank(),
+                  axis.title = element_blank(),
+                  panel.grid = element_blank()
+                )
+            }
+
+# Create SNP count plot (bottom panel) - show all positions including zeros
+p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
+  # Add light lines for h_4 only
+  geom_line(data = filter(region_data, method == "adaptive_h4"), 
+            linewidth = 0.5, alpha = 0.3, na.rm = TRUE) +
+  geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
+  scale_x_continuous(
+    labels = function(x) format(x, scientific = FALSE),
+    breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+  ) +
+  # Use log scale for y-axis to better show differences between methods
+  scale_y_log10(
+    breaks = c(1, 5, 10, 25, 50, 100, 250, 500),
+    labels = c("1", "5", "10", "25", "50", "100", "250", "500")
+  ) +
   labs(
-    title = "Number of SNPs per Window",
-    subtitle = "(SNPs actually used in haplotype estimation: from haplotype files)",
-    x = "Position (bp)",
+    title = paste("Number of SNPs per Window -", first_sample),
+    subtitle = paste("Chromosome:", chr, "(SNPs actually used in haplotype estimation: from haplotype files)"),
+    x = "Position (10kb units)",
     y = "Number of SNPs (log scale)",
     color = "Method"
   ) +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
 # Create combined three-panel plot
 p_combined <- p_haplo / p_mae / p_snps + 
