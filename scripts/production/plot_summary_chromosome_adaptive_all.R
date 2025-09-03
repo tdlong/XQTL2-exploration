@@ -2,6 +2,7 @@
 suppressPackageStartupMessages({
   library(tidyverse)
   library(patchwork)
+  library(zoo)
 })
 
 # Parse command line arguments
@@ -72,11 +73,20 @@ if (nrow(region_data) == 0) {
             region_data_with_gaps <- region_data %>%
               mutate(B1_freq = ifelse(estimate_OK == TRUE, B1_freq, NA))
             
+            # Calculate sliding window mean for each method (21 positions, step 1)
+            sliding_window_data <- region_data_with_gaps %>%
+              group_by(method) %>%
+              arrange(pos_10kb) %>%
+              mutate(
+                sliding_mean = zoo::rollmean(B1_freq, k = 21, fill = NA, align = "center")
+              ) %>%
+              ungroup()
+            
             # Panel 1: adaptive_h4
-            p_h4 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h4"), 
-                           aes(x = pos_10kb, y = B1_freq)) +
-              geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
+            h4_data <- sliding_window_data %>% filter(method == "adaptive_h4")
+            p_h4 <- ggplot(h4_data, aes(x = pos_10kb)) +
+              geom_point(aes(y = B1_freq), size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
+              geom_line(aes(y = sliding_mean), color = "black", linewidth = 0.8, na.rm = TRUE) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -93,10 +103,10 @@ if (nrow(region_data) == 0) {
               )
 
             # Panel 2: adaptive_h6
-            p_h6 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h6"), 
-                           aes(x = pos_10kb, y = B1_freq)) +
-              geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
+            h6_data <- sliding_window_data %>% filter(method == "adaptive_h6")
+            p_h6 <- ggplot(h6_data, aes(x = pos_10kb)) +
+              geom_point(aes(y = B1_freq), size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
+              geom_line(aes(y = sliding_mean), color = "black", linewidth = 0.8, na.rm = TRUE) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -113,10 +123,10 @@ if (nrow(region_data) == 0) {
               )
 
             # Panel 3: adaptive_h8
-            p_h8 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h8"), 
-                           aes(x = pos_10kb, y = B1_freq)) +
-              geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
+            h8_data <- sliding_window_data %>% filter(method == "adaptive_h8")
+            p_h8 <- ggplot(h8_data, aes(x = pos_10kb)) +
+              geom_point(aes(y = B1_freq), size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
+              geom_line(aes(y = sliding_mean), color = "black", linewidth = 0.8, na.rm = TRUE) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -133,10 +143,10 @@ if (nrow(region_data) == 0) {
               )
 
             # Panel 4: adaptive_h10 (bottom panel with x-axis)
-            p_h10 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h10"), 
-                            aes(x = pos_10kb, y = B1_freq)) +
-              geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
+            h10_data <- sliding_window_data %>% filter(method == "adaptive_h10")
+            p_h10 <- ggplot(h10_data, aes(x = pos_10kb)) +
+              geom_point(aes(y = B1_freq), size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
+              geom_line(aes(y = sliding_mean), color = "black", linewidth = 0.8, na.rm = TRUE) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
