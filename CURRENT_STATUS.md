@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - PLOTTING INFRASTRUCTURE COMPLETE**
+## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SCRIPT PATHS FIXED**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED**
 
 ---
 
@@ -39,6 +39,13 @@ adaptive   h10        100.0%     0.0%         0.0%
 - ✅ **Hard-coded JUICE references removed** from all production scripts
 - ✅ **Production scripts separated** from debug/testing code
 - ✅ **Clean directory structure** with clear documentation
+
+### ✅ **PHASE 4: SCRIPT PATH FIXES - COMPLETE**
+
+- ✅ **Critical path bugs fixed** in all production shell scripts
+- ✅ **All scripts now correctly reference** `scripts/production/` directory
+- ✅ **Usage examples updated** to show correct paths
+- ✅ **Directory structure rules established** and documented
 
 ---
 
@@ -82,8 +89,23 @@ sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_s
 sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
 
-**Plotting commands available**:
+**Pipeline commands available**:
 ```bash
+# Run haplotype testing
+sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Run SNP imputation  
+sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Check SNP imputation status
+Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
+
+# Evaluate methods
+Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
+# Create summary
+Rscript scripts/production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+
 # Plot specific region (3 methods comparison)
 Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
 
@@ -134,6 +156,55 @@ Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype
 - **Y-axis optimization**: Extended ranges to cover all data points
 - **Professional appearance**: Clean themes, appropriate scales
 - **Data integrity**: SNP counts from haplotype files, MAE from imputation files
+
+---
+
+## 📁 **DIRECTORY STRUCTURE & PATH RULES**
+
+### **🔧 Production Scripts Location**
+- **All production scripts**: `scripts/production/`
+- **All shell scripts must reference**: `scripts/production/` (not `scripts/`)
+- **All R scripts must be called with**: `scripts/production/` prefix
+
+### **📋 Correct Script Paths**:
+```bash
+# Production shell scripts
+scripts/production/haplotype_testing_from_table.sh
+scripts/production/snp_imputation_from_table.sh
+scripts/production/haplotype_testing_common.sh
+scripts/production/haplotype_testing_small_windows.sh
+
+# Production R scripts
+scripts/production/run_haplotype_estimation.R
+scripts/production/euchromatic_SNP_imputation_single.R
+scripts/production/check_snp_imputation_status.R
+scripts/production/evaluate_imputation_methods.R
+scripts/production/create_summary_file_chunked.R
+scripts/production/plot_summary_region.R
+scripts/production/plot_summary_chromosome.R
+```
+
+### **🚨 Critical Path Rules**:
+1. **NEVER use `scripts/`** - always use `scripts/production/`
+2. **All shell scripts** must call R scripts with full `scripts/production/` path
+3. **Usage examples** in scripts must show correct `scripts/production/` paths
+4. **Documentation** must reflect actual script locations
+
+### **📂 Directory Organization**:
+```
+scripts/
+├── production/          # ✅ Production-ready scripts
+├── debug/              # 🔍 Debug and testing scripts  
+├── archive/            # 📦 Old/backup scripts
+├── haps2scan/          # 📊 Haplotype scanning scripts
+├── Heterozygosity_tests/ # 🧬 Heterozygosity analysis
+└── raw2bam2REFALT/     # 🔄 Data processing scripts
+```
+
+### **🎯 Parameter Files**:
+- **SLURM parameters**: `helpfiles/production_slurm_params.tsv`
+- **JUICE parameters**: `helpfiles/JUICE_haplotype_parameters.R`
+- **ZINC2 parameters**: `helpfiles/ZINC2_haplotype_parameters.R`
 
 ---
 
@@ -309,4 +380,4 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete*
+*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete, Script Paths Fixed*
