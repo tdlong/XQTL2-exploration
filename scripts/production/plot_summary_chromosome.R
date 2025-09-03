@@ -57,7 +57,7 @@ if (nrow(region_data) == 0) {
 }
 
 # Set color scheme for adaptive_h4 only
-method_colors <- c("adaptive_h4" = "#006400")  # Dark green
+method_colors <- c("adaptive_h4" = "black")  # Black
 
             # Filter data to only include reliable haplotype estimates
             region_data_reliable <- region_data %>%
@@ -74,8 +74,8 @@ method_colors <- c("adaptive_h4" = "#006400")  # Dark green
               mutate(B1_freq = ifelse(estimate_OK == TRUE, B1_freq, NA))
             
             p_haplo <- ggplot(region_data_with_gaps, aes(x = pos_10kb, y = B1_freq, color = method)) +
-              geom_line(linewidth = 1, na.rm = TRUE) +
-              geom_point(size = 2, na.rm = TRUE) +
+  geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
@@ -97,13 +97,13 @@ method_colors <- c("adaptive_h4" = "#006400")  # Dark green
 
 # Create MAE plot (middle panel) - show all positions, NA means no imputation possible
             p_mae <- ggplot(region_data, aes(x = pos_10kb, y = MAE, color = method)) +
-              geom_line(linewidth = 1, na.rm = TRUE) +
-              geom_point(size = 2, na.rm = TRUE) +
+  geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8) +
                 scale_color_manual(values = method_colors) +
                 scale_y_continuous(
-                  breaks = seq(0.07, 0.15, by = 0.01),
-                  labels = sprintf("%.2f", seq(0.07, 0.15, by = 0.01)),
-                  limits = c(0.07, 0.15)
+                  breaks = seq(0.05, 0.15, by = 0.01),
+                  labels = sprintf("%.2f", seq(0.05, 0.15, by = 0.01)),
+                  limits = c(0.05, 0.15)
                 ) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
@@ -124,8 +124,8 @@ method_colors <- c("adaptive_h4" = "#006400")  # Dark green
 
 # Create SNP count plot (bottom panel) - identical structure to panel 1, just different y-axis
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
-  geom_line(linewidth = 1, na.rm = TRUE) +
-  geom_point(size = 2, na.rm = TRUE) +
+  geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
