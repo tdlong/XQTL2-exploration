@@ -60,6 +60,14 @@ adaptive   h10        100.0%     0.0%         0.0%
   2. Return `imputed = NA` when neither boundary is reliable
   3. Process ALL SNPs (100% coverage) with proper quality control
 
+**🔧 R Programming Style Fixed**:
+- **Problem**: Summary file creation script was using for loops and `rbind` (violating tidyverse rules)
+- **Root cause**: Not following proper R/tidyverse idioms
+- **Fix**: Rewrote `create_summary_file_chunked.R` to use:
+  1. `cut()` with breaks to create 10kb bins centered on haplotype positions
+  2. `group_by()` and `summarize()` to calculate MAE in each bin
+  3. Proper tidyverse data manipulation instead of loops
+
 **Expected results after fix**:
 - **Fixed 20kb**: More `imputed = NA` due to unreliable haplotype estimates
 - **Fixed 500kb**: Fewer `imputed = NA` due to more reliable estimates

@@ -18,15 +18,13 @@ output_dir <- args[3]
 source(param_file)
 results_dir <- file.path(output_dir, "haplotype_results")
 
-cat("=== CREATING SUMMARY FILE (PROPER SNP COUNTING) ===\n")
+cat("=== CREATING SUMMARY FILE (SIMPLE APPROACH) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
-# Define expected files (matching the working plotting script)
+# Define methods
 fixed_sizes <- c(20, 50, 100, 200, 500)
 h_cutoffs <- c(4, 6, 8, 10)
-
-cat("Processing each estimator using proper SNP counting...\n")
 
 all_summaries <- list()
 
@@ -35,63 +33,74 @@ for (size in fixed_sizes) {
   method <- paste0("fixed_", size, "kb")
   cat("Processing", method, "...\n")
   
-  # Haplotype data
-  h_data <- readRDS(file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))) %>%
-    select(chr, pos, estimate_OK, B1, sample) %>%
+  # 1. Get SNP counts from haplotype file
+  haplo_file <- file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))
+  if (!file.exists(haplo_file)) {
+    cat("  ❌ Missing haplotype file:", haplo_file, "\n")
+    next
+  }
+  
+  haplo_data <- readRDS(haplo_file) %>%
+    select(chr, pos, estimate_OK, B1, sample, n_snps) %>%
     mutate(method = method)
   
-  # SNP imputation data
+  # 2. Get MAE from imputation file (average within ±5kb of each position)
   snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_", chr, ".RDS"))
-  
-  if (file.exists(snp_file)) {
-    # Load SNP data and count SNPs within the actual window size for each haplotype position
-    snp_data <- readRDS(snp_file)
-    
-    # For fixed windows, count SNPs within ±window_size/2 of each haplotype position
-    window_size_bp <- size * 1000
-    
-    i_data <- h_data %>%
-      select(chr, pos, sample) %>%
-      left_join(
-        snp_data %>%
-          group_by(sample) %>%
-          group_modify(~ {
-            # For each sample, count SNPs within window of each haplotype position
-            .x %>%
-              mutate(
-                # Calculate distance from each haplotype position
-                distance_from_pos = abs(pos - .y$pos[1])
-              ) %>%
-              filter(distance_from_pos <= window_size_bp/2) %>%
-              group_by(pos) %>%
-              summarize(
-                NSNPs = n(),
-                MAE = mean(abs(observed - imputed), na.rm = TRUE),
-                .groups = "drop"
-              )
-          }, .keep = TRUE) %>%
-          ungroup(),
-        by = c("chr", "pos", "sample")
-      ) %>%
-      # Fill missing values for positions with no SNPs
-      mutate(
-        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        MAE = ifelse(is.na(MAE), NA, MAE)
-      )
-    
-    # Join haplotype and SNP data
-    s_data <- h_data %>% 
-      left_join(i_data %>% select(-chr, -pos), by = "sample") %>%
-      mutate(
-        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        MAE = ifelse(is.na(MAE), NA, MAE)
-      )
-    
-    all_summaries[[length(all_summaries) + 1]] <- s_data
-    cat("  ✓ Completed", method, "\n")
-  } else {
+  if (!file.exists(snp_file)) {
     cat("  ❌ Missing SNP file:", snp_file, "\n")
+    next
   }
+  
+  snp_data <- readRDS(snp_file)
+  
+  # Calculate MAE from imputation file using proper tidyverse approach
+  # Create 10kb bins centered on haplotype positions, then group and summarize
+  
+  # Get unique haplotype positions for this sample
+  haplo_positions <- haplo_data %>%
+    select(pos) %>%
+    distinct() %>%
+    pull(pos)
+  
+  # Create breaks for 10kb bins centered on haplotype positions
+  breaks <- sort(unique(c(
+    haplo_positions - 5000,  # 5kb before each position
+    haplo_positions + 5000   # 5kb after each position
+  )))
+  
+  # Add chromosome boundaries if needed
+  breaks <- c(min(breaks) - 1000, breaks, max(breaks) + 1000)
+  
+  # Calculate MAE for each haplotype position using proper tidyverse
+  mae_data <- snp_data %>%
+    # Create bins based on position
+    mutate(
+      pos_bin = cut(pos, breaks = breaks, labels = haplo_positions, include.lowest = TRUE, right = FALSE)
+    ) %>%
+    # Convert bin labels to numeric positions
+    mutate(pos_bin = as.numeric(as.character(pos_bin))) %>%
+    # Filter to only include SNPs that fall within haplotype position bins
+    filter(pos_bin %in% haplo_positions) %>%
+    # Group by bin and sample to calculate MAE
+    group_by(pos_bin, sample) %>%
+    summarize(
+      MAE = mean(abs(observed - imputed), na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    # Rename for joining
+    rename(pos = pos_bin)
+  
+  # 3. Join everything together
+  summary_data <- haplo_data %>%
+    left_join(mae_data, by = c("chr", "pos", "sample")) %>%
+    mutate(
+      NSNPs = n_snps,  # SNP count from haplotype file
+      MAE = MAE        # MAE from imputation file
+    ) %>%
+    select(-n_snps)   # Remove original column
+  
+  all_summaries[[length(all_summaries) + 1]] <- summary_data
+  cat("  ✓ Completed", method, "\n")
 }
 
 # Process adaptive window methods
@@ -99,69 +108,78 @@ for (h in h_cutoffs) {
   method <- paste0("adaptive_h", h)
   cat("Processing", method, "...\n")
   
-  # Haplotype data
-  h_data <- readRDS(file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))) %>%
-    select(chr, pos, estimate_OK, B1, sample, final_window_size, n_snps) %>%
+  # 1. Get SNP counts from haplotype file
+  haplo_file <- file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))
+  if (!file.exists(haplo_file)) {
+    cat("  ❌ Missing haplotype file:", haplo_file, "\n")
+    next
+  }
+  
+  haplo_data <- readRDS(haplo_file) %>%
+    select(chr, pos, estimate_OK, B1, sample, n_snps) %>%
     mutate(method = method)
   
-  # SNP imputation data
+  # 2. Get MAE from imputation file (average within ±5kb of each position)
   snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_", chr, ".RDS"))
-  
-  if (file.exists(snp_file)) {
-    # Load SNP data
-    snp_data <- readRDS(snp_file)
-    
-    # For adaptive windows, use the ACTUAL final window size from haplotype results
-    # This is the key insight - each position may have used a different window size!
-    
-    i_data <- h_data %>%
-      select(chr, pos, sample, final_window_size) %>%
-      left_join(
-        snp_data %>%
-          group_by(sample) %>%
-          group_modify(~ {
-            # For each sample, count SNPs within the ACTUAL window size used at each position
-            .x %>%
-              mutate(
-                # Calculate distance from each haplotype position
-                distance_from_pos = abs(pos - .y$pos[1])
-              ) %>%
-              # Use the actual final window size for this specific position
-              filter(distance_from_pos <= .y$final_window_size[1]/2) %>%
-              group_by(pos) %>%
-              summarize(
-                NSNPs = n(),
-                MAE = mean(abs(observed - imputed), na.rm = TRUE),
-                .groups = "drop"
-              )
-          }, .keep = TRUE) %>%
-          ungroup(),
-        by = c("chr", "pos", "sample")
-      ) %>%
-      # Fill missing values for positions with no SNPs
-      mutate(
-        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        MAE = ifelse(is.na(MAE), NA, MAE)
-      )
-    
-    # Join haplotype and SNP data
-    s_data <- h_data %>% 
-      left_join(i_data %>% select(-chr, -pos, -final_window_size), by = "sample") %>%
-      mutate(
-        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        MAE = ifelse(is.na(MAE), NA, MAE)
-      )
-    
-    all_summaries[[length(all_summaries) + 1]] <- s_data
-    cat("  ✓ Completed", method, "\n")
-  } else {
+  if (!file.exists(snp_file)) {
     cat("  ❌ Missing SNP file:", snp_file, "\n")
+    next
   }
+  
+  snp_data <- readRDS(snp_file)
+  
+  # Calculate MAE from imputation file using proper tidyverse approach
+  # Create 10kb bins centered on haplotype positions, then group and summarize
+  
+  # Get unique haplotype positions for this sample
+  haplo_positions <- haplo_data %>%
+    select(pos) %>%
+    distinct() %>%
+    pull(pos)
+  
+  # Create breaks for 10kb bins centered on haplotype positions
+  breaks <- sort(unique(c(
+    haplo_positions - 5000,  # 5kb before each position
+    haplo_positions + 5000   # 5kb after each position
+  )))
+  
+  # Add chromosome boundaries if needed
+  breaks <- c(min(breaks) - 1000, breaks, max(breaks) + 1000)
+  
+  # Calculate MAE for each haplotype position using proper tidyverse
+  mae_data <- snp_data %>%
+    # Create bins based on position
+    mutate(
+      pos_bin = cut(pos, breaks = breaks, labels = haplo_positions, include.lowest = TRUE, right = FALSE)
+    ) %>%
+    # Convert bin labels to numeric positions
+    mutate(pos_bin = as.numeric(as.character(pos_bin))) %>%
+    # Filter to only include SNPs that fall within haplotype position bins
+    filter(pos_bin %in% haplo_positions) %>%
+    # Group by bin and sample to calculate MAE
+    group_by(pos_bin, sample) %>%
+    summarize(
+      MAE = mean(abs(observed - imputed), na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    # Rename for joining
+    rename(pos = pos_bin)
+  
+  # 3. Join everything together
+  summary_data <- haplo_data %>%
+    left_join(mae_data, by = c("chr", "pos", "sample")) %>%
+    mutate(
+      NSNPs = n_snps,  # SNP count from haplotype file
+      MAE = MAE        # MAE from imputation file
+    ) %>%
+    select(-n_snps)   # Remove original column
+  
+  all_summaries[[length(all_summaries) + 1]] <- summary_data
+  cat("  ✓ Completed", method, "\n")
 }
 
-# Combine all summaries using row bind
+# Combine all summaries
 final_summary <- bind_rows(all_summaries) %>%
-  # Ensure proper column order and names
   select(chr, pos, method, B1_freq = B1, estimate_OK, MAE, NSNPs, sample)
 
 # Save summary file
