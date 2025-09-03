@@ -7,7 +7,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --mem=6G
 #SBATCH --cpus-per-task=1
-#SBATCH --array=1-9
+#SBATCH --array=1-10
 
 # =============================================================================
 # SNP Imputation Pipeline from Parameter Table
@@ -135,6 +135,10 @@ if [ "$METHOD" = "fixed" ]; then
   HAPLOTYPE_FILE="$RESULTS_DIR/fixed_window_${PARAM}kb_results_${CHR}.RDS"
   ESTIMATOR="fixed_${PARAM}kb"
   echo "Fixed window estimator: ${PARAM}kb"
+elif [ "$METHOD" = "smooth_h4" ]; then
+  HAPLOTYPE_FILE="$RESULTS_DIR/smooth_h4_results_${CHR}.RDS"
+  ESTIMATOR="smooth_h4"
+  echo "Smooth h4 estimator: 21-position sliding window smoothed adaptive_h4"
 else
   HAPLOTYPE_FILE="$RESULTS_DIR/adaptive_window_h${PARAM}_results_${CHR}.RDS"
   ESTIMATOR="adaptive_h${PARAM}"
