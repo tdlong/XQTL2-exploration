@@ -17,7 +17,7 @@ OUTDIR="$3"
 RUN_IMPUTATION="${4:-no}"
 
 # Source the common functions
-source scripts/haplotype_testing_common.sh
+source scripts/production/haplotype_testing_common.sh
 
 # Run the pipeline
 run_pipeline

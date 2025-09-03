@@ -66,7 +66,7 @@ function run_pipeline() {
 
     # Run haplotype estimation using unified production wrapper
     echo "Running haplotype estimation: $METHOD method with parameter $PARAM..."
-    Rscript scripts/run_haplotype_estimation.R "$CHR" "$METHOD" "$PARAM" "$OUTDIR" "$PARFILE"
+    Rscript scripts/production/run_haplotype_estimation.R "$CHR" "$METHOD" "$PARAM" "$OUTDIR" "$PARFILE"
     STATUS=$?
 
     if [ $STATUS -eq 0 ]; then

@@ -34,10 +34,10 @@
 # - Format: snp_imputation_<estimator>_<chr>.RDS
 #
 # USAGE:
-# sbatch scripts/snp_imputation_from_table.sh <params_tsv> <parfile> <outdir>
+# sbatch scripts/production/snp_imputation_from_table.sh <params_tsv> <parfile> <outdir>
 #
 # EXAMPLE:
-# sbatch scripts/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
+# sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE_haplotype_parameters.R process/JUICE
 # =============================================================================
 
 module load R/4.4.2

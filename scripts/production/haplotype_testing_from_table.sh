@@ -34,14 +34,14 @@
 # - All results filtered to euchromatic regions only
 #
 # USAGE:
-# sbatch scripts/haplotype_testing_from_table.sh <params_tsv> <parfile> <outdir> [run_imputation]
+# sbatch scripts/production/haplotype_testing_from_table.sh <params_tsv> <parfile> <outdir> [run_imputation]
 #
 # EXAMPLES:
 # # Haplotype estimation only
-# sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
+# sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE
 #
 # # Haplotype estimation + SNP imputation
-# sbatch scripts/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
+# sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/JUICE/JUICE_haplotype_parameters.R process/JUICE yes
 # =============================================================================
 
 module load R/4.4.2
@@ -175,7 +175,7 @@ mkdir -p "$RESULTS_DIR"
 
 # Run haplotype estimation using unified production wrapper
 echo "Running haplotype estimation: $METHOD method with parameter $PARAM..."
-Rscript scripts/run_haplotype_estimation.R "$CHR" "$METHOD" "$PARAM" "$OUTDIR" "$PARFILE"
+Rscript scripts/production/run_haplotype_estimation.R "$CHR" "$METHOD" "$PARAM" "$OUTDIR" "$PARFILE"
 STATUS=$?
 
 # Set output file names and estimator (for SNP imputation step)
@@ -218,7 +218,7 @@ if [ "$RUN_IMPUTATION" = "yes" ]; then
   # No additional processed data required
   
   echo "Running SNP imputation for $ESTIMATOR..."
-  Rscript scripts/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$ESTIMATOR"
+  Rscript scripts/production/euchromatic_SNP_imputation_single.R "$CHR" "$PARFILE" "$RESULTS_DIR" "$ESTIMATOR"
   IMPUTATION_STATUS=$?
   
   if [ $IMPUTATION_STATUS -eq 0 ]; then

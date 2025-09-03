@@ -373,6 +373,73 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
   haplotype_freqs <- rep(NA, length(founders))
   names(haplotype_freqs) <- founders
   
+  # ADDED: Detailed debugging output right before LSEI
+  if (verbose >= 3) {
+    cat("\n=== DETAILED DEBUGGING BEFORE LSEI ===\n")
+    cat("Founder matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
+    cat("Sample frequencies length:", length(sample_freqs_clean), "\n")
+    cat("h_cutoff:", h_cutoff, "\n")
+    
+    # Show founder matrix summary
+    cat("\nFounder matrix summary:\n")
+    for (i in seq_along(founders)) {
+      founder_data <- founder_matrix_clean[, i]
+      cat(sprintf("  %s: %d SNPs, range %.3f-%.3f, mean %.3f\n", 
+                 founders[i], length(founder_data), 
+                 min(founder_data, na.rm=TRUE), max(founder_data, na.rm=TRUE),
+                 mean(founder_data, na.rm=TRUE)))
+    }
+    
+    # Show sample frequency summary
+    cat("\nSample frequency summary:\n")
+    cat("  Range:", min(sample_freqs_clean, na.rm=TRUE), "-", max(sample_freqs_clean, na.rm=TRUE), "\n")
+    cat("  Mean:", mean(sample_freqs_clean, na.rm=TRUE), "\n")
+    cat("  NAs:", sum(is.na(sample_freqs_clean)), "\n")
+    
+    # Calculate and show founder distances
+    cat("\nFounder distance matrix:\n")
+    founder_dist <- dist(t(founder_matrix_clean))
+    founder_dist_matrix <- as.matrix(founder_dist)
+    print(round(founder_dist_matrix, 4))
+    
+    # Show clustering results
+    cat("\nHierarchical clustering results:\n")
+    hclust_result <- hclust(founder_dist, method = "complete")
+    groups <- cutree(hclust_result, h = h_cutoff)
+    n_groups <- length(unique(groups))
+    
+    cat("  h_cutoff:", h_cutoff, "\n")
+    cat("  Number of groups:", n_groups, "\n")
+    cat("  Expected groups:", length(founders), "\n")
+    cat("  Groups sufficient:", n_groups == length(founders), "\n")
+    
+    # Show group assignments
+    unique_clusters <- unique(groups)
+    for (cluster_id in unique_clusters) {
+      cluster_founders <- founders[groups == cluster_id]
+      if (length(cluster_founders) == 1) {
+        cat(sprintf("  Group %d: %s (individual)\n", cluster_id, cluster_founders))
+      } else {
+        cat(sprintf("  Group %d: %s\n", cluster_id, paste(cluster_founders, collapse=", ")))
+      }
+    }
+    
+    # Show minimum distance between any two founders
+    min_dist <- min(founder_dist)
+    cat("\nDistance analysis:\n")
+    cat("  Minimum distance between any two founders:", round(min_dist, 4), "\n")
+    cat("  h_cutoff satisfied:", min_dist >= h_cutoff, "\n")
+    
+    # Show which founders are closest
+    min_dist_idx <- which(founder_dist_matrix == min_dist, arr.ind = TRUE)
+    if (nrow(min_dist_idx) > 0) {
+      closest_pair <- min_dist_idx[1, ]
+      cat("  Closest founders:", founders[closest_pair[1]], "and", founders[closest_pair[2]], "\n")
+    }
+    
+    cat("=== END DEBUGGING ===\n\n")
+  }
+  
   # Run LSEI with better error handling
   tryCatch({
     E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
@@ -432,7 +499,6 @@ run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean,
       # Only show diagnostics on actual error
       cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
       if (lsei_result$IsError == 3) {
-        cat("  Position:", pos, "Sample:", sample_name, "\n")
         cat("  Inequalities are contradictory - showing diagnostics:\n")
         # Show founder ranges for this problematic case
         for (i in seq_along(founders)) {
