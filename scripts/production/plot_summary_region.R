@@ -85,7 +85,11 @@ method_colors <- c(
             cat("  Unreliable estimates:", nrow(region_data) - nrow(region_data_reliable), "rows\n")
 
             # Create haplotype frequency plot (top panel)
-            p_haplo <- ggplot(region_data_reliable, aes(x = pos_10kb, y = B1_freq, color = method)) +
+            # Set B1_freq to NA for unreliable estimates to create gaps in lines
+            region_data_with_gaps <- region_data %>%
+              mutate(B1_freq = ifelse(estimate_OK == TRUE, B1_freq, NA))
+            
+            p_haplo <- ggplot(region_data_with_gaps, aes(x = pos_10kb, y = B1_freq, color = method)) +
               geom_line(linewidth = 1, na.rm = TRUE) +
               geom_point(size = 2, na.rm = TRUE) +
               scale_color_manual(values = method_colors) +
@@ -107,14 +111,10 @@ method_colors <- c(
                 axis.text.x = element_blank()  # No x-axis text for top panel
               )
 
-# Create MAE plot (middle panel) - only for positions with SNPs
-mae_data <- region_data %>%
-  filter(!is.na(MAE) & NSNPs > 0)
-
-            if (nrow(mae_data) > 0) {
-              p_mae <- ggplot(mae_data, aes(x = pos_10kb, y = MAE, color = method)) +
-                geom_line(linewidth = 1, na.rm = TRUE) +
-                geom_point(size = 2, na.rm = TRUE) +
+# Create MAE plot (middle panel) - show all positions, NA means no imputation possible
+            p_mae <- ggplot(region_data, aes(x = pos_10kb, y = MAE, color = method)) +
+              geom_line(linewidth = 1, na.rm = TRUE) +
+              geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
@@ -133,22 +133,11 @@ mae_data <- region_data %>%
                   legend.position = "none",  # Legend only on bottom panel
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
-            } else {
-              # Create empty MAE plot if no data
-              p_mae <- ggplot() +
-                annotate("text", x = 0.5, y = 0.5, label = "No MAE data available", size = 6) +
-                theme_minimal() +
-                theme(
-                  axis.text = element_blank(),
-                  axis.title = element_blank(),
-                  panel.grid = element_blank()
-                )
-            }
 
 # Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
   geom_line(linewidth = 1, na.rm = TRUE) +
-  geom_point(size = 2, na.rm = TRUE) +
+  geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
