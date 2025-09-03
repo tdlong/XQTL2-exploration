@@ -134,8 +134,16 @@ method_colors <- c(
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
 
-# Create SNP count plot (bottom panel) - identical structure to panel 1, just different y-axis
-p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
+# Create SNP count plot (bottom panel) - add small y-axis offsets to separate methods
+region_data_offset <- region_data %>%
+  mutate(NSNPs_offset = case_when(
+    method == "adaptive_h4" ~ NSNPs * 1.025,  # +2.5%
+    method == "fixed_100kb" ~ NSNPs * 1.05,   # +5%
+    method == "fixed_20kb" ~ NSNPs,           # No offset
+    TRUE ~ NSNPs
+  ))
+
+p_snps <- ggplot(region_data_offset, aes(x = pos_10kb, y = NSNPs_offset, color = method)) +
   geom_line(linewidth = 1, na.rm = TRUE) +
   geom_point(size = 2, na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
