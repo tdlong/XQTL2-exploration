@@ -134,6 +134,20 @@ method_colors <- c(
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
 
+# Debug: Check what's in the SNP count data
+cat("\n=== SNP COUNT DATA DEBUG ===\n")
+cat("Total rows in region_data:", nrow(region_data), "\n")
+cat("NSNPs summary:\n")
+print(summary(region_data$NSNPs))
+cat("NSNPs by method:\n")
+print(region_data %>% group_by(method) %>% summarize(
+  n_total = n(),
+  n_with_snps = sum(!is.na(NSNPs)),
+  n_na = sum(is.na(NSNPs)),
+  mean_snps = mean(NSNPs, na.rm = TRUE),
+  .groups = "drop"
+))
+
 # Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
   geom_line(linewidth = 1, na.rm = TRUE) +
