@@ -77,8 +77,8 @@ method_colors <- c(
 
             # Create haplotype frequency plot (top panel)
             p_haplo <- ggplot(region_data, aes(x = pos_10kb, y = B1_freq, color = method)) +
-              geom_line(alpha = 0.7, linewidth = 1) +
-              geom_point(size = 2) +
+              geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
+              geom_point(size = 2, na.rm = TRUE) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
@@ -104,8 +104,8 @@ rmse_data <- region_data %>%
 
             if (nrow(rmse_data) > 0) {
               p_rmse <- ggplot(rmse_data, aes(x = pos_10kb, y = RMSE, color = method)) +
-                geom_line(alpha = 0.7, linewidth = 1) +
-                geom_point(size = 2) +
+                geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
+                geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
@@ -136,20 +136,25 @@ rmse_data <- region_data %>%
                 )
             }
 
-# Create SNP count plot (bottom panel)
+# Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
-  geom_line(alpha = 0.7, linewidth = 1) +
-  geom_point(size = 2) +
+  geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
+  geom_point(size = 2, na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
     breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
   ) +
+  # Use log scale for y-axis to better show differences between methods
+  scale_y_log10(
+    breaks = c(1, 5, 10, 25, 50, 100, 250, 500),
+    labels = c("1", "5", "10", "25", "50", "100", "250", "500")
+  ) +
   labs(
     title = paste("Number of SNPs per Window -", first_sample),
-    subtitle = paste("Chromosome:", chr, "(SNPs within ±5kb of each haplotype position)"),
+    subtitle = paste("Chromosome:", chr, "(SNPs within actual window size: 20kb/100kb fixed, adaptive uses final_window_size)"),
     x = "Position (10kb units)",
-    y = "Number of SNPs",
+    y = "Number of SNPs (log scale)",
     color = "Method"
   ) +
   theme_minimal() +
@@ -193,5 +198,26 @@ cat("Total positions:", nrow(region_data), "\n")
 cat("Positions with estimate_OK = 1:", sum(region_data$estimate_OK == 1, na.rm = TRUE), "\n")
 cat("Positions with estimate_OK = 0:", sum(region_data$estimate_OK == 0, na.rm = TRUE), "\n")
 cat("Positions with estimate_OK = NA:", sum(is.na(region_data$estimate_OK)), "\n")
+
+# Print SNP count statistics by method
+cat("\n=== SNP COUNT STATISTICS BY METHOD ===\n")
+snp_stats <- region_data %>%
+  group_by(method) %>%
+  summarize(
+    mean_snps = mean(NSNPs, na.rm = TRUE),
+    median_snps = median(NSNPs, na.rm = TRUE),
+    min_snps = min(NSNPs, na.rm = TRUE),
+    max_snps = max(NSNPs, na.rm = TRUE),
+    positions_with_snps = sum(NSNPs > 0, na.rm = TRUE),
+    total_positions = n(),
+    .groups = "drop"
+  )
+
+for (i in 1:nrow(snp_stats)) {
+  row <- snp_stats[i, ]
+  cat(sprintf("%s: mean=%.1f, median=%.0f, range=[%d-%d], positions with SNPs=%d/%d\n",
+              row$method, row$mean_snps, row$median_snps, 
+              row$min_snps, row$max_snps, row$positions_with_snps, row$total_positions))
+}
 
 cat("\n✓ Plotting complete!\n")

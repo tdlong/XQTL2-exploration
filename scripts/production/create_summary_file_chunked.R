@@ -18,7 +18,7 @@ output_dir <- args[3]
 source(param_file)
 results_dir <- file.path(output_dir, "haplotype_results")
 
-cat("=== CREATING SUMMARY FILE (SIMPLE LOOP APPROACH) ===\n")
+cat("=== CREATING SUMMARY FILE (PROPER SNP COUNTING) ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
@@ -26,7 +26,7 @@ cat("Output directory:", output_dir, "\n\n")
 fixed_sizes <- c(20, 50, 100, 200, 500)
 h_cutoffs <- c(4, 6, 8, 10)
 
-cat("Processing each estimator using working code approach...\n")
+cat("Processing each estimator using proper SNP counting...\n")
 
 all_summaries <- list()
 
@@ -35,40 +35,57 @@ for (size in fixed_sizes) {
   method <- paste0("fixed_", size, "kb")
   cat("Processing", method, "...\n")
   
-  # Haplotype data (exact working code approach)
+  # Haplotype data
   h_data <- readRDS(file.path(results_dir, paste0("fixed_window_", size, "kb_results_", chr, ".RDS"))) %>%
     select(chr, pos, estimate_OK, B1, sample) %>%
     mutate(method = method)
   
-  # SNP imputation data (exact working code approach)
+  # SNP imputation data
   snp_file <- file.path(results_dir, paste0("snp_imputation_fixed_", size, "kb_", chr, ".RDS"))
   
   if (file.exists(snp_file)) {
-    i_data <- readRDS(snp_file) %>%
-      mutate(SE = (observed - imputed)^2) %>%
-      filter(!is.na(SE)) %>%
-      mutate(
-        pos_binned = {
-          # Calculate breaks (exact working code)
-          breaks <- seq(
-            from = floor((min(pos, na.rm = TRUE) - 5000) / 10000) * 10000 + 5000,
-            to = ceiling((max(pos, na.rm = TRUE) - 5000) / 10000) * 10000 + 15000,
-            by = 10000
-          )
-          # Calculate midpoints for labels
-          midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
-          # Cut with midpoint labels
-          cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
-        }
-      ) %>%
-      select(chr, pos_binned, SE, sample) %>%
-      group_by(chr, pos_binned, sample) %>%
-      summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
-      rename(pos = pos_binned) %>% 
-      mutate(pos = as.numeric(as.character(pos)))
+    # Load SNP data and count SNPs within the actual window size for each haplotype position
+    snp_data <- readRDS(snp_file)
     
-    # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
+    # For fixed windows, count SNPs within ±window_size/2 of each haplotype position
+    window_size_bp <- size * 1000
+    
+    i_data <- h_data %>%
+      select(chr, pos, sample) %>%
+      left_join(
+        snp_data %>%
+          group_by(sample) %>%
+          group_modify(~ {
+            # For each sample, count SNPs within window of each haplotype position
+            .x %>%
+              mutate(
+                # Calculate distance from each haplotype position
+                distance_from_pos = abs(pos - .y$pos[1])
+              ) %>%
+              filter(distance_from_pos <= window_size_bp/2) %>%
+              group_by(pos) %>%
+              summarize(
+                NSNPs = n(),
+                RMSE = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+                .groups = "drop"
+              )
+          }, .keep = TRUE) %>%
+          ungroup(),
+        by = c("chr", "pos", "sample")
+      ) %>%
+      # Fill missing values for positions with no SNPs
+      mutate(
+        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
+        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+      )
+    
+    # Join haplotype and SNP data
+    s_data <- h_data %>% 
+      left_join(i_data %>% select(-chr, -pos), by = "sample") %>%
+      mutate(
+        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
+        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+      )
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
@@ -82,40 +99,58 @@ for (h in h_cutoffs) {
   method <- paste0("adaptive_h", h)
   cat("Processing", method, "...\n")
   
-  # Haplotype data (exact working code approach)
+  # Haplotype data
   h_data <- readRDS(file.path(results_dir, paste0("adaptive_window_h", h, "_results_", chr, ".RDS"))) %>%
-    select(chr, pos, estimate_OK, B1, sample) %>%
+    select(chr, pos, estimate_OK, B1, sample, final_window_size, n_snps) %>%
     mutate(method = method)
   
-  # SNP imputation data (exact working code approach)
+  # SNP imputation data
   snp_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", h, "_", chr, ".RDS"))
   
   if (file.exists(snp_file)) {
-    i_data <- readRDS(snp_file) %>%
-      mutate(SE = (observed - imputed)^2) %>%
-      filter(!is.na(SE)) %>%
-      mutate(
-        pos_binned = {
-          # Calculate breaks (exact working code)
-          breaks <- seq(
-            from = floor((min(pos, na.rm = TRUE) - 5000) / 10000) * 10000 + 5000,
-            to = ceiling((max(pos, na.rm = TRUE) - 5000) / 10000) * 10000 + 15000,
-            by = 10000
-          )
-          # Calculate midpoints for labels
-          midpoints <- (breaks[-length(breaks)] + breaks[-1]) / 2
-          # Cut with midpoint labels
-          cut(pos, breaks = breaks, labels = midpoints, include.lowest = TRUE, right = FALSE)
-        }
-      ) %>%
-      select(chr, pos_binned, SE, sample) %>%
-      group_by(chr, pos_binned, sample) %>%
-      summarize(RMSE = sqrt(mean(SE)), NSNPs = n(), .groups = "drop") %>%
-      rename(pos = pos_binned) %>% 
-      mutate(pos = as.numeric(as.character(pos)))
+    # Load SNP data
+    snp_data <- readRDS(snp_file)
     
-    # Join haplotype and SNP data (exact working code approach)
-    s_data <- h_data %>% left_join(i_data, by = c("chr", "pos", "sample"))
+    # For adaptive windows, use the ACTUAL final window size from haplotype results
+    # This is the key insight - each position may have used a different window size!
+    
+    i_data <- h_data %>%
+      select(chr, pos, sample, final_window_size) %>%
+      left_join(
+        snp_data %>%
+          group_by(sample) %>%
+          group_modify(~ {
+            # For each sample, count SNPs within the ACTUAL window size used at each position
+            .x %>%
+              mutate(
+                # Calculate distance from each haplotype position
+                distance_from_pos = abs(pos - .y$pos[1])
+              ) %>%
+              # Use the actual final window size for this specific position
+              filter(distance_from_pos <= .y$final_window_size[1]/2) %>%
+              group_by(pos) %>%
+              summarize(
+                NSNPs = n(),
+                RMSE = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+                .groups = "drop"
+              )
+          }, .keep = TRUE) %>%
+          ungroup(),
+        by = c("chr", "pos", "sample")
+      ) %>%
+      # Fill missing values for positions with no SNPs
+      mutate(
+        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
+        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+      )
+    
+    # Join haplotype and SNP data
+    s_data <- h_data %>% 
+      left_join(i_data %>% select(-chr, -pos, -final_window_size), by = "sample") %>%
+      mutate(
+        NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
+        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+      )
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
     cat("  ✓ Completed", method, "\n")
