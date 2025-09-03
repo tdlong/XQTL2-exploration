@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SCRIPT REORGANIZATION COMPLETE**
+## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - PLOTTING INFRASTRUCTURE COMPLETE**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE**
 
 ---
 
@@ -82,6 +82,15 @@ sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_s
 sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
 
+**Plotting commands available**:
+```bash
+# Plot specific region (3 methods comparison)
+Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
+
+# Plot entire chromosome (adaptive_h4 only)
+Rscript scripts/production/plot_summary_chromosome.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+```
+
 **Next steps after SNP imputation completes**:
 ```bash
 # Check completion status
@@ -101,6 +110,30 @@ Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype
 - **Position 6390000**: Should now get `imputed = NA` because both boundaries have `estimate_OK = 0`
 - **Coverage**: All methods should have exactly 1,079,052 SNPs processed
 - **Quality**: Smaller fixed windows should show more NA imputations than larger ones
+
+---
+
+## 🎨 **PLOTTING INFRASTRUCTURE - COMPLETE**
+
+### ✅ **Region Plotting Script** (`plot_summary_region.R`)
+- **Three-panel plots**: B1 frequencies, MAE, SNP counts
+- **Three methods**: `adaptive_h4`, `fixed_20kb`, `fixed_100kb`
+- **Proper NA handling**: Lines break at unreliable estimates (`estimate_OK = FALSE`)
+- **Clean styling**: Colorblind-friendly colors, proper y-axis ranges
+- **Usage**: `Rscript scripts/production/plot_summary_region.R <chr> <params> <output_dir> <midpoint_10kb>`
+
+### ✅ **Chromosome Plotting Script** (`plot_summary_chromosome.R`)
+- **Single method focus**: `adaptive_h4` only
+- **Entire chromosome view**: No region filtering
+- **Advanced styling**: Transparent black points, LOESS smoothing curves
+- **Responsive smoothing**: `span = 0.05` for detailed pattern capture
+- **Usage**: `Rscript scripts/production/plot_summary_chromosome.R <chr> <params> <output_dir>`
+
+### 🎯 **Key Plotting Features**:
+- **Automatic gap handling**: Lines break at `NA` values (unreliable estimates)
+- **Y-axis optimization**: Extended ranges to cover all data points
+- **Professional appearance**: Clean themes, appropriate scales
+- **Data integrity**: SNP counts from haplotype files, MAE from imputation files
 
 ---
 
@@ -276,4 +309,4 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Rerunning Pipeline*
+*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete*
