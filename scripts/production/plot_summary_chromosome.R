@@ -36,15 +36,22 @@ if (!dir.exists(results_dir)) {
   stop("Results directory not found:", results_dir)
 }
 
-# Load summary file
+# Load summary file - using exact same code from working region script
 summary_file <- file.path(results_dir, paste0("summary_", chr, ".RDS"))
 if (!file.exists(summary_file)) {
-  stop("Summary file not found:", summary_file)
+  stop("Summary file not found: ", summary_file)
 }
 
 cat("Loading summary file...\n")
 summary_data <- readRDS(summary_file)
+
 cat("✓ Summary data loaded:", nrow(summary_data), "rows\n")
+cat("Samples available:", paste(unique(summary_data$sample), collapse = ", "), "\n")
+
+# Show position range in data
+pos_range <- range(summary_data$pos)
+cat("Position range in data:", format(pos_range[1], big.mark=","), "to", format(pos_range[2], big.mark=","), "base pairs\n")
+cat("Position range in 10kb units:", round(pos_range[1]/10000), "to", round(pos_range[2]/10000), "\n\n")
 
 # Get the first sample
 first_sample <- unique(summary_data$sample)[1]
@@ -61,11 +68,6 @@ cat("Data points for adaptive_h4:", nrow(region_data), "\n")
 if (nrow(region_data) == 0) {
   stop("No adaptive_h4 data found")
 }
-
-# Show position range in data
-pos_range <- range(region_data$pos)
-cat("Position range in data:", format(pos_range[1], big.mark=","), "to", format(pos_range[2], big.mark=","), "base pairs\n")
-cat("Position range in 10kb units:", round(pos_range[1]/10000), "to", round(pos_range[2]/10000), "\n\n")
 
 # Set color scheme for adaptive_h4 only
 method_colors <- c("adaptive_h4" = "#006400")  # Dark green
