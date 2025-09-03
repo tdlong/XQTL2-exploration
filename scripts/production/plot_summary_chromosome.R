@@ -24,20 +24,13 @@ cat("=== PLOTTING SUMMARY CHROMOSOME ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", results_dir, "\n\n")
 
-# Load haplotype parameters
-if (!file.exists(params_file)) {
-  stop("Parameters file not found:", params_file)
-}
-
+# Load parameters
 source(params_file)
+results_dir <- file.path(results_dir, "haplotype_results")
 
-# Check if results directory exists
-if (!dir.exists(results_dir)) {
-  stop("Results directory not found:", results_dir)
-}
-
-# Load summary file - using exact same code from working region script
+# Load the summary file
 summary_file <- file.path(results_dir, paste0("summary_", chr, ".RDS"))
+
 if (!file.exists(summary_file)) {
   stop("Summary file not found: ", summary_file)
 }
