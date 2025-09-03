@@ -134,3 +134,93 @@ cat("1. Verify if haplotype estimation actually failed at these positions\n")
 cat("2. Check if SNP imputation is working correctly\n")
 cat("3. Investigate why we have haplotype estimates when n_snps suggests failure\n")
 cat("4. Fix plotting to not show unreliable haplotype estimates\n")
+
+# 8. Create simple table for first sample (Rep01_W_F)
+cat("\n=== SIMPLE TABLE FOR Rep01_W_F ===\n")
+first_sample <- "Rep01_W_F"
+cat("Position | NSNPs | estimate_OK\n")
+cat("---------|-------|------------\n")
+
+# Get the 6 positions: 4 target + 2 flanking
+positions_to_check <- c(8700000, 8710000, 8720000, 8730000, 8740000, 8750000)
+
+for (pos in positions_to_check) {
+  pos_data <- haplo_data %>%
+    filter(pos == !!pos, sample == first_sample) %>%
+    select(pos, n_snps, estimate_OK)
+  
+  if (nrow(pos_data) > 0) {
+    cat(sprintf("%8.0f | %5d | %10d\n", 
+                pos_data$pos, 
+                pos_data$n_snps, 
+                pos_data$estimate_OK))
+  } else {
+    cat(sprintf("%8.0f | %5s | %10s\n", pos, "NA", "NA"))
+  }
+}
+
+# 9. Analyze SNP imputation in the 5 intervals
+cat("\n=== SNP IMPUTATION ANALYSIS FOR 5 INTERVALS ===\n")
+cat("Interval | Left_OK | Right_OK | SNPs_in_interval | Can_impute?\n")
+cat("---------|---------|----------|------------------|------------\n")
+
+for (i in 1:5) {
+  left_pos <- positions_to_check[i]
+  right_pos <- positions_to_check[i + 1]
+  
+  # Get estimate_OK for left and right positions
+  left_ok <- haplo_data %>%
+    filter(pos == left_pos, sample == first_sample) %>%
+    pull(estimate_OK)
+  
+  right_ok <- haplo_data %>%
+    filter(pos == right_pos, sample == first_sample) %>%
+    pull(estimate_OK)
+  
+  # Count SNPs in this interval
+  interval_snps <- snp_data %>%
+    filter(sample == first_sample) %>%
+    filter(pos > left_pos & pos < right_pos) %>%
+    nrow()
+  
+  # Determine if imputation is possible
+  can_impute <- ifelse(length(left_ok) > 0 && length(right_ok) > 0,
+                       ifelse(left_ok == 1 || right_ok == 1, "YES", "NO"),
+                       "UNKNOWN")
+  
+  cat(sprintf("%8.0f-%8.0f | %7d | %9d | %16d | %10s\n",
+              left_pos, right_pos, 
+              ifelse(length(left_ok) > 0, left_ok, NA),
+              ifelse(length(right_ok) > 0, right_ok, NA),
+              interval_snps,
+              can_impute))
+}
+
+# 10. Check specific SNPs in each interval
+cat("\n=== DETAILED SNP ANALYSIS BY INTERVAL ===\n")
+for (i in 1:5) {
+  left_pos <- positions_to_check[i]
+  right_pos <- positions_to_check[i + 1]
+  
+  cat(sprintf("\nInterval %d: %8.0f - %8.0f\n", i, left_pos, right_pos))
+  
+  # Get SNPs in this interval
+  interval_snps <- snp_data %>%
+    filter(sample == first_sample) %>%
+    filter(pos > left_pos & pos < right_pos) %>%
+    select(pos, observed, imputed) %>%
+    arrange(pos)
+  
+  if (nrow(interval_snps) > 0) {
+    cat("  SNPs found:", nrow(interval_snps), "\n")
+    cat("  Position range:", paste(range(interval_snps$pos), collapse = " to "), "\n")
+    cat("  First few SNPs:\n")
+    print(head(interval_snps, 5))
+    
+    # Check for NA imputed values
+    na_count <- sum(is.na(interval_snps$imputed))
+    cat("  SNPs with imputed = NA:", na_count, "/", nrow(interval_snps), "\n")
+  } else {
+    cat("  No SNPs found in interval\n")
+  }
+}
