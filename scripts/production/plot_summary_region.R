@@ -116,15 +116,18 @@ method_colors <- c(
               geom_line(linewidth = 1, na.rm = TRUE) +
               geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
+                scale_y_continuous(
+                  breaks = seq(0.08, 0.14, by = 0.01),
+                  labels = sprintf("%.2f", seq(0.08, 0.14, by = 0.01))
+                ) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
                   breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
                 ) +
                 labs(
-                  title = paste("SNP Imputation MAE -", first_sample),
-                  subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
+                  title = paste("SNP Imputation Mean Absolute Error -", first_sample),
                   x = NULL,  # No x-axis label for middle panel
-                  y = "MAE",
+                  y = "Mean Absolute Error",
                   color = "Method"
                 ) +
                 theme_minimal() +
@@ -151,14 +154,13 @@ p_snps <- ggplot(region_data_offset, aes(x = pos_10kb, y = NSNPs_offset, color =
     labels = function(x) format(x, scientific = FALSE),
     breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
   ) +
-  # Use log scale for y-axis to better show differences between methods
+  # Use log scale for y-axis with more labels for better readability
   scale_y_log10(
-    breaks = c(1, 5, 10, 25, 50, 100, 250, 500),
-    labels = c("1", "5", "10", "25", "50", "100", "250", "500")
+    breaks = c(100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000),
+    labels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1200", "1400", "1600", "1800", "2000")
   ) +
   labs(
     title = paste("Number of SNPs per Window -", first_sample),
-    subtitle = paste("Chromosome:", chr, "(SNPs actually used in haplotype estimation: from haplotype files)"),
     x = "Position (10kb units)",
     y = "Number of SNPs (log scale)",
     color = "Method"
