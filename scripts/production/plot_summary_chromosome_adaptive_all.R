@@ -76,7 +76,7 @@ if (nrow(region_data) == 0) {
             p_h4 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h4"), 
                            aes(x = pos_10kb, y = B1_freq)) +
               geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.05) +
+              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -96,7 +96,7 @@ if (nrow(region_data) == 0) {
             p_h6 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h6"), 
                            aes(x = pos_10kb, y = B1_freq)) +
               geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.05) +
+              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -116,7 +116,7 @@ if (nrow(region_data) == 0) {
             p_h8 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h8"), 
                            aes(x = pos_10kb, y = B1_freq)) +
               geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.05) +
+              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
@@ -136,7 +136,7 @@ if (nrow(region_data) == 0) {
             p_h10 <- ggplot(region_data_with_gaps %>% filter(method == "adaptive_h10"), 
                             aes(x = pos_10kb, y = B1_freq)) +
               geom_point(size = 1.5, na.rm = TRUE, alpha = 0.3, color = "black") +
-              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.05) +
+              geom_smooth(method = "loess", se = FALSE, color = "black", linewidth = 0.8, span = 0.01) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
                 breaks = seq(round(pos_range[1]/10000), round(pos_range[2]/10000), by = 100)  # Every 1Mb (100 * 10kb)
