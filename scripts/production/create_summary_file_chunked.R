@@ -62,33 +62,23 @@ for (size in fixed_sizes) {
     distinct() %>%
     pull(pos)
   
-  # Create breaks for 10kb bins centered on haplotype positions
-  breaks <- sort(unique(c(
-    haplo_positions - 5000,  # 5kb before each position
-    haplo_positions + 5000   # 5kb after each position
-  )))
-  
-  # Add chromosome boundaries if needed
-  breaks <- c(min(breaks) - 1000, breaks, max(breaks) + 1000)
-  
   # Calculate MAE for each haplotype position using proper tidyverse
   mae_data <- snp_data %>%
-    # Create bins based on position
+    # Create bins by finding the closest haplotype position for each SNP
     mutate(
-      pos_bin = cut(pos, breaks = breaks, labels = haplo_positions, include.lowest = TRUE, right = FALSE)
+      # Find the closest haplotype position for each SNP
+      closest_pos = haplo_positions[sapply(pos, function(x) which.min(abs(haplo_positions - x)))]
     ) %>%
-    # Convert bin labels to numeric positions
-    mutate(pos_bin = as.numeric(as.character(pos_bin))) %>%
-    # Filter to only include SNPs that fall within haplotype position bins
-    filter(pos_bin %in% haplo_positions) %>%
-    # Group by bin and sample to calculate MAE
-    group_by(pos_bin, sample) %>%
+    # Filter to only include SNPs within ±5kb of a haplotype position
+    filter(abs(pos - closest_pos) <= 5000) %>%
+    # Group by closest position and sample to calculate MAE
+    group_by(closest_pos, sample) %>%
     summarize(
       MAE = mean(abs(observed - imputed), na.rm = TRUE),
       .groups = "drop"
     ) %>%
     # Rename for joining
-    rename(pos = pos_bin)
+    rename(pos = closest_pos)
   
   # 3. Join everything together
   summary_data <- haplo_data %>%
@@ -137,33 +127,23 @@ for (h in h_cutoffs) {
     distinct() %>%
     pull(pos)
   
-  # Create breaks for 10kb bins centered on haplotype positions
-  breaks <- sort(unique(c(
-    haplo_positions - 5000,  # 5kb before each position
-    haplo_positions + 5000   # 5kb after each position
-  )))
-  
-  # Add chromosome boundaries if needed
-  breaks <- c(min(breaks) - 1000, breaks, max(breaks) + 1000)
-  
   # Calculate MAE for each haplotype position using proper tidyverse
   mae_data <- snp_data %>%
-    # Create bins based on position
+    # Create bins by finding the closest haplotype position for each SNP
     mutate(
-      pos_bin = cut(pos, breaks = breaks, labels = haplo_positions, include.lowest = TRUE, right = FALSE)
+      # Find the closest haplotype position for each SNP
+      closest_pos = haplo_positions[sapply(pos, function(x) which.min(abs(haplo_positions - x)))]
     ) %>%
-    # Convert bin labels to numeric positions
-    mutate(pos_bin = as.numeric(as.character(pos_bin))) %>%
-    # Filter to only include SNPs that fall within haplotype position bins
-    filter(pos_bin %in% haplo_positions) %>%
-    # Group by bin and sample to calculate MAE
-    group_by(pos_bin, sample) %>%
+    # Filter to only include SNPs within ±5kb of a haplotype position
+    filter(abs(pos - closest_pos) <= 5000) %>%
+    # Group by closest position and sample to calculate MAE
+    group_by(closest_pos, sample) %>%
     summarize(
       MAE = mean(abs(observed - imputed), na.rm = TRUE),
       .groups = "drop"
     ) %>%
     # Rename for joining
-    rename(pos = pos_bin)
+    rename(pos = closest_pos)
   
   # 3. Join everything together
   summary_data <- haplo_data %>%
