@@ -77,14 +77,15 @@ for (size in fixed_sizes) {
       MAE = mean(abs(observed - imputed), na.rm = TRUE),
       .groups = "drop"
     ) %>%
-    # Rename for joining
+    # Add chr column and rename for joining
+    mutate(chr = haplo_data$chr[1]) %>%
     rename(pos = closest_pos)
   
   # 3. Join everything together
   summary_data <- haplo_data %>%
     left_join(mae_data, by = c("chr", "pos", "sample")) %>%
     mutate(
-      NSNPs = n_snps,  # SNP count from haplotype file
+      NSNPs = ifelse(estimate_OK, n_snps, NA),  # SNP count from haplotype file, NA if estimate not OK
       MAE = MAE        # MAE from imputation file
     ) %>%
     select(-n_snps)   # Remove original column
@@ -142,14 +143,15 @@ for (h in h_cutoffs) {
       MAE = mean(abs(observed - imputed), na.rm = TRUE),
       .groups = "drop"
     ) %>%
-    # Rename for joining
+    # Add chr column and rename for joining
+    mutate(chr = haplo_data$chr[1]) %>%
     rename(pos = closest_pos)
   
   # 3. Join everything together
   summary_data <- haplo_data %>%
     left_join(mae_data, by = c("chr", "pos", "sample")) %>%
     mutate(
-      NSNPs = n_snps,  # SNP count from haplotype file
+      NSNPs = ifelse(estimate_OK, n_snps, NA),  # SNP count from haplotype file, NA if estimate not OK
       MAE = MAE        # MAE from imputation file
     ) %>%
     select(-n_snps)   # Remove original column
