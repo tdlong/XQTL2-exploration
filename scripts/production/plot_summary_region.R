@@ -55,10 +55,11 @@ summary_data <- readRDS(summary_file)
             cat("This corresponds to:", round(region_start_bp/10000), "-", round(region_end_bp/10000), "(10kb units)\n\n")
             cat("Note: Input positions are in 10kb units (e.g., 1080 = 10,800,000 base pairs)\n\n")
 
-            # Filter data to the region and first sample
+            # Filter data to the region, first sample, and only the 3 methods of interest
             region_data <- summary_data %>%
               filter(sample == first_sample) %>%
               filter(pos >= region_start_bp & pos <= region_end_bp) %>%
+              filter(method %in% c("adaptive_h4", "fixed_20kb", "fixed_100kb")) %>%
               mutate(pos_10kb = pos / 10000)  # Convert to 10kb units for plotting
 
 cat("Data points in region:", nrow(region_data), "\n")
@@ -67,23 +68,17 @@ if (nrow(region_data) == 0) {
   stop("No data found in the specified region")
 }
 
-# Set color scheme: reds for fixed windows, greens for adaptive
+# Set color scheme for the 3 methods only
 method_colors <- c(
-  "fixed_20kb" = "#8B0000",    # Dark red
-  "fixed_50kb" = "#DC143C",    # Crimson
-  "fixed_100kb" = "#FF6347",   # Tomato
-  "fixed_200kb" = "#FF7F7F",   # Light coral
-  "fixed_500kb" = "#FFB6C1",   # Light pink
   "adaptive_h4" = "#006400",   # Dark green
-  "adaptive_h6" = "#228B22",   # Forest green
-  "adaptive_h8" = "#32CD32",   # Lime green
-  "adaptive_h10" = "#90EE90"   # Light green
+  "fixed_20kb" = "#8B0000",    # Dark red
+  "fixed_100kb" = "#FF6347"    # Tomato
 )
 
             # Create haplotype frequency plot (top panel)
             p_haplo <- ggplot(region_data, aes(x = pos_10kb, y = B1_freq, color = method)) +
-              geom_line(alpha = 0.7) +
-              geom_point(size = 1) +
+              geom_line(alpha = 0.7, linewidth = 1) +
+              geom_point(size = 2) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
                 labels = function(x) format(x, scientific = FALSE),
@@ -103,14 +98,14 @@ method_colors <- c(
                 axis.text.x = element_blank()  # No x-axis text for top panel
               )
 
-# Create RMSE plot (bottom panel) - only for positions with SNPs
+# Create RMSE plot (middle panel) - only for positions with SNPs
 rmse_data <- region_data %>%
   filter(!is.na(RMSE) & NSNPs > 0)
 
             if (nrow(rmse_data) > 0) {
               p_rmse <- ggplot(rmse_data, aes(x = pos_10kb, y = RMSE, color = method)) +
-                geom_line(alpha = 0.7) +
-                geom_point(size = 1) +
+                geom_line(alpha = 0.7, linewidth = 1) +
+                geom_point(size = 2) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
@@ -119,35 +114,61 @@ rmse_data <- region_data %>%
                 labs(
                   title = paste("SNP Imputation RMSE -", first_sample),
                   subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
-                  x = "Position (10kb units)",
+                  x = NULL,  # No x-axis label for middle panel
                   y = "RMSE",
                   color = "Method"
                 ) +
                 theme_minimal() +
                 theme(
                   plot.title = element_text(size = 12, face = "bold"),
-                  legend.position = "bottom",
-                  legend.text = element_text(size = 8),
-                  axis.text.x = element_text(angle = 45, hjust = 1)
+                  legend.position = "none",  # Legend only on bottom panel
+                  axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
-  
-  # Create combined two-panel plot
-  p_combined <- p_haplo / p_rmse + 
-    plot_layout(heights = c(1, 1))
-  
-                # Save combined plot
-              plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.png"))
-              ggsave(plot_file, p_combined, width = 12, height = 8, dpi = 300)
-
-              cat("✓ Combined plot saved to:", plot_file, "\n")
             } else {
-              # Save haplotype plot only if no RMSE data
-              plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.png"))
-              ggsave(plot_file, p_haplo, width = 12, height = 6, dpi = 300)
-
-              cat("⚠️ No RMSE data found, saved haplotype plot only\n")
-              cat("✓ Plot saved to:", plot_file, "\n")
+              # Create empty RMSE plot if no data
+              p_rmse <- ggplot() +
+                annotate("text", x = 0.5, y = 0.5, label = "No RMSE data available", size = 6) +
+                theme_minimal() +
+                theme(
+                  axis.text = element_blank(),
+                  axis.title = element_blank(),
+                  panel.grid = element_blank()
+                )
             }
+
+# Create SNP count plot (bottom panel)
+p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
+  geom_line(alpha = 0.7, linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_manual(values = method_colors) +
+  scale_x_continuous(
+    labels = function(x) format(x, scientific = FALSE),
+    breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
+  ) +
+  labs(
+    title = paste("Number of SNPs per Window -", first_sample),
+    subtitle = paste("Chromosome:", chr, "(SNPs within ±5kb of each haplotype position)"),
+    x = "Position (10kb units)",
+    y = "Number of SNPs",
+    color = "Method"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    legend.position = "bottom",
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+# Create combined three-panel plot
+p_combined <- p_haplo / p_rmse / p_snps + 
+  plot_layout(heights = c(1, 1, 1.2))  # Slightly taller bottom panel for legend
+
+# Save combined plot
+plot_file <- file.path(results_dir, paste0("summary_plot_", chr, "_", first_sample, "_", midpoint_10kb, "_10kb.png"))
+ggsave(plot_file, p_combined, width = 12, height = 10, dpi = 300)
+
+cat("✓ Combined three-panel plot saved to:", plot_file, "\n")
 
             # Print summary table for the region
             cat("\n=== SUMMARY TABLE FOR REGION ===\n")
