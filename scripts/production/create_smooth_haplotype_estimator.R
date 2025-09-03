@@ -50,90 +50,85 @@ adaptive_data <- readRDS(adaptive_file)
 
 cat("✓ Adaptive h4 data loaded:", nrow(adaptive_data), "rows\n")
 cat("Samples available:", paste(unique(adaptive_data$sample), collapse = ", "), "\n")
-cat("Founders available:", paste(unique(adaptive_data$founder), collapse = ", "), "\n\n")
+cat("Founder columns:", paste(c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8"), collapse = ", "), "\n\n")
 
-# Function to apply sliding window smoothing with quality control
-smooth_founder_frequencies <- function(data, founder_name) {
-  cat("Smoothing founder:", founder_name, "\n")
+# Get founder column names
+founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+
+# Apply sliding window smoothing to each founder column
+cat("Applying 21-position sliding window smoothing to each founder...\n")
+smoothed_data <- adaptive_data %>%
+  group_by(sample) %>%
+  arrange(pos) %>%
+  mutate(
+    # Calculate quality: how many positions in window are OK?
+    quality_count = zoo::rollapply(
+      data = estimate_OK,
+      width = 21,
+      FUN = function(x) sum(x == 1, na.rm = TRUE),
+      fill = NA,
+      align = "center",
+      partial = FALSE
+    ),
+    # New estimate_OK: OK if at least 17 out of 21 positions are OK
+    new_estimate_OK = ifelse(quality_count >= 17, 1, 0)
+  ) %>%
+  ungroup()
+
+# Apply smoothing to each founder column
+for (founder in founder_cols) {
+  cat("Smoothing founder:", founder, "\n")
   
-  # Filter to this founder and arrange by position
-  founder_data <- data %>%
-    filter(founder == founder_name) %>%
-    arrange(pos)
-  
-  if (nrow(founder_data) == 0) {
-    cat("  No data for founder:", founder_name, "\n")
-    return(founder_data)
-  }
-  
-  # Apply sliding window smoothing
-  founder_data <- founder_data %>%
+  smoothed_data <- smoothed_data %>%
     group_by(sample) %>%
     arrange(pos) %>%
     mutate(
-      # Smooth the frequency values (only over estimate_OK==1 positions)
-      smoothed_freq = zoo::rollapply(
-        data = frequency,
+      # Create smoothed version of this founder
+      !!paste0(founder, "_smoothed") := zoo::rollapply(
+        data = !!sym(founder),
         width = 21,
         FUN = function(x) {
           # Only use positions where estimate_OK==1
-          ok_positions <- which(!is.na(x) & founder_data$estimate_OK[seq_along(x)] == 1)
+          ok_positions <- which(!is.na(x) & smoothed_data$estimate_OK[seq_along(x)] == 1)
           if (length(ok_positions) == 0) return(NA)
           mean(x[ok_positions], na.rm = TRUE)
         },
         fill = NA,
         align = "center",
         partial = FALSE
-      ),
-      # Calculate quality: how many positions in window are OK?
-      quality_count = zoo::rollapply(
-        data = estimate_OK,
-        width = 21,
-        FUN = function(x) sum(x == 1, na.rm = TRUE),
-        fill = NA,
-        align = "center",
-        partial = FALSE
-      ),
-      # New estimate_OK: OK if at least 17 out of 21 positions are OK
-      new_estimate_OK = ifelse(quality_count >= 17, 1, 0)
+      )
     ) %>%
     ungroup()
-  
-  cat("  Smoothed", nrow(founder_data), "positions\n")
-  cat("  Quality: ", sum(founder_data$new_estimate_OK == 1, na.rm = TRUE), "OK, ", 
-      sum(founder_data$new_estimate_OK == 0, na.rm = TRUE), "not OK\n")
-  
-  return(founder_data)
 }
-
-# Apply smoothing to each founder
-cat("Applying 21-position sliding window smoothing to each founder...\n")
-smoothed_data <- adaptive_data %>%
-  group_by(founder) %>%
-  group_modify(~ smooth_founder_frequencies(.x, .y$founder[1])) %>%
-  ungroup()
 
 # Now rescale each position so all founder frequencies sum to 1
 cat("\nRescaling founder frequencies to sum to 1...\n")
-rescaled_data <- smoothed_data %>%
-  group_by(sample, pos) %>%
-  mutate(
-    # Calculate sum of all founder frequencies at this position
-    total_freq = sum(smoothed_freq, na.rm = TRUE),
-    # Rescale each founder frequency
-    rescaled_freq = ifelse(total_freq > 0, smoothed_freq / total_freq, NA),
-    # Keep the new estimate_OK
-    estimate_OK = new_estimate_OK
-  ) %>%
-  ungroup() %>%
-  # Clean up intermediate columns
-  select(-smoothed_freq, -quality_count, -new_estimate_OK, -total_freq) %>%
-  # Rename the rescaled frequency back to frequency
-  rename(frequency = rescaled_freq)
 
-# Add method information
+# Calculate total frequency for each position (sum of all smoothed founder frequencies)
+rescaled_data <- smoothed_data %>%
+  mutate(
+    total_freq = B1_smoothed + B2_smoothed + B3_smoothed + B4_smoothed + 
+                 B5_smoothed + B6_smoothed + B7_smoothed + AB8_smoothed
+  )
+
+# Rescale each founder frequency
+for (founder in founder_cols) {
+  smoothed_col <- paste0(founder, "_smoothed")
+  rescaled_data[[founder]] <- ifelse(
+    rescaled_data$total_freq > 0, 
+    rescaled_data[[smoothed_col]] / rescaled_data$total_freq, 
+    NA
+  )
+}
+
+# Clean up and finalize
 rescaled_data <- rescaled_data %>%
-  mutate(method = "smooth_h4")
+  select(-ends_with("_smoothed"), -quality_count, -total_freq) %>%
+  mutate(
+    estimate_OK = new_estimate_OK,
+    method = "smooth_h4"
+  ) %>%
+  select(-new_estimate_OK)
 
 # Save the smooth_h4 results
 output_file <- file.path(results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
@@ -150,8 +145,8 @@ cat("Positions with estimate_OK = NA:", sum(is.na(rescaled_data$estimate_OK)), "
 
 # Check that frequencies sum to 1
 freq_sums <- rescaled_data %>%
-  group_by(sample, pos) %>%
-  summarize(total_freq = sum(frequency, na.rm = TRUE), .groups = "drop")
+  mutate(total_freq = B1 + B2 + B3 + B4 + B5 + B6 + B7 + AB8) %>%
+  select(sample, pos, total_freq)
 
 cat("\nFrequency sum validation:\n")
 cat("Mean sum:", round(mean(freq_sums$total_freq, na.rm = TRUE), 6), "\n")
