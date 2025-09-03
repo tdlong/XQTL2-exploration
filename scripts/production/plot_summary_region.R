@@ -134,10 +134,10 @@ method_colors <- c(
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
 
-# Create SNP count plot (bottom panel) - show all positions including zeros
+# Create SNP count plot (bottom panel) - identical structure to panel 1, just different y-axis
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
   geom_line(linewidth = 1, na.rm = TRUE) +
-  geom_point(size = 2, position = position_jitter(width = 200, seed = 123), na.rm = TRUE) +
+  geom_point(size = 2, na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
     labels = function(x) format(x, scientific = FALSE),
