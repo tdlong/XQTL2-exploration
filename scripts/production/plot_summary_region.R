@@ -86,7 +86,6 @@ method_colors <- c(
 
             # Create haplotype frequency plot (top panel)
             p_haplo <- ggplot(region_data_reliable, aes(x = pos_10kb, y = B1_freq, color = method)) +
-              geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
               geom_point(size = 2, na.rm = TRUE) +
               scale_color_manual(values = method_colors) +
               scale_x_continuous(
@@ -113,9 +112,6 @@ mae_data <- region_data %>%
 
             if (nrow(mae_data) > 0) {
               p_mae <- ggplot(mae_data, aes(x = pos_10kb, y = MAE, color = method)) +
-                # Add light lines for h_4 only
-                geom_line(data = filter(mae_data, method == "adaptive_h4"), 
-                          linewidth = 0.5, alpha = 0.3, na.rm = TRUE) +
                 geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_x_continuous(
@@ -149,9 +145,6 @@ mae_data <- region_data %>%
 
 # Create SNP count plot (bottom panel) - show all positions including zeros
 p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
-  # Add light lines for h_4 only
-  geom_line(data = filter(region_data, method == "adaptive_h4"), 
-            linewidth = 0.5, alpha = 0.3, na.rm = TRUE) +
   geom_point(size = 2, position = position_jitter(width = 1000, seed = 123), na.rm = TRUE) +
   scale_color_manual(values = method_colors) +
   scale_x_continuous(
