@@ -66,7 +66,7 @@ for (size in fixed_sizes) {
               group_by(pos) %>%
               summarize(
                 NSNPs = n(),
-                RMSE = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+                MAE = mean(abs(observed - imputed), na.rm = TRUE),
                 .groups = "drop"
               )
           }, .keep = TRUE) %>%
@@ -76,7 +76,7 @@ for (size in fixed_sizes) {
       # Fill missing values for positions with no SNPs
       mutate(
         NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+        MAE = ifelse(is.na(MAE), NA, MAE)
       )
     
     # Join haplotype and SNP data
@@ -84,7 +84,7 @@ for (size in fixed_sizes) {
       left_join(i_data %>% select(-chr, -pos), by = "sample") %>%
       mutate(
         NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+        MAE = ifelse(is.na(MAE), NA, MAE)
       )
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
@@ -131,7 +131,7 @@ for (h in h_cutoffs) {
               group_by(pos) %>%
               summarize(
                 NSNPs = n(),
-                RMSE = sqrt(mean((observed - imputed)^2, na.rm = TRUE)),
+                MAE = mean(abs(observed - imputed), na.rm = TRUE),
                 .groups = "drop"
               )
           }, .keep = TRUE) %>%
@@ -141,7 +141,7 @@ for (h in h_cutoffs) {
       # Fill missing values for positions with no SNPs
       mutate(
         NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+        MAE = ifelse(is.na(MAE), NA, MAE)
       )
     
     # Join haplotype and SNP data
@@ -149,7 +149,7 @@ for (h in h_cutoffs) {
       left_join(i_data %>% select(-chr, -pos, -final_window_size), by = "sample") %>%
       mutate(
         NSNPs = ifelse(is.na(NSNPs), 0, NSNPs),
-        RMSE = ifelse(is.na(RMSE), NA, RMSE)
+        MAE = ifelse(is.na(MAE), NA, MAE)
       )
     
     all_summaries[[length(all_summaries) + 1]] <- s_data
@@ -162,7 +162,7 @@ for (h in h_cutoffs) {
 # Combine all summaries using row bind
 final_summary <- bind_rows(all_summaries) %>%
   # Ensure proper column order and names
-  select(chr, pos, method, B1_freq = B1, estimate_OK, RMSE, NSNPs, sample)
+  select(chr, pos, method, B1_freq = B1, estimate_OK, MAE, NSNPs, sample)
 
 # Save summary file
 summary_file <- file.path(results_dir, paste0("summary_", chr, ".RDS"))

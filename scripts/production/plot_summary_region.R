@@ -98,12 +98,12 @@ method_colors <- c(
                 axis.text.x = element_blank()  # No x-axis text for top panel
               )
 
-# Create RMSE plot (middle panel) - only for positions with SNPs
-rmse_data <- region_data %>%
-  filter(!is.na(RMSE) & NSNPs > 0)
+# Create MAE plot (middle panel) - only for positions with SNPs
+mae_data <- region_data %>%
+  filter(!is.na(MAE) & NSNPs > 0)
 
-            if (nrow(rmse_data) > 0) {
-              p_rmse <- ggplot(rmse_data, aes(x = pos_10kb, y = RMSE, color = method)) +
+            if (nrow(mae_data) > 0) {
+              p_mae <- ggplot(mae_data, aes(x = pos_10kb, y = MAE, color = method)) +
                 geom_line(alpha = 0.7, linewidth = 1, na.rm = TRUE) +
                 geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
@@ -112,10 +112,10 @@ rmse_data <- region_data %>%
                   breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 2)  # Every 20kb
                 ) +
                 labs(
-                  title = paste("SNP Imputation RMSE -", first_sample),
+                  title = paste("SNP Imputation MAE -", first_sample),
                   subtitle = paste("Chromosome:", chr, "(averaged over SNPs within ±5kb of each haplotype position)"),
                   x = NULL,  # No x-axis label for middle panel
-                  y = "RMSE",
+                  y = "MAE",
                   color = "Method"
                 ) +
                 theme_minimal() +
@@ -125,9 +125,9 @@ rmse_data <- region_data %>%
                   axis.text.x = element_blank()  # No x-axis text for middle panel
                 )
             } else {
-              # Create empty RMSE plot if no data
-              p_rmse <- ggplot() +
-                annotate("text", x = 0.5, y = 0.5, label = "No RMSE data available", size = 6) +
+              # Create empty MAE plot if no data
+              p_mae <- ggplot() +
+                annotate("text", x = 0.5, y = 0.5, label = "No MAE data available", size = 6) +
                 theme_minimal() +
                 theme(
                   axis.text = element_blank(),
@@ -166,7 +166,7 @@ p_snps <- ggplot(region_data, aes(x = pos_10kb, y = NSNPs, color = method)) +
   )
 
 # Create combined three-panel plot
-p_combined <- p_haplo / p_rmse / p_snps + 
+p_combined <- p_haplo / p_mae / p_snps + 
   plot_layout(heights = c(1, 1, 1.2))  # Slightly taller bottom panel for legend
 
 # Save combined plot
