@@ -117,8 +117,9 @@ method_colors <- c(
               geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_y_continuous(
-                  breaks = seq(0.08, 0.14, by = 0.01),
-                  labels = sprintf("%.2f", seq(0.08, 0.14, by = 0.01))
+                  breaks = seq(0.07, 0.15, by = 0.01),
+                  labels = sprintf("%.2f", seq(0.07, 0.15, by = 0.01)),
+                  limits = c(0.07, 0.15)
                 ) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
@@ -154,10 +155,10 @@ p_snps <- ggplot(region_data_offset, aes(x = pos_10kb, y = NSNPs_offset, color =
     labels = function(x) format(x, scientific = FALSE),
     breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
   ) +
-  # Use log scale for y-axis with more labels for better readability
+  # Use log scale for y-axis with reasonable number of labels
   scale_y_log10(
-    breaks = c(100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000),
-    labels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1200", "1400", "1600", "1800", "2000")
+    breaks = c(100, 200, 500, 1000, 2000),
+    labels = c("100", "200", "500", "1000", "2000")
   ) +
   labs(
     title = paste("Number of SNPs per Window -", first_sample),
