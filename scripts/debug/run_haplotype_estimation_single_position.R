@@ -227,19 +227,36 @@ if (nrow(results_df) > 0) {
   
   # Show detailed results for single position testing
   cat("\n=== DETAILED RESULTS FOR TEST POSITION", test_position, "===\n")
+  cat("CURRENT FORMAT (what working function outputs):\n")
   for (i in 1:nrow(results_df)) {
     cat("Sample:", results_df$sample[i], "\n")
     cat("  Estimate OK:", results_df$estimate_OK[i], "\n")
     cat("  Window size:", results_df$final_window_size[i], "\n")
     cat("  SNPs:", results_df$n_snps[i], "\n")
-    if (!is.null(results_df$haplotype_freqs[[i]])) {
-      cat("  Haplotype frequencies:\n")
-      print(results_df$haplotype_freqs[[i]])
-    } else {
-      cat("  Haplotype frequencies: NULL\n")
+    cat("  Haplotype frequencies (individual founder columns):\n")
+    founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+    for (founder in founder_cols) {
+      if (founder %in% names(results_df)) {
+        cat("    ", founder, ":", results_df[[founder]][i], "\n")
+      }
     }
     cat("\n")
   }
+  
+  # Show what we WANT to achieve (new list format)
+  cat("=== TARGET FORMAT (what we want to achieve) ===\n")
+  cat("We want to convert this to list format with:\n")
+  cat("- sample: list of sample names\n")
+  cat("- Groups: list of group assignments for each sample\n") 
+  cat("- Haps: list of haplotype frequencies for each sample\n")
+  cat("- Err: list of error matrices for each sample\n")
+  cat("- Names: list of founder names for each sample\n")
+  cat("\nExample structure:\n")
+  cat("sample: list('Rep01_W_F', 'Rep01_W_M', ...)\n")
+  cat("Groups: list(list(c(1,2,3,4,5,6,7,8)), list(c(1,1,2,2,3,3,4,4)), ...)\n")
+  cat("Haps: list(list(c(0.1,0.2,0.3,...)), list(c(0.15,0.25,0.35,...)), ...)\n")
+  cat("Err: list(list(matrix(...)), list(matrix(...)), ...)\n")
+  cat("Names: list(list(c('B1','B2',...)), list(c('B1','B2',...)), ...)\n")
   
 } else {
   cat("✗ No results generated\n")
