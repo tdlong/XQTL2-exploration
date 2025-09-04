@@ -231,20 +231,50 @@ if (nrow(results_df) > 0) {
   for (i in 1:nrow(results_df)) {
     cat("Sample:", results_df$sample[i], "\n")
     cat("  Estimate OK:", results_df$estimate_OK[i], "\n")
-    cat("  Window size:", results_df$final_window_size[i], "\n")
+    cat("  Window size:", results_df$final_window_size[i], "bp\n")
     cat("  SNPs:", results_df$n_snps[i], "\n")
-    cat("  Haplotype frequencies (individual founder columns):\n")
+    cat("  Method:", results_df$method[i], "\n")
+    cat("  H cutoff:", results_df$h_cutoff[i], "\n")
+    
+    # Show haplotype frequencies in a nice format
+    cat("  Haplotype frequencies:\n")
     founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
-    for (founder in founder_cols) {
+    hap_freqs <- numeric(length(founder_cols))
+    names(hap_freqs) <- founder_cols
+    
+    for (j in seq_along(founder_cols)) {
+      founder <- founder_cols[j]
       if (founder %in% names(results_df)) {
-        cat("    ", founder, ":", results_df[[founder]][i], "\n")
+        hap_freqs[j] <- results_df[[founder]][i]
       }
     }
+    
+    # Show frequencies in a nice table format
+    cat("    ")
+    for (founder in founder_cols) {
+      cat(sprintf("%-4s", founder))
+    }
+    cat("\n    ")
+    for (founder in founder_cols) {
+      cat(sprintf("%-4.3f", hap_freqs[founder]))
+    }
+    cat("\n")
+    
+    # Show sum (should be close to 1.0)
+    total_freq <- sum(hap_freqs, na.rm = TRUE)
+    cat("    Sum:", sprintf("%.6f", total_freq), "\n")
+    
+    # Show which founders are most/least frequent
+    max_founder <- names(which.max(hap_freqs))
+    min_founder <- names(which.min(hap_freqs))
+    cat("    Most frequent:", max_founder, "(", sprintf("%.3f", max(hap_freqs)), ")\n")
+    cat("    Least frequent:", min_founder, "(", sprintf("%.3f", min(hap_freqs)), ")\n")
     cat("\n")
   }
   
+  
   # Show what we WANT to achieve (new list format)
-  cat("=== TARGET FORMAT (what we want to achieve) ===\n")
+  cat("\n=== TARGET FORMAT (what we want to achieve) ===\n")
   cat("We want to convert this to list format with:\n")
   cat("- sample: list of sample names\n")
   cat("- Groups: list of group assignments for each sample\n") 
