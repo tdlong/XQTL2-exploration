@@ -31,13 +31,23 @@ cat("=== CHECKING ADAPTIVE H4 LIST FORMAT RESULTS ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
-# Check if the file exists
-adaptive_file <- file.path(output_dir, "list_results", paste0("adaptive_h4_list_format_", chr, ".RDS"))
+# Check if the file exists (try both old and new directory structures)
+adaptive_file_new <- file.path(output_dir, "list_results", paste0("adaptive_h4_list_format_", chr, ".RDS"))
+adaptive_file_old <- file.path(output_dir, "hap_list_results", paste0("adaptive_h4_list_format_", chr, ".RDS"))
 
-if (!file.exists(adaptive_file)) {
-  cat("❌ Adaptive h4 results file not found:", adaptive_file, "\n")
+if (file.exists(adaptive_file_new)) {
+  adaptive_file <- adaptive_file_new
+  cat("Using new directory structure: list_results/\n")
+} else if (file.exists(adaptive_file_old)) {
+  adaptive_file <- adaptive_file_old
+  cat("Using old directory structure: hap_list_results/\n")
+} else {
+  cat("❌ Adaptive h4 results file not found in either location:\n")
+  cat("  New:", adaptive_file_new, "\n")
+  cat("  Old:", adaptive_file_old, "\n")
   quit(status = 1)
 }
+
 
 cat("✓ Loading adaptive_h4 results from:", adaptive_file, "\n")
 adaptive_data <- readRDS(adaptive_file)
