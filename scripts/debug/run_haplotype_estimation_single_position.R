@@ -293,8 +293,12 @@ if (nrow(results_df) > 0) {
       # results_df$groups[i] is a vector, so we need to extract it properly
       groups_vector <- results_df$groups[i][[1]]  # Extract the vector from the list
       groups_list[[i]] <- list(groups_vector)
+      
+      # DEBUG: Show what we're getting
+      cat("DEBUG: Sample", i, "groups:", paste(groups_vector, collapse = ","), "\n")
     } else {
       groups_list[[i]] <- list(rep(1, length(founder_cols)))  # Fallback to all 1s
+      cat("DEBUG: Sample", i, "groups: FALLBACK (all 1s)\n")
     }
   }
   cat("Groups: list(")
