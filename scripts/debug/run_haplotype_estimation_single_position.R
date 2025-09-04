@@ -273,20 +273,81 @@ if (nrow(results_df) > 0) {
   }
   
   
-  # Show what we WANT to achieve (new list format)
+  # Show what we WANT to achieve (new list format) - ACTUAL DATA
   cat("\n=== TARGET FORMAT (what we want to achieve) ===\n")
-  cat("We want to convert this to list format with:\n")
-  cat("- sample: list of sample names\n")
-  cat("- Groups: list of group assignments for each sample\n") 
-  cat("- Haps: list of haplotype frequencies for each sample\n")
-  cat("- Err: list of error matrices for each sample\n")
-  cat("- Names: list of founder names for each sample\n")
-  cat("\nExample structure:\n")
-  cat("sample: list('Rep01_W_F', 'Rep01_W_M', ...)\n")
-  cat("Groups: list(list(c(1,2,3,4,5,6,7,8)), list(c(1,1,2,2,3,3,4,4)), ...)\n")
-  cat("Haps: list(list(c(0.1,0.2,0.3,...)), list(c(0.15,0.25,0.35,...)), ...)\n")
-  cat("Err: list(list(matrix(...)), list(matrix(...)), ...)\n")
-  cat("Names: list(list(c('B1','B2',...)), list(c('B1','B2',...)), ...)\n")
+  
+  # Create the actual list format structure from the working data
+  founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+  
+  # Extract sample names
+  sample_list <- as.list(results_df$sample)
+  cat("sample: list(")
+  cat(paste0("'", results_df$sample, "'", collapse = ", "))
+  cat(")\n")
+  
+  # Create Groups (for now, we don't have this from working function, so show placeholder)
+  groups_list <- list()
+  for (i in 1:nrow(results_df)) {
+    # Placeholder: we don't have groups from working function yet
+    groups_list[[i]] <- list(rep(1, length(founder_cols)))  # All 1s as placeholder
+  }
+  cat("Groups: list(")
+  for (i in 1:length(groups_list)) {
+    cat("list(c(", paste(groups_list[[i]][[1]], collapse = ","), "))")
+    if (i < length(groups_list)) cat(", ")
+  }
+  cat(")\n")
+  
+  # Create Haps (haplotype frequencies)
+  haps_list <- list()
+  for (i in 1:nrow(results_df)) {
+    hap_freqs <- numeric(length(founder_cols))
+    names(hap_freqs) <- founder_cols
+    for (j in seq_along(founder_cols)) {
+      founder <- founder_cols[j]
+      if (founder %in% names(results_df)) {
+        hap_freqs[j] <- results_df[[founder]][i]
+      }
+    }
+    haps_list[[i]] <- list(hap_freqs)
+  }
+  cat("Haps: list(")
+  for (i in 1:length(haps_list)) {
+    cat("list(c(", paste(sprintf("%.3f", haps_list[[i]][[1]]), collapse = ","), "))")
+    if (i < length(haps_list)) cat(", ")
+  }
+  cat(")\n")
+  
+  # Create Err (error matrices - placeholder since working function doesn't have this)
+  err_list <- list()
+  for (i in 1:nrow(results_df)) {
+    # Placeholder: we don't have error matrices from working function yet
+    err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
+    rownames(err_matrix) <- founder_cols
+    colnames(err_matrix) <- founder_cols
+    err_list[[i]] <- list(err_matrix)
+  }
+  cat("Err: list(")
+  for (i in 1:length(err_list)) {
+    cat("list(matrix(NA, 8, 8))")
+    if (i < length(err_list)) cat(", ")
+  }
+  cat(")\n")
+  
+  # Create Names (founder names)
+  names_list <- list()
+  for (i in 1:nrow(results_df)) {
+    names_list[[i]] <- list(founder_cols)
+  }
+  cat("Names: list(")
+  for (i in 1:length(names_list)) {
+    cat("list(c(", paste0("'", founder_cols, "'", collapse = ","), "))")
+    if (i < length(names_list)) cat(", ")
+  }
+  cat(")\n")
+  
+  cat("\nNOTE: Groups and Err are placeholders (NA/1s) because working function doesn't capture these yet.\n")
+  cat("We need to modify the working function to capture groups from clustering and error matrix from lsei.\n")
   
 } else {
   cat("✗ No results generated\n")
