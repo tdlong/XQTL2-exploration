@@ -76,7 +76,8 @@ adaptive_params <- c(4, 6, 8, 10)
 
 estimators <- c(
   paste0("fixed_", fixed_params, "kb"),
-  paste0("adaptive_h", adaptive_params)
+  paste0("adaptive_h", adaptive_params),
+  "smooth_h4"
 )
 
 cat("Evaluating", length(estimators), "estimators:\n")
@@ -274,10 +275,11 @@ overall_summary <- overall_metrics %>%
     .groups = "drop"
   )
 
-# Create logical ordering: fixed windows (smallest to largest), then adaptive (smallest h to largest h)
+# Create logical ordering: fixed windows (smallest to largest), then adaptive (smallest h to largest h), then smooth_h4
 estimator_order <- c(
   "fixed_20kb", "fixed_50kb", "fixed_100kb", "fixed_200kb", "fixed_500kb",
-  "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10"
+  "adaptive_h4", "adaptive_h6", "adaptive_h8", "adaptive_h10",
+  "smooth_h4"
 )
 
 # Order by this logical sequence

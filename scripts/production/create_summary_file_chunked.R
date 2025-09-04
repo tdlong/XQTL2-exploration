@@ -160,6 +160,68 @@ for (h in h_cutoffs) {
   cat("  ✓ Completed", method, "\n")
 }
 
+# Process smooth_h4 method
+method <- "smooth_h4"
+cat("Processing", method, "...\n")
+
+# 1. Get SNP counts from haplotype file
+haplo_file <- file.path(results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
+if (!file.exists(haplo_file)) {
+  cat("  ❌ Missing haplotype file:", haplo_file, "\n")
+} else {
+  haplo_data <- readRDS(haplo_file) %>%
+    select(chr, pos, estimate_OK, B1, sample, n_snps) %>%
+    mutate(method = method)
+  
+  # 2. Get MAE from imputation file (average within ±5kb of each position)
+  snp_file <- file.path(results_dir, paste0("snp_imputation_smooth_h4_", chr, ".RDS"))
+  if (!file.exists(snp_file)) {
+    cat("  ❌ Missing SNP file:", snp_file, "\n")
+  } else {
+    snp_data <- readRDS(snp_file)
+    
+    # Calculate MAE from imputation file using proper tidyverse approach
+    # Create 10kb bins centered on haplotype positions, then group and summarize
+    
+    # Get unique haplotype positions for this sample
+    haplo_positions <- haplo_data %>%
+      select(pos) %>%
+      distinct() %>%
+      pull(pos)
+    
+    # Calculate MAE for each haplotype position using proper tidyverse
+    mae_data <- snp_data %>%
+      # Create bins by finding the closest haplotype position for each SNP
+      mutate(
+        # Find the closest haplotype position for each SNP
+        closest_pos = haplo_positions[sapply(pos, function(x) which.min(abs(haplo_positions - x)))]
+      ) %>%
+      # Filter to only include SNPs within ±5kb of a haplotype position
+      filter(abs(pos - closest_pos) <= 5000) %>%
+      # Group by closest position and sample to calculate MAE
+      group_by(closest_pos, sample) %>%
+      summarize(
+        MAE = mean(abs(observed - imputed), na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      # Add chr column and rename for joining
+      mutate(chr = haplo_data$chr[1]) %>%
+      rename(pos = closest_pos)
+    
+    # 3. Join everything together
+    summary_data <- haplo_data %>%
+      left_join(mae_data, by = c("chr", "pos", "sample")) %>%
+      mutate(
+        NSNPs = ifelse(estimate_OK, n_snps, NA),  # SNP count from haplotype file, NA if estimate not OK
+        MAE = MAE        # MAE from imputation file
+      ) %>%
+      select(-n_snps)   # Remove original column
+    
+    all_summaries[[length(all_summaries) + 1]] <- summary_data
+    cat("  ✓ Completed", method, "\n")
+  }
+}
+
 # Combine all summaries
 final_summary <- bind_rows(all_summaries) %>%
   select(chr, pos, method, B1_freq = B1, estimate_OK, MAE, NSNPs, sample)

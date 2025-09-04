@@ -6,13 +6,14 @@ suppressPackageStartupMessages({
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3) {
-              stop("Usage: Rscript scripts/plot_summary_chromosome.R <chr> <param_file> <output_dir>")
+if (length(args) < 3 || length(args) > 4) {
+              stop("Usage: Rscript scripts/plot_summary_chromosome.R <chr> <param_file> <output_dir> [method]")
 }
 
             chr <- args[1]
             param_file <- args[2]
             output_dir <- args[3]
+            method_to_plot <- if (length(args) == 4) args[4] else "adaptive_h4"
 
 cat("=== PLOTTING SUMMARY CHROMOSOME ===\n")
             cat("Chromosome:", chr, "\n")
@@ -44,20 +45,20 @@ summary_data <- readRDS(summary_file)
             first_sample <- unique(summary_data$sample)[1]
             cat("Using first sample:", first_sample, "\n\n")
 
-            # Filter data to only adaptive_h4 and first sample (no region filtering - entire chromosome)
+            # Filter data to specified method and first sample (no region filtering - entire chromosome)
             region_data <- summary_data %>%
               filter(sample == first_sample) %>%
-              filter(method == "adaptive_h4") %>%
+              filter(method == method_to_plot) %>%
               mutate(pos_10kb = pos / 10000)  # Convert to 10kb units for plotting
 
-cat("Data points for adaptive_h4:", nrow(region_data), "\n")
+cat("Data points for", method_to_plot, ":", nrow(region_data), "\n")
 
 if (nrow(region_data) == 0) {
-  stop("No adaptive_h4 data found")
+  stop("No", method_to_plot, "data found")
 }
 
-# Set color scheme for adaptive_h4 only
-method_colors <- c("adaptive_h4" = "black")  # Black
+# Set color scheme for the specified method
+method_colors <- setNames("black", method_to_plot)  # Black for any method
 
             # Filter data to only include reliable haplotype estimates
             region_data_reliable <- region_data %>%
@@ -155,7 +156,7 @@ p_combined <- p_haplo / p_mae / p_snps +
   plot_layout(heights = c(1, 1, 1.2))  # Slightly taller bottom panel for legend
 
 # Save combined plot
-plot_file <- file.path(results_dir, paste0("chromosome_summary_", chr, "_", first_sample, "_adaptive_h4.png"))
+plot_file <- file.path(results_dir, paste0("chromosome_summary_", chr, "_", first_sample, "_", method_to_plot, ".png"))
 ggsave(plot_file, p_combined, width = 16, height = 12, dpi = 300)
 
 cat("✓ Combined three-panel plot saved to:", plot_file, "\n")

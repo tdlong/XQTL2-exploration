@@ -61,9 +61,14 @@ for (i in 1:nrow(params)) {
   if (method == "fixed") {
     estimator <- paste0("fixed_", param, "kb")
     expected_file <- file.path(results_dir, paste0("snp_imputation_fixed_", param, "kb_", chr, ".RDS"))
-  } else {
+  } else if (method == "adaptive") {
     estimator <- paste0("adaptive_h", param)
     expected_file <- file.path(results_dir, paste0("snp_imputation_adaptive_h", param, "_", chr, ".RDS"))
+  } else if (method == "smooth_h4") {
+    estimator <- "smooth_h4"
+    expected_file <- file.path(results_dir, paste0("snp_imputation_smooth_h4_", chr, ".RDS"))
+  } else {
+    stop("Unknown method: ", method)
   }
   
   # Check if file exists

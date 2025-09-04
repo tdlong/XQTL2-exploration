@@ -55,11 +55,11 @@ summary_data <- readRDS(summary_file)
             cat("This corresponds to:", round(region_start_bp/10000), "-", round(region_end_bp/10000), "(10kb units)\n\n")
             cat("Note: Input positions are in 10kb units (e.g., 1080 = 10,800,000 base pairs)\n\n")
 
-            # Filter data to the region, first sample, and only the 3 methods of interest
+            # Filter data to the region, first sample, and only the 4 methods of interest
             region_data <- summary_data %>%
               filter(sample == first_sample) %>%
               filter(pos >= region_start_bp & pos <= region_end_bp) %>%
-              filter(method %in% c("adaptive_h4", "fixed_20kb", "fixed_100kb")) %>%
+              filter(method %in% c("adaptive_h4", "fixed_20kb", "fixed_100kb", "smooth_h4")) %>%
               mutate(pos_10kb = pos / 10000)  # Convert to 10kb units for plotting
 
 cat("Data points in region:", nrow(region_data), "\n")
@@ -68,11 +68,12 @@ if (nrow(region_data) == 0) {
   stop("No data found in the specified region")
 }
 
-# Set color scheme for the 3 methods only
+# Set color scheme for the 4 methods only
 method_colors <- c(
   "adaptive_h4" = "#006400",   # Dark green
   "fixed_20kb" = "#8B0000",    # Dark red
-  "fixed_100kb" = "#FF6347"    # Tomato
+  "fixed_100kb" = "#FF6347",   # Tomato
+  "smooth_h4" = "#4169E1"      # Royal blue
 )
 
             # Filter data to only include reliable haplotype estimates
@@ -143,6 +144,7 @@ region_data_offset <- region_data %>%
   mutate(NSNPs_offset = case_when(
     method == "adaptive_h4" ~ NSNPs * 1.025,  # +2.5%
     method == "fixed_100kb" ~ NSNPs * 1.05,   # +5%
+    method == "smooth_h4" ~ NSNPs * 1.075,    # +7.5%
     method == "fixed_20kb" ~ NSNPs,           # No offset
     TRUE ~ NSNPs
   ))
