@@ -119,43 +119,63 @@ if (method == "adaptive_h4") {
   cat("✓ Loaded adaptive_h4 results:", nrow(adaptive_data), "positions\n")
   
   # Create smooth_h4 by averaging adaptive_h4 results
+  # For smooth_h4, we use a sliding window approach to average nearby positions
+  window_size <- 5  # Average over ±2 positions (5 total)
+  
   smooth_data <- adaptive_data %>%
     mutate(
-      # For smooth_h4, we average the adaptive_h4 results
-      # Groups are always 1:8 for smooth_h4
+      # For smooth_h4, groups are always 1:8 (all founders distinguishable)
       Groups = list(rep(list(1:8), length(sample[[1]]))),
       
-      # Average the haplotype frequencies
+      # Average the haplotype frequencies using sliding window
       Haps = list(map(seq_along(sample[[1]]), function(i) {
-        # Get all haplotype estimates for this sample across positions
-        sample_haps <- map(Haps[[1]], ~ .x[[i]])
+        # Get haplotype estimates for this sample at nearby positions
+        pos_idx <- which(adaptive_data$pos == pos)
+        start_idx <- max(1, pos_idx - 2)
+        end_idx <- min(nrow(adaptive_data), pos_idx + 2)
+        
+        # Get haplotype estimates for this sample across the window
+        window_haps <- map(start_idx:end_idx, function(j) {
+          adaptive_data$Haps[[j]][[1]][[i]]
+        })
         
         # Average the haplotype frequencies
-        if (all(map_lgl(sample_haps, ~ !any(is.na(.x))))) {
-          # All estimates are valid, average them
-          avg_haps <- reduce(sample_haps, `+`) / length(sample_haps)
+        valid_haps <- window_haps[map_lgl(window_haps, ~ !any(is.na(.x)))]
+        
+        if (length(valid_haps) > 0) {
+          # Average valid estimates
+          avg_haps <- reduce(valid_haps, `+`) / length(valid_haps)
           names(avg_haps) <- founders
           return(avg_haps)
         } else {
-          # Some estimates are invalid, return NAs
+          # No valid estimates, return NAs
           return(set_names(rep(NA, length(founders)), founders))
         }
       })),
       
-      # Average the error matrices
+      # Average the error matrices using sliding window
       Err = list(map(seq_along(sample[[1]]), function(i) {
-        # Get all error matrices for this sample across positions
-        sample_errs <- map(Err[[1]], ~ .x[[i]])
+        # Get error matrices for this sample at nearby positions
+        pos_idx <- which(adaptive_data$pos == pos)
+        start_idx <- max(1, pos_idx - 2)
+        end_idx <- min(nrow(adaptive_data), pos_idx + 2)
+        
+        # Get error matrices for this sample across the window
+        window_errs <- map(start_idx:end_idx, function(j) {
+          adaptive_data$Err[[j]][[1]][[i]]
+        })
         
         # Average the error matrices
-        if (all(map_lgl(sample_errs, ~ !any(is.na(.x))))) {
-          # All error matrices are valid, average them
-          avg_err <- reduce(sample_errs, `+`) / length(sample_errs)
+        valid_errs <- window_errs[map_lgl(window_errs, ~ !any(is.na(.x)))]
+        
+        if (length(valid_errs) > 0) {
+          # Average valid error matrices
+          avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
           rownames(avg_err) <- founders
           colnames(avg_err) <- founders
           return(avg_err)
         } else {
-          # Some error matrices are invalid, return NAs
+          # No valid error matrices, return NAs
           return(matrix(NA, length(founders), length(founders), 
                        dimnames = list(founders, founders)))
         }
