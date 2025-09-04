@@ -104,121 +104,206 @@ observed_euchromatic <- observed_data %>%
 cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
 cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
 
-# Function to perform haplotype estimation with full output capture
-estimate_haplotypes_full <- function(snp_data, method, parameter, founders) {
-  # This function needs to be integrated with your actual haplotype estimation code
-  # It should capture:
-  # 1. The lsei output including error matrices
-  # 2. The clustering groups
-  # 3. The estimate_OK status
+# NEW HAPLOTYPE ESTIMATOR WITH LIST FORMAT OUTPUT
+# This is a new function that captures groups and error matrices from the existing algorithm
+
+estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
+                                           method = c("fixed", "adaptive"),
+                                           window_size_bp = NULL,
+                                           chr = "chr2R",
+                                           verbose = 0) {
   
-  # For now, this is a template showing what needs to be captured
+  method <- match.arg(method)
   
-  # Create founder matrix (you'll need your actual founder matrix creation)
-  founder_mat <- matrix(runif(length(founders) * nrow(snp_data)), 
-                       nrow = nrow(snp_data), ncol = length(founders))
-  colnames(founder_mat) <- founders
-  
-  # Create observation vector
-  Y <- snp_data$freq
-  
-  # Perform clustering to get groups
-  if (method == "adaptive") {
-    h_cutoff <- parameter
-    groups <- cutree(hclust(dist(t(founder_mat))), h = h_cutoff)
-  } else {
-    # For fixed windows, all founders are distinguishable
-    groups <- 1:length(founders)
-    names(groups) <- founders
-  }
-  
-  # Perform lsei estimation
-  d <- ncol(founder_mat)
-  
-  # THIS IS WHERE YOU NEED TO INTEGRATE YOUR ACTUAL LSEI CALL
-  # The lsei call should look something like:
-  # out <- lsei(A=founder_mat, B=Y, E=t(matrix(rep(1,d))), F=1, G=diag(d), H=matrix(rep(0.0003,d)), verbose=TRUE, fulloutput=TRUE)
-  
-  # For now, create placeholder results
-  haps <- runif(length(founders))
-  names(haps) <- founders
-  
-  # Create a placeholder error matrix (this should come from out$cov)
-  error_matrix <- diag(0.01, length(founders))
+  # Initialize result variables
+  estimate_OK <- NA
+  haplotype_freqs <- rep(NA, length(founders))
+  names(haplotype_freqs) <- founders
+  error_matrix <- matrix(NA, length(founders), length(founders))
   rownames(error_matrix) <- founders
   colnames(error_matrix) <- founders
+  groups <- rep(NA, length(founders))
+  names(groups) <- founders
+  final_window_size <- NA
+  n_snps <- 0
   
-  # Determine if estimation was successful
-  estimate_ok <- ifelse(all(!is.na(haps)) && all(haps >= 0) && abs(sum(haps) - 1) < 0.01, 1, 0)
-  
-  return(list(
-    haps = haps,
-    groups = groups,
-    error_matrix = error_matrix,
-    estimate_ok = estimate_ok,
-    n_snps = nrow(snp_data)
-  ))
-}
-
-# Function to process a window and return list format data
-process_window_list_format <- function(window_snps, method, parameter, founders, pos) {
-  if (nrow(window_snps) == 0) {
-    return(NULL)
+  if (method == "fixed") {
+    # FIXED WINDOW METHOD
+    window_start <- max(1, pos - window_size_bp/2)
+    window_end <- pos + window_size_bp/2
+    
+    # Get SNPs in window
+    window_data <- df3 %>%
+      filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+    
+    if (nrow(window_data) == 0) {
+      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
+                              rep(NA, length(founders)), rep(1, length(founders)), 
+                              matrix(NA, length(founders), length(founders)), founders))
+    }
+    
+    wide_data <- window_data %>%
+      select(POS, name, freq) %>%
+      pivot_wider(names_from = name, values_from = freq)
+    
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
+      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
+                              rep(NA, length(founders)), rep(1, length(founders)), 
+                              matrix(NA, length(founders), length(founders)), founders))
+    }
+    
+    # Get founder matrix and sample frequencies
+    founder_matrix_clean <- wide_data %>%
+      select(all_of(founders)) %>%
+      as.matrix()
+    sample_freqs_clean <- wide_data %>%
+      pull(!!sample_name)
+    
+    complete_rows <- complete.cases(founder_matrix_clean) & !is.na(sample_freqs_clean)
+    founder_matrix_clean <- founder_matrix_clean[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs_clean[complete_rows]
+    
+    if (nrow(founder_matrix_clean) < 10) {
+      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
+                              rep(NA, length(founders)), rep(1, length(founders)), 
+                              matrix(NA, length(founders), length(founders)), founders))
+    }
+    
+    final_window_size <- window_size_bp
+    n_snps <- nrow(wide_data)
+    
+    # Run LSEI with error matrix capture
+    tryCatch({
+      E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
+      F <- 1.0
+      G <- diag(length(founders))  # Non-negativity constraints
+      H <- matrix(rep(0.0003, length(founders)))  # Lower bound
+      
+      # Call lsei with fulloutput=TRUE to get error matrix
+      lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+                                   E = E, F = F, G = G, H = H, fulloutput = TRUE)
+      
+      if (lsei_result$IsError == 0) {
+        # LSEI successful - get frequencies
+        haplotype_freqs <- lsei_result$X
+        names(haplotype_freqs) <- founders
+        
+        # Capture the error matrix
+        if (!is.null(lsei_result$cov)) {
+          error_matrix <- lsei_result$cov
+          rownames(error_matrix) <- founders
+          colnames(error_matrix) <- founders
+        }
+        
+        # Get clustering groups (this is the key part that was missing!)
+        distances <- dist(t(founder_matrix_clean))
+        hclust_result <- hclust(distances, method = "complete")
+        groups <- cutree(hclust_result, h = h_cutoff)
+        names(groups) <- founders
+        
+        # Determine estimate_OK based on distinguishability
+        n_groups <- length(unique(groups))
+        estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
+        
+      } else {
+        # LSEI failed
+        estimate_OK <- 0
+        groups <- rep(1, length(founders))
+        names(groups) <- founders
+      }
+    }, error = function(e) {
+      # Catastrophic LSEI error
+      estimate_OK <- 0
+      groups <- rep(1, length(founders))
+      names(groups) <- founders
+    })
+    
+  } else {
+    # ADAPTIVE WINDOW METHOD - simplified for now
+    # This would need the full adaptive logic from the existing code
+    estimate_OK <- 0
+    groups <- rep(1, length(founders))
+    names(groups) <- founders
+    final_window_size <- 100000  # placeholder
   }
   
-  # Estimate haplotypes with full output capture
-  result <- estimate_haplotypes_full(window_snps, method, parameter, founders)
+  return(create_list_result(chr, pos, sample_name, method, final_window_size, n_snps, 
+                          estimate_OK, haplotype_freqs, groups, error_matrix, founders))
+}
+
+# Helper function to create the list format result
+create_list_result <- function(chr, pos, sample_name, method, window_size, n_snps, 
+                              estimate_OK, haplotype_freqs, groups, error_matrix, founders) {
   
   # Create the list format structure
-  # For each sample, we need to create the nested list structure
-  
-  # Get unique samples in this window
-  samples <- unique(window_snps$name)
-  
-  # Create the list format data for this position
-  list_format_row <- tibble(
+  result <- list(
     CHROM = chr,
     pos = pos,
-    sample = list(samples),
-    Groups = list(rep(list(result$groups), length(samples))),
-    Haps = list(rep(list(result$haps), length(samples))),
-    Err = list(rep(list(result$error_matrix), length(samples))),
-    Names = list(rep(list(founders), length(samples)))
+    sample = list(sample_name),
+    Groups = list(list(groups)),
+    Haps = list(list(haplotype_freqs)),
+    Err = list(list(error_matrix)),
+    Names = list(list(founders))
   )
   
-  return(list_format_row)
+  return(result)
 }
+
+# The main processing loop uses the new estimate_haplotypes_list_format function directly
 
 # Main processing loop
 cat("Processing haplotype estimation...\n")
-
-# This is where you'd implement your actual windowing logic
-# For now, create a simplified example
 
 # Create results directory
 results_dir <- file.path(output_dir, "haplotype_results")
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Generate some example results in list format
+# Define positions to process
 positions <- seq(euchromatin_start, euchromatin_end, by = 10000)
 samples <- names_in_bam
 
-# Create example list format data
-example_list_data <- positions %>%
+# Process each position using the new estimator
+list_format_data <- positions %>%
   map_dfr(function(pos) {
-    # For each position, create the list format structure
+    # Process each sample at this position
+    sample_results <- samples %>%
+      map(function(sample_name) {
+        result <- estimate_haplotypes_list_format(pos, sample_name, observed_euchromatic, 
+                                                founders, parameter, method, 
+                                                ifelse(method == "fixed", parameter * 1000, NULL),
+                                                chr, verbose = 0)
+        return(result)
+      }) %>%
+      compact()  # Remove NULL results
+    
+    if (length(sample_results) == 0) {
+      return(NULL)
+    }
+    
+    # Combine results for all samples at this position
+    # Each sample result is already in the correct list format
+    # We need to combine them into a single row per position
+    
+    # Extract the data from each sample result
+    all_samples <- unlist(map(sample_results, "sample"))
+    all_groups <- map(sample_results, ~ .x$Groups[[1]][[1]])
+    all_haps <- map(sample_results, ~ .x$Haps[[1]][[1]])
+    all_err <- map(sample_results, ~ .x$Err[[1]][[1]])
+    
+    # Create the combined list format structure for this position
     tibble(
       CHROM = chr,
       pos = pos,
-      sample = list(samples),
-      Groups = list(rep(list(1:length(founders)), length(samples))),
-      Haps = list(rep(list(set_names(runif(length(founders)), founders)), length(samples))),
-      Err = list(rep(list(diag(0.01, length(founders))), length(samples))),
-      Names = list(rep(list(founders), length(samples)))
+      sample = list(all_samples),
+      Groups = list(all_groups),
+      Haps = list(all_haps),
+      Err = list(all_err),
+      Names = list(rep(list(founders), length(all_samples)))
     )
-  })
+  }) %>%
+  filter(!is.null(pos))  # Remove NULL results
 
-cat("✓ Example list format results generated:", nrow(example_list_data), "rows\n")
+cat("✓ List format results generated:", nrow(list_format_data), "rows\n")
 
 # Save results
 if (method == "fixed") {
