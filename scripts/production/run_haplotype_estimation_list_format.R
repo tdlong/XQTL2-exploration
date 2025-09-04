@@ -180,13 +180,77 @@ cat("Method:", method, "\n\n")
 # Load parameters
 source(param_file)
 
-# Load observed data
-observed_file <- file.path(output_dir, "observed_euchromatic", paste0("observed_euchromatic_", chr, ".RDS"))
-if (!file.exists(observed_file)) {
-  stop("Observed data file not found: ", observed_file)
+# Define euchromatin boundaries (same as existing pipeline)
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
+
+# Get boundaries for this chromosome
+if (!chr %in% names(euchromatin_boundaries)) {
+  stop("Invalid chromosome: ", chr, ". Valid chromosomes: ", paste(names(euchromatin_boundaries), collapse = ", "))
 }
 
-observed_euchromatic <- readRDS(observed_file)
+euchromatin_start <- euchromatin_boundaries[[chr]][1]
+euchromatin_end <- euchromatin_boundaries[[chr]][2]
+cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end, "bp\n\n")
+
+# Load observed data from REFALT files (same as existing pipeline)
+cat("Loading observed SNP data from REFALT files...\n")
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+if (!file.exists(refalt_file)) {
+  stop("REFALT data file not found: ", refalt_file)
+}
+
+# Load REFALT data
+refalt_data <- read.table(refalt_file, header = TRUE)
+cat("✓ Raw REFALT data loaded:", nrow(refalt_data), "rows\n")
+
+# Transform to frequencies (same as existing pipeline)
+cat("Converting counts to frequencies...\n")
+refalt_processed <- refalt_data %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  mutate(
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
+  ) %>%
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    total_count = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+# Filter for high-quality SNPs (same as existing pipeline)
+cat("Filtering for high-quality SNPs...\n")
+good_snps <- refalt_processed %>%
+  filter(name %in% founders) %>%
+  group_by(CHROM, POS) %>%
+  summarize(
+    zeros = sum(total_count == 0),
+    not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95),
+    .groups = "drop"
+  ) %>%
+  ungroup() %>%
+  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
+  select(c(CHROM, POS))
+
+# Get valid SNPs for evaluation (euchromatin only)
+observed_data <- good_snps %>%
+  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
+  left_join(refalt_processed, multiple = "all")
+
+# Filter to euchromatin and only the samples we actually processed
+observed_euchromatic <- observed_data %>%
+  filter(POS >= euchromatin_start, POS <= euchromatin_end) %>%
+  filter(name %in% names_in_bam)  # Only process samples defined in parameter file
+
 cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
 cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
 
