@@ -119,28 +119,65 @@ if (method == "adaptive_h4") {
   cat("✓ Loaded adaptive_h4 results:", nrow(adaptive_data), "positions\n")
   
   # Create smooth_h4 by averaging adaptive_h4 results
-  # For smooth_h4, we use a sliding window approach to average nearby positions
-  window_size <- 5  # Average over ±2 positions (5 total)
+  # For smooth_h4, we use a 21-position sliding window (matching original implementation)
+  window_size <- 21
   
-  smooth_data <- adaptive_data %>%
+  # First, we need to determine the quality of each position based on groups
+  # A position is "OK" if it has 8 groups (all founders distinguishable)
+  adaptive_data_with_quality <- adaptive_data %>%
     mutate(
-      # For smooth_h4, groups are always 1:8 (all founders distinguishable)
-      Groups = list(rep(list(1:8), length(sample[[1]]))),
+      # Determine if each position is "OK" based on groups
+      position_ok = map_lgl(Groups, function(groups_list) {
+        # Check if any sample at this position has 8 groups
+        any(map_lgl(groups_list, function(groups) {
+          length(unique(groups)) == 8
+        }))
+      })
+    )
+  
+  # Apply 21-position sliding window smoothing
+  smooth_data <- adaptive_data_with_quality %>%
+    arrange(pos) %>%
+    mutate(
+      # Calculate quality count: how many positions in 21-position window are OK?
+      quality_count = map_dbl(seq_len(n()), function(i) {
+        start_idx <- max(1, i - 10)  # 10 positions before
+        end_idx <- min(n(), i + 10)  # 10 positions after
+        window_positions <- start_idx:end_idx
+        sum(adaptive_data_with_quality$position_ok[window_positions], na.rm = TRUE)
+      }),
       
-      # Average the haplotype frequencies using sliding window
+      # New estimate_OK: OK if at least 17 out of 21 positions are OK
+      new_estimate_ok = quality_count >= 17,
+      
+      # For smooth_h4, groups depend on the quality
+      Groups = list(map(seq_along(sample[[1]]), function(i) {
+        if (new_estimate_ok) {
+          # If smooth estimate is OK, use 1:8 (all founders distinguishable)
+          return(1:8)
+        } else {
+          # If smooth estimate is not OK, use the original groups from this position
+          return(Groups[[1]][[i]])
+        }
+      })),
+      
+      # Average the haplotype frequencies using 21-position sliding window
       Haps = list(map(seq_along(sample[[1]]), function(i) {
-        # Get haplotype estimates for this sample at nearby positions
-        pos_idx <- which(adaptive_data$pos == pos)
-        start_idx <- max(1, pos_idx - 2)
-        end_idx <- min(nrow(adaptive_data), pos_idx + 2)
+        pos_idx <- which(adaptive_data_with_quality$pos == pos)
+        start_idx <- max(1, pos_idx - 10)  # 10 positions before
+        end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
         
-        # Get haplotype estimates for this sample across the window
+        # Get haplotype estimates for this sample across the 21-position window
         window_haps <- map(start_idx:end_idx, function(j) {
-          adaptive_data$Haps[[j]][[1]][[i]]
+          adaptive_data_with_quality$Haps[[j]][[1]][[i]]
         })
         
-        # Average the haplotype frequencies
-        valid_haps <- window_haps[map_lgl(window_haps, ~ !any(is.na(.x)))]
+        # Only use positions where the original estimate was OK (8 groups)
+        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+          adaptive_data_with_quality$position_ok[j]
+        })
+        
+        valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
         
         if (length(valid_haps) > 0) {
           # Average valid estimates
@@ -153,20 +190,23 @@ if (method == "adaptive_h4") {
         }
       })),
       
-      # Average the error matrices using sliding window
+      # Average the error matrices using 21-position sliding window
       Err = list(map(seq_along(sample[[1]]), function(i) {
-        # Get error matrices for this sample at nearby positions
-        pos_idx <- which(adaptive_data$pos == pos)
-        start_idx <- max(1, pos_idx - 2)
-        end_idx <- min(nrow(adaptive_data), pos_idx + 2)
+        pos_idx <- which(adaptive_data_with_quality$pos == pos)
+        start_idx <- max(1, pos_idx - 10)  # 10 positions before
+        end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
         
-        # Get error matrices for this sample across the window
+        # Get error matrices for this sample across the 21-position window
         window_errs <- map(start_idx:end_idx, function(j) {
-          adaptive_data$Err[[j]][[1]][[i]]
+          adaptive_data_with_quality$Err[[j]][[1]][[i]]
         })
         
-        # Average the error matrices
-        valid_errs <- window_errs[map_lgl(window_errs, ~ !any(is.na(.x)))]
+        # Only use positions where the original estimate was OK (8 groups)
+        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+          adaptive_data_with_quality$position_ok[j]
+        })
+        
+        valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
         
         if (length(valid_errs) > 0) {
           # Average valid error matrices
@@ -180,7 +220,8 @@ if (method == "adaptive_h4") {
                        dimnames = list(founders, founders)))
         }
       }))
-    )
+    ) %>%
+    select(-position_ok, -quality_count, -new_estimate_ok)  # Clean up temporary columns
   
   # Save smooth_h4 results
   output_file <- file.path(hap_list_results_dir, paste0("smooth_h4_list_format_", chr, ".RDS"))
