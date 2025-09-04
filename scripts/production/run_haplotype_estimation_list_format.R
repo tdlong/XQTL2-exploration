@@ -271,12 +271,9 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       # Use the captured error matrix
       error_matrix <- final_error_matrix
       
-      # Check if founders are distinguishable to set trust level
-      if (final_n_groups == length(founders)) {
-        estimate_OK <- 1  # Founders distinguishable
-      } else {
-        estimate_OK <- 0  # Founders NOT distinguishable
-      }
+      # The groups vector IS the information - no need for estimate_OK
+      # Groups will be 1:8 if all founders distinguishable, or something else if not
+      estimate_OK <- NA  # We don't use estimate_OK anymore - groups contains the info
       
       final_window_size <- final_window_size
       n_snps <- nrow(final_wide_data)
@@ -495,29 +492,29 @@ if (method == "adaptive_h4") {
   window_size <- 21
   
   # First, we need to determine the quality of each position based on groups
-  # A position is "OK" if it has 8 groups (all founders distinguishable)
-  adaptive_data_with_quality <- adaptive_data %>%
-    mutate(
-      # Determine if each position is "OK" based on groups
-      position_ok = map_lgl(Groups, function(groups_list) {
-        # Check if any sample at this position has 8 groups
-        any(map_lgl(groups_list, function(groups) {
-          length(unique(groups)) == 8
-        }))
-      })
-    )
+  # We'll check groups directly in the smooth_h4 logic - no need for position_ok
+  adaptive_data_with_quality <- adaptive_data
   
   # Apply 21-position sliding window smoothing
   smooth_data <- adaptive_data_with_quality %>%
     arrange(pos) %>%
     mutate(
-      # Calculate quality count: how many positions in 21-position window are OK?
-      quality_count = map_dbl(seq_len(n()), function(i) {
-        start_idx <- max(1, i - 10)  # 10 positions before
-        end_idx <- min(n(), i + 10)  # 10 positions after
-        window_positions <- start_idx:end_idx
-        sum(adaptive_data_with_quality$position_ok[window_positions], na.rm = TRUE)
-      }),
+                 # Calculate quality count: how many positions in 21-position window have 8 groups?
+           quality_count = map_dbl(seq_len(n()), function(i) {
+             start_idx <- max(1, i - 10)  # 10 positions before
+             end_idx <- min(n(), i + 10)  # 10 positions after
+             window_positions <- start_idx:end_idx
+             
+             # Check if each position has 8 distinguishable groups (1:8)
+             positions_with_8_groups <- map_lgl(window_positions, function(j) {
+               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
+               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+               # Check if all 8 founders are in different groups (1:8)
+               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+             })
+             
+             sum(positions_with_8_groups, na.rm = TRUE)
+           }),
       
       # New estimate_OK: OK if at least 17 out of 21 positions are OK
       new_estimate_ok = quality_count >= 17,
@@ -539,15 +536,18 @@ if (method == "adaptive_h4") {
         start_idx <- max(1, pos_idx - 10)  # 10 positions before
         end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
         
-        # Get haplotype estimates for this sample across the 21-position window
-        window_haps <- map(start_idx:end_idx, function(j) {
-          adaptive_data_with_quality$Haps[[j]][[1]][[i]]
-        })
-        
-        # Only use positions where the original estimate was OK (8 groups)
-        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-          adaptive_data_with_quality$position_ok[j]
-        })
+                     # Get haplotype estimates for this sample across the 21-position window
+             window_haps <- map(start_idx:end_idx, function(j) {
+               adaptive_data_with_quality$Haps[[j]][[1]][[i]]
+             })
+             
+             # Only use positions where the original estimate had 8 groups
+             valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
+               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+               # Check if all 8 founders are in different groups (1:8)
+               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+             })
         
         # Filter to only OK positions (not all 21 positions)
         valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
@@ -571,15 +571,18 @@ if (method == "adaptive_h4") {
         start_idx <- max(1, pos_idx - 10)  # 10 positions before
         end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
         
-        # Get error matrices for this sample across the 21-position window
-        window_errs <- map(start_idx:end_idx, function(j) {
-          adaptive_data_with_quality$Err[[j]][[1]][[i]]
-        })
-        
-        # Only use positions where the original estimate was OK (8 groups)
-        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-          adaptive_data_with_quality$position_ok[j]
-        })
+                     # Get error matrices for this sample across the 21-position window
+             window_errs <- map(start_idx:end_idx, function(j) {
+               adaptive_data_with_quality$Err[[j]][[1]][[i]]
+             })
+             
+             # Only use positions where the original estimate had 8 groups
+             valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
+               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+               # Check if all 8 founders are in different groups (1:8)
+               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+             })
         
         # Filter to only OK positions (not all 21 positions)
         valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
@@ -597,7 +600,7 @@ if (method == "adaptive_h4") {
         }
       }))
     ) %>%
-    select(-position_ok, -quality_count, -new_estimate_ok)  # Clean up temporary columns
+             select(-quality_count, -new_estimate_ok)  # Clean up temporary columns
   
   # Save smooth_h4 results
   output_file <- file.path(hap_list_results_dir, paste0("smooth_h4_list_format_", chr, ".RDS"))
