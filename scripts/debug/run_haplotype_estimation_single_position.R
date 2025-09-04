@@ -157,6 +157,7 @@ scan_positions <- test_position  # Only process the test position
 
 cat("✓ Scan grid:", scan_start, "to", scan_end, "by", step, "\n")
 cat("✓ Scan positions:", length(scan_positions), "\n")
+cat("✓ TEST POSITION:", test_position, "\n")
 
 # 4. Run haplotype estimation (same pattern as test wrapper)
 cat("\n4. Running haplotype estimation...\n")
@@ -196,11 +197,11 @@ results_df <- expand_grid(
 # 5. Save results with intelligent filename
 cat("\n5. Saving results...\n")
 
-# Generate intelligent output filename
+# Generate intelligent output filename - ADD "single_position" to avoid overwriting production files
 if (method == "fixed") {
-  output_filename <- paste0("fixed_window_", parameter, "kb_results_", chr, ".RDS")
+  output_filename <- paste0("fixed_window_", parameter, "kb_single_position_", test_position, "_results_", chr, ".RDS")
 } else {
-  output_filename <- paste0("adaptive_window_h", parameter, "_results_", chr, ".RDS")
+  output_filename <- paste0("adaptive_window_h", parameter, "_single_position_", test_position, "_results_", chr, ".RDS")
 }
 
 # Create results subdirectory
@@ -223,6 +224,22 @@ if (nrow(results_df) > 0) {
   
   cat("✓ Success rate:", sprintf("%.1f%%", success_rate), "\n")
   cat("✓ NA rate:", sprintf("%.1f%%", na_rate), "\n")
+  
+  # Show detailed results for single position testing
+  cat("\n=== DETAILED RESULTS FOR TEST POSITION", test_position, "===\n")
+  for (i in 1:nrow(results_df)) {
+    cat("Sample:", results_df$sample[i], "\n")
+    cat("  Estimate OK:", results_df$estimate_OK[i], "\n")
+    cat("  Window size:", results_df$final_window_size[i], "\n")
+    cat("  SNPs:", results_df$n_snps[i], "\n")
+    if (!is.null(results_df$haplotype_freqs[[i]])) {
+      cat("  Haplotype frequencies:\n")
+      print(results_df$haplotype_freqs[[i]])
+    } else {
+      cat("  Haplotype frequencies: NULL\n")
+    }
+    cat("\n")
+  }
   
 } else {
   cat("✗ No results generated\n")
