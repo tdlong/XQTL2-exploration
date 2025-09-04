@@ -4,9 +4,9 @@
 #SBATCH --job-name=list_format_pipeline
 #SBATCH --output=logs/list_format_pipeline_%A.out
 #SBATCH --error=logs/list_format_pipeline_%A.err
-#SBATCH --time=48:00:00
-#SBATCH --mem=16G
-#SBATCH --cpus-per-task=4
+#SBATCH --time=24:00:00
+#SBATCH --mem=12G
+#SBATCH --cpus-per-task=2
 
 # =============================================================================
 # List Format Pipeline - SLURM Job
