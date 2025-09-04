@@ -204,8 +204,8 @@ if (method == "fixed") {
   output_filename <- paste0("adaptive_window_h", parameter, "_single_position_", test_position, "_results_", chr, ".RDS")
 }
 
-# Create results subdirectory
-results_dir <- file.path(output_dir, "haplotype_results")
+# Create TEST results subdirectory - NEVER write to production directory
+results_dir <- file.path(output_dir, "test_results")
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 output_file <- file.path(results_dir, output_filename)
