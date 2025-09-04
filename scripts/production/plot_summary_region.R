@@ -112,22 +112,38 @@ method_colors <- c(
                 axis.text.x = element_blank()  # No x-axis text for top panel
               )
 
+# Check for points outside the y-axis range
+points_outside_range <- region_data %>%
+  filter(!is.na(MAE) & MAE > 0.30) %>%
+  nrow()
+
+if (points_outside_range > 0) {
+  cat("⚠️  WARNING:", points_outside_range, "MAE points exceed y-axis limit (0.30) and will be clipped\n")
+  cat("   Max MAE value:", round(max(region_data$MAE, na.rm = TRUE), 3), "\n")
+  cat("   Consider using a different region or adjusting the y-axis scale\n\n")
+}
+
 # Create MAE plot (middle panel) - show all positions, NA means no imputation possible
             p_mae <- ggplot(region_data, aes(x = pos_10kb, y = MAE, color = method)) +
               geom_line(linewidth = 1, na.rm = TRUE) +
               geom_point(size = 2, na.rm = TRUE) +
                 scale_color_manual(values = method_colors) +
                 scale_y_continuous(
-                  breaks = seq(0.07, 0.15, by = 0.01),
-                  labels = sprintf("%.2f", seq(0.07, 0.15, by = 0.01)),
-                  limits = c(0.07, 0.15)
+                  breaks = seq(0, 0.30, by = 0.05),
+                  labels = sprintf("%.2f", seq(0, 0.30, by = 0.05)),
+                  limits = c(0, 0.30)
                 ) +
                 scale_x_continuous(
                   labels = function(x) format(x, scientific = FALSE),
                   breaks = seq(round(region_start_bp/10000), round(region_end_bp/10000), by = 1)  # Every 10kb to match data
                 ) +
                 labs(
-                  title = paste("SNP Imputation Mean Absolute Error -", first_sample),
+                  title = paste("SNP Imputation Mean Absolute Error -", first_sample,
+                               if (points_outside_range > 0) {
+                                 paste0(" (⚠️ ", points_outside_range, " points > 0.30)")
+                               } else {
+                                 ""
+                               }),
                   x = NULL,  # No x-axis label for middle panel
                   y = "Mean Absolute Error",
                   color = "Method"
