@@ -415,8 +415,8 @@ cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
 cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
 
 # Create new results directory
-hap_list_results_dir <- file.path(output_dir, "hap_list_results")
-dir.create(hap_list_results_dir, showWarnings = FALSE, recursive = TRUE)
+list_results_dir <- file.path(output_dir, "list_results")
+dir.create(list_results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Define positions to process
 positions <- seq(euchromatin_start, euchromatin_end, by = 10000)
@@ -469,7 +469,7 @@ if (method == "adaptive_h4") {
     filter(!is.null(pos))  # Remove NULL results
   
   # Save adaptive_h4 results
-  output_file <- file.path(hap_list_results_dir, paste0("adaptive_h4_list_format_", chr, ".RDS"))
+  output_file <- file.path(list_results_dir, paste0("adaptive_h4_list_format_", chr, ".RDS"))
   saveRDS(list_format_data, output_file)
   cat("✓ Adaptive_h4 list format results saved:", nrow(list_format_data), "rows\n")
   cat("Output file:", output_file, "\n")
@@ -479,7 +479,7 @@ if (method == "adaptive_h4") {
   cat("Running smooth_h4 estimation...\n")
   
   # First, load the adaptive_h4 results to smooth over
-  adaptive_file <- file.path(hap_list_results_dir, paste0("adaptive_h4_list_format_", chr, ".RDS"))
+  adaptive_file <- file.path(list_results_dir, paste0("adaptive_h4_list_format_", chr, ".RDS"))
   if (!file.exists(adaptive_file)) {
     stop("Adaptive_h4 results not found. Run adaptive_h4 first: ", adaptive_file)
   }
@@ -603,11 +603,11 @@ if (method == "adaptive_h4") {
              select(-quality_count, -new_estimate_ok)  # Clean up temporary columns
   
   # Save smooth_h4 results
-  output_file <- file.path(hap_list_results_dir, paste0("smooth_h4_list_format_", chr, ".RDS"))
+  output_file <- file.path(list_results_dir, paste0("smooth_h4_list_format_", chr, ".RDS"))
   saveRDS(smooth_data, output_file)
   cat("✓ Smooth_h4 list format results saved:", nrow(smooth_data), "rows\n")
   cat("Output file:", output_file, "\n")
 }
 
 cat("\n=== HAPLOTYPE ESTIMATION COMPLETE ===\n")
-cat("Results saved to:", hap_list_results_dir, "\n")
+cat("Results saved to:", list_results_dir, "\n")

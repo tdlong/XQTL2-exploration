@@ -31,8 +31,8 @@ cat("Method:", method, "\n\n")
 source(param_file)
 
 # Load haplotype results in list format
-hap_list_results_dir <- file.path(output_dir, "hap_list_results")
-haplotype_file <- file.path(hap_list_results_dir, paste0(method, "_list_format_", chr, ".RDS"))
+list_results_dir <- file.path(output_dir, "list_results")
+haplotype_file <- file.path(list_results_dir, paste0(method, "_list_format_", chr, ".RDS"))
 
 if (!file.exists(haplotype_file)) {
   stop("Haplotype results file not found: ", haplotype_file)
@@ -51,8 +51,8 @@ observed_euchromatic <- readRDS(observed_file)
 cat("✓ Observed SNP data loaded:", nrow(observed_euchromatic), "rows\n")
 
 # Create results directory
-snp_list_results_dir <- file.path(output_dir, "snp_list_results")
-dir.create(snp_list_results_dir, showWarnings = FALSE, recursive = TRUE)
+list_results_dir <- file.path(output_dir, "list_results")
+dir.create(list_results_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Function to impute SNPs using list format haplotype data
 impute_snps_list_format <- function(snp_pos, sample_name, haplotype_data, observed_data, founders) {
@@ -137,7 +137,7 @@ imputation_results <- expand_grid(
 cat("✓ SNP imputation complete:", nrow(imputation_results), "SNPs processed\n")
 
 # Save results
-output_file <- file.path(snp_list_results_dir, paste0("snp_imputation_", method, "_list_format_", chr, ".RDS"))
+output_file <- file.path(list_results_dir, paste0("snp_imputation_", method, "_list_format_", chr, ".RDS"))
 saveRDS(imputation_results, output_file)
 
 cat("✓ Results saved to:", output_file, "\n")
