@@ -290,7 +290,9 @@ if (nrow(results_df) > 0) {
   for (i in 1:nrow(results_df)) {
     # Get actual groups from modified function result
     if (!is.null(results_df$groups[i]) && !is.na(results_df$groups[i])) {
-      groups_list[[i]] <- list(as.numeric(results_df$groups[i]))
+      # results_df$groups[i] is a vector, so we need to extract it properly
+      groups_vector <- results_df$groups[i][[1]]  # Extract the vector from the list
+      groups_list[[i]] <- list(groups_vector)
     } else {
       groups_list[[i]] <- list(rep(1, length(founder_cols)))  # Fallback to all 1s
     }
@@ -327,10 +329,19 @@ if (nrow(results_df) > 0) {
   for (i in 1:nrow(results_df)) {
     # Get actual error matrix from modified function result
     if (!is.null(results_df$error_matrix[i]) && !is.na(results_df$error_matrix[i])) {
-      err_matrix <- results_df$error_matrix[i]
-      rownames(err_matrix) <- founder_cols
-      colnames(err_matrix) <- founder_cols
-      err_list[[i]] <- list(err_matrix)
+      # results_df$error_matrix[i] is a matrix, so we need to extract it properly
+      err_matrix <- results_df$error_matrix[i][[1]]  # Extract the matrix from the list
+      if (is.matrix(err_matrix) && nrow(err_matrix) > 0 && ncol(err_matrix) > 0) {
+        rownames(err_matrix) <- founder_cols
+        colnames(err_matrix) <- founder_cols
+        err_list[[i]] <- list(err_matrix)
+      } else {
+        # Fallback to NA matrix if extraction failed
+        err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
+        rownames(err_matrix) <- founder_cols
+        colnames(err_matrix) <- founder_cols
+        err_list[[i]] <- list(err_matrix)
+      }
     } else {
       # Fallback to NA matrix
       err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
