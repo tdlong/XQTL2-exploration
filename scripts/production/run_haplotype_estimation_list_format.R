@@ -1,18 +1,128 @@
 #!/usr/bin/env Rscript
 
-# Run Haplotype Estimation with List Format Output
-# Focuses on adaptive_h4 and smooth_h4 methods
-# Saves results to new hap_list_results directory
+# Simple modification of existing working haplotype estimation
+# Only changes: capture groups, variance-covariance matrix, and output list format
+# Based on the existing working haplotype_estimation_functions.R
 
-library(tidyverse)
-library(limSolve)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(limSolve)
+})
 
-# Source the new estimator functions
+# Source the existing working functions
 source("scripts/production/haplotype_estimation_functions.R")
 
-# NEW HAPLOTYPE ESTIMATOR WITH LIST FORMAT OUTPUT
-# This is a new function that captures groups and error matrices from the existing algorithm
+# Parse command line arguments
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) != 4) {
+  stop("Usage: Rscript scripts/production/run_haplotype_estimation_list_format.R <chr> <param_file> <output_dir> <method>")
+}
 
+chr <- args[1]
+param_file <- args[2]
+output_dir <- args[3]
+method <- args[4]
+
+# Validate method
+if (!method %in% c("adaptive_h4", "smooth_h4")) {
+  stop("Method must be 'adaptive_h4' or 'smooth_h4'")
+}
+
+cat("=== HAPLOTYPE ESTIMATION WITH LIST FORMAT ===\n")
+cat("Chromosome:", chr, "\n")
+cat("Parameter file:", param_file, "\n")
+cat("Output directory:", output_dir, "\n")
+cat("Method:", method, "\n\n")
+
+# Load parameters
+source(param_file)
+
+# Define euchromatin boundaries (same as existing working code)
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
+
+# Get boundaries for this chromosome
+if (!chr %in% names(euchromatin_boundaries)) {
+  stop("Invalid chromosome: ", chr, ". Valid chromosomes: ", paste(names(euchromatin_boundaries), collapse = ", "))
+}
+
+euchromatin_start <- euchromatin_boundaries[[chr]][1]
+euchromatin_end <- euchromatin_boundaries[[chr]][2]
+cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end, "bp\n\n")
+
+# Load observed data from REFALT files (same as existing working code)
+cat("Loading observed SNP data from REFALT files...\n")
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+if (!file.exists(refalt_file)) {
+  stop("REFALT data file not found: ", refalt_file)
+}
+
+# Load REFALT data (same as existing working code)
+refalt_data <- read.table(refalt_file, header = TRUE)
+cat("✓ Raw REFALT data loaded:", nrow(refalt_data), "rows\n")
+
+# Transform to frequencies (same as existing working code)
+cat("Converting counts to frequencies...\n")
+refalt_processed <- refalt_data %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  mutate(
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
+  ) %>%
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    total_count = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+# Filter for high-quality SNPs (same as existing working code)
+cat("Filtering for high-quality SNPs...\n")
+good_snps <- refalt_processed %>%
+  filter(name %in% founders) %>%
+  group_by(CHROM, POS) %>%
+  summarize(
+    zeros = sum(total_count == 0),
+    not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95),
+    .groups = "drop"
+  ) %>%
+  ungroup() %>%
+  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
+  select(c(CHROM, POS))
+
+# Get valid SNPs for euchromatin (same as existing working code)
+observed_data <- good_snps %>%
+  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
+  left_join(refalt_processed, multiple = "all")
+
+# Filter to euchromatin and only the samples we actually processed (same as existing working code)
+observed_euchromatic <- observed_data %>%
+  filter(POS >= euchromatin_start, POS <= euchromatin_end) %>%
+  filter(name %in% names_in_bam)
+
+cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
+cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
+
+# Create new results directory
+list_results_dir <- file.path(output_dir, "list_results")
+dir.create(list_results_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Define positions to process
+positions <- seq(euchromatin_start, euchromatin_end, by = 10000)
+samples <- names_in_bam
+
+cat("Processing", length(positions), "positions for", length(samples), "samples\n")
+cat("Method:", method, "\n\n")
+
+# Modified version that captures groups and error matrices
 estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
                                            method = c("fixed", "adaptive"),
                                            window_size_bp = NULL,
@@ -21,111 +131,26 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   
   method <- match.arg(method)
   
-  # Initialize result variables
-  estimate_OK <- NA
-  haplotype_freqs <- rep(NA, length(founders))
-  names(haplotype_freqs) <- founders
-  error_matrix <- matrix(NA, length(founders), length(founders))
-  rownames(error_matrix) <- founders
-  colnames(error_matrix) <- founders
-  groups <- rep(NA, length(founders))
-  names(groups) <- founders
-  final_window_size <- NA
-  n_snps <- 0
+  if (verbose >= 1) {
+    cat(sprintf("Processing pos: %s, sample: %s, method: %s\n", 
+                format(pos, big.mark=","), sample_name, method))
+  }
+  
+  # Validate inputs
+  if (method == "fixed" && is.null(window_size_bp)) {
+    stop("window_size_bp required for fixed method")
+  }
   
   if (method == "fixed") {
-    # FIXED WINDOW METHOD
-    window_start <- max(1, pos - window_size_bp/2)
-    window_end <- pos + window_size_bp/2
+    # FIXED WINDOW METHOD - use existing working code
+    result <- estimate_haplotypes(pos, sample_name, df3, founders, h_cutoff,
+                                "fixed", window_size_bp, chr, verbose)
     
-    # Get SNPs in window
-    window_data <- df3 %>%
-      filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
-    
-    if (nrow(window_data) == 0) {
-      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
-                              rep(NA, length(founders)), rep(1, length(founders)), 
-                              matrix(NA, length(founders), length(founders)), founders))
-    }
-    
-    wide_data <- window_data %>%
-      select(POS, name, freq) %>%
-      pivot_wider(names_from = name, values_from = freq)
-    
-    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
-      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
-                              rep(NA, length(founders)), rep(1, length(founders)), 
-                              matrix(NA, length(founders), length(founders)), founders))
-    }
-    
-    # Get founder matrix and sample frequencies
-    founder_matrix_clean <- wide_data %>%
-      select(all_of(founders)) %>%
-      as.matrix()
-    sample_freqs_clean <- wide_data %>%
-      pull(!!sample_name)
-    
-    complete_rows <- complete.cases(founder_matrix_clean) & !is.na(sample_freqs_clean)
-    founder_matrix_clean <- founder_matrix_clean[complete_rows, , drop = FALSE]
-    sample_freqs_clean <- sample_freqs_clean[complete_rows]
-    
-    if (nrow(founder_matrix_clean) < 10) {
-      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA, 
-                              rep(NA, length(founders)), rep(1, length(founders)), 
-                              matrix(NA, length(founders), length(founders)), founders))
-    }
-    
-    final_window_size <- window_size_bp
-    n_snps <- nrow(wide_data)
-    
-    # Run LSEI with error matrix capture
-    tryCatch({
-      E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
-      F <- 1.0
-      G <- diag(length(founders))  # Non-negativity constraints
-      H <- matrix(rep(0.0003, length(founders)))  # Lower bound
-      
-      # Call lsei with fulloutput=TRUE to get error matrix
-      lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
-                                   E = E, F = F, G = G, H = H, fulloutput = TRUE)
-      
-      if (lsei_result$IsError == 0) {
-        # LSEI successful - get frequencies
-        haplotype_freqs <- lsei_result$X
-        names(haplotype_freqs) <- founders
-        
-        # Capture the error matrix
-        if (!is.null(lsei_result$cov)) {
-          error_matrix <- lsei_result$cov
-          rownames(error_matrix) <- founders
-          colnames(error_matrix) <- founders
-        }
-        
-        # Get clustering groups (this is the key part that was missing!)
-        distances <- dist(t(founder_matrix_clean))
-        hclust_result <- hclust(distances, method = "complete")
-        groups <- cutree(hclust_result, h = h_cutoff)
-        names(groups) <- founders
-        
-        # Determine estimate_OK based on distinguishability
-        n_groups <- length(unique(groups))
-        estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
-        
-      } else {
-        # LSEI failed
-        estimate_OK <- 0
-        groups <- rep(1, length(founders))
-        names(groups) <- founders
-      }
-    }, error = function(e) {
-      # Catastrophic LSEI error
-      estimate_OK <- 0
-      groups <- rep(1, length(founders))
-      names(groups) <- founders
-    })
+    # Convert to list format
+    return(create_list_result_from_existing(result, founders, NULL, NULL))
     
   } else {
-    # ADAPTIVE WINDOW METHOD - implement the full adaptive algorithm with groups and error matrix capture
+    # ADAPTIVE WINDOW METHOD - modify existing code to capture groups and error matrix
     window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
     
     final_result <- NULL
@@ -136,7 +161,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     final_groups <- NULL
     final_error_matrix <- NULL
     
-    # CONSTRAINT ACCUMULATION (core of adaptive algorithm)
+    # CONSTRAINT ACCUMULATION (same as existing working code)
     accumulated_constraints <- NULL
     accumulated_constraint_values <- NULL
     
@@ -145,7 +170,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       window_start <- max(1, pos - window_size/2)
       window_end <- pos + window_size/2
       
-      # Get SNPs in window
+      # Get SNPs in window (same as existing working code)
       window_data <- df3 %>%
         filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
       
@@ -157,7 +182,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       
       if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
       
-      # Get founder matrix and sample frequencies
+      # Get founder matrix and sample frequencies (same as existing working code)
       founder_matrix <- wide_data %>%
         select(all_of(founders)) %>%
         as.matrix()
@@ -170,56 +195,56 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       
       if (nrow(founder_matrix_clean) < 10) next
       
-      # Always update final window info (this is the last window we actually tried)
+      # Always update final window info (same as existing working code)
       final_window_size <- window_size
       final_wide_data <- wide_data
       
-      # Hierarchical clustering
+      # Hierarchical clustering (same as existing working code)
       founder_dist <- dist(t(founder_matrix_clean))
       hclust_result <- hclust(founder_dist, method = "complete")
       groups <- cutree(hclust_result, h = h_cutoff)
       n_groups <- length(unique(groups))
       
-      # Check if clustering improved
+      # Check if clustering improved (same as existing working code)
       if (window_idx > 1 && n_groups <= previous_n_groups) {
         next  # No improvement, try larger window
       }
       
       previous_n_groups <- n_groups
       
-      # Build constraint matrix with accumulated constraints
+      # Build constraint matrix (same as existing working code)
       n_founders <- ncol(founder_matrix_clean)
       E <- matrix(rep(1, n_founders), nrow = 1)  # Sum to 1 constraint
       F <- 1.0
       
-      # Add accumulated constraints from previous windows
+      # Add accumulated constraints from previous windows (same as existing working code)
       if (!is.null(accumulated_constraints)) {
         E <- rbind(E, accumulated_constraints)
         F <- c(F, accumulated_constraint_values)
       }
       
-      # Run LSEI with constraints AND fulloutput=TRUE to get error matrix
+      # Run LSEI with constraints AND fulloutput=TRUE (ONLY CHANGE!)
       tryCatch({
         result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
                                 E = E, F = F, 
                                 G = diag(n_founders), H = matrix(rep(0.0003, n_founders)),
-                                fulloutput = TRUE)  # THIS IS THE KEY - get error matrix
+                                fulloutput = TRUE)  # THIS IS THE ONLY CHANGE!
         
         if (result$IsError == 0) {
-          # LSEI successful - capture the results
+          # LSEI successful - capture the results (same as existing working code)
           final_result <- result
           final_n_groups <- n_groups
           final_groups <- groups
           names(final_groups) <- founders
           
-          # Capture the error matrix
+          # Capture the error matrix (NEW!)
           if (!is.null(result$cov)) {
             final_error_matrix <- result$cov
             rownames(final_error_matrix) <- founders
             colnames(final_error_matrix) <- founders
           }
           
-          # Accumulate constraints for next window (same as original algorithm)
+          # Accumulate constraints for next window (same as existing working code)
           current_constraints <- NULL
           current_constraint_values <- NULL
           
@@ -248,18 +273,18 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
             }
           }
           
-          # Update accumulated constraints for next window
+          # Update accumulated constraints for next window (same as existing working code)
           if (!is.null(current_constraints)) {
             accumulated_constraints <- current_constraints
             accumulated_constraint_values <- current_constraint_values
           }
         }
       }, error = function(e) {
-        # LSEI failed, continue to next window
+        # LSEI failed, continue to next window (same as existing working code)
       })
     }
     
-    # Apply the correct rules for output
+    # Apply the correct rules for output (same as existing working code)
     if (!is.null(final_result)) {
       # LSEI was successful - get the results
       haplotype_freqs <- final_result$X
@@ -271,15 +296,18 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       # Use the captured error matrix
       error_matrix <- final_error_matrix
       
-      # The groups vector IS the information - no need for estimate_OK
-      # Groups will be 1:8 if all founders distinguishable, or something else if not
-      estimate_OK <- NA  # We don't use estimate_OK anymore - groups contains the info
+      # Check if founders are distinguishable to set trust level (same as existing working code)
+      if (final_n_groups == length(founders)) {
+        estimate_OK <- 1  # Founders distinguishable
+      } else {
+        estimate_OK <- 0  # Founders NOT distinguishable
+      }
       
       final_window_size <- final_window_size
       n_snps <- nrow(final_wide_data)
       
     } else {
-      # Either insufficient SNPs OR LSEI failed/didn't converge
+      # Either insufficient SNPs OR LSEI failed/didn't converge (same as existing working code)
       haplotype_freqs <- rep(NA, length(founders))
       names(haplotype_freqs) <- founders
       groups <- rep(1, length(founders))
@@ -291,15 +319,34 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       final_window_size <- window_sizes[1]
       n_snps <- 0
     }
+    
+    return(create_list_result(chr, pos, sample_name, method, final_window_size, n_snps, 
+                            estimate_OK, haplotype_freqs, groups, error_matrix, founders))
   }
-  
-  return(create_list_result(chr, pos, sample_name, method, final_window_size, n_snps, 
-                          estimate_OK, haplotype_freqs, groups, error_matrix, founders))
 }
 
-# Helper function to create the list format result
-create_list_result <- function(chr, pos, sample_name, method, window_size, n_snps, 
-                              estimate_OK, haplotype_freqs, groups, error_matrix, founders) {
+# Helper function to convert existing result to list format
+create_list_result_from_existing <- function(existing_result, founders, groups, error_matrix) {
+  # For fixed method, we don't have groups or error matrix from existing code
+  if (is.null(groups)) {
+    groups <- rep(1, length(founders))  # Default fallback
+    names(groups) <- founders
+  }
+  if (is.null(error_matrix)) {
+    error_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(error_matrix) <- founders
+    colnames(error_matrix) <- founders
+  }
+  
+  return(create_list_result(existing_result$chr, existing_result$pos, existing_result$sample, 
+                          existing_result$method, existing_result$final_window_size, 
+                          existing_result$n_snps, existing_result$estimate_OK, 
+                          existing_result$haplotype_freqs, groups, error_matrix, founders))
+}
+
+# Create list format result
+create_list_result <- function(chr, pos, sample_name, method, final_window_size, n_snps, 
+                             estimate_OK, haplotype_freqs, groups, error_matrix, founders) {
   
   # Create the list format structure
   result <- list(
@@ -314,116 +361,6 @@ create_list_result <- function(chr, pos, sample_name, method, window_size, n_snp
   
   return(result)
 }
-
-# Parse command line arguments
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4) {
-  stop("Usage: Rscript scripts/production/run_haplotype_estimation_list_format.R <chr> <param_file> <output_dir> <method>")
-}
-
-chr <- args[1]
-param_file <- args[2]
-output_dir <- args[3]
-method <- args[4]
-
-# Validate method
-if (!method %in% c("adaptive_h4", "smooth_h4")) {
-  stop("Method must be 'adaptive_h4' or 'smooth_h4'")
-}
-
-cat("=== HAPLOTYPE ESTIMATION WITH LIST FORMAT ===\n")
-cat("Chromosome:", chr, "\n")
-cat("Parameter file:", param_file, "\n")
-cat("Output directory:", output_dir, "\n")
-cat("Method:", method, "\n\n")
-
-# Load parameters
-source(param_file)
-
-# Define euchromatin boundaries (same as existing pipeline)
-euchromatin_boundaries <- list(
-  chr2L = c(82455, 22011009),
-  chr2R = c(5398184, 24684540),
-  chr3L = c(158639, 22962476),
-  chr3R = c(4552934, 31845060),
-  chrX = c(277911, 22628490)
-)
-
-# Get boundaries for this chromosome
-if (!chr %in% names(euchromatin_boundaries)) {
-  stop("Invalid chromosome: ", chr, ". Valid chromosomes: ", paste(names(euchromatin_boundaries), collapse = ", "))
-}
-
-euchromatin_start <- euchromatin_boundaries[[chr]][1]
-euchromatin_end <- euchromatin_boundaries[[chr]][2]
-cat("Euchromatin region for", chr, ":", euchromatin_start, "-", euchromatin_end, "bp\n\n")
-
-# Load observed data from REFALT files (same as existing pipeline)
-cat("Loading observed SNP data from REFALT files...\n")
-refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
-if (!file.exists(refalt_file)) {
-  stop("REFALT data file not found: ", refalt_file)
-}
-
-# Load REFALT data
-refalt_data <- read.table(refalt_file, header = TRUE)
-cat("✓ Raw REFALT data loaded:", nrow(refalt_data), "rows\n")
-
-# Transform to frequencies (same as existing pipeline)
-cat("Converting counts to frequencies...\n")
-refalt_processed <- refalt_data %>%
-  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
-  mutate(
-    RefAlt = str_sub(lab, 1, 3),
-    name = str_sub(lab, 5)
-  ) %>%
-  select(-lab) %>%
-  pivot_wider(names_from = RefAlt, values_from = count) %>%
-  mutate(
-    freq = REF / (REF + ALT),
-    total_count = REF + ALT
-  ) %>%
-  select(-c("REF", "ALT")) %>%
-  as_tibble()
-
-# Filter for high-quality SNPs (same as existing pipeline)
-cat("Filtering for high-quality SNPs...\n")
-good_snps <- refalt_processed %>%
-  filter(name %in% founders) %>%
-  group_by(CHROM, POS) %>%
-  summarize(
-    zeros = sum(total_count == 0),
-    not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
-    informative = (sum(freq) > 0.05 | sum(freq) < 0.95),
-    .groups = "drop"
-  ) %>%
-  ungroup() %>%
-  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
-  select(c(CHROM, POS))
-
-# Get valid SNPs for evaluation (euchromatin only)
-observed_data <- good_snps %>%
-  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
-  left_join(refalt_processed, multiple = "all")
-
-# Filter to euchromatin and only the samples we actually processed
-observed_euchromatic <- observed_data %>%
-  filter(POS >= euchromatin_start, POS <= euchromatin_end) %>%
-  filter(name %in% names_in_bam)  # Only process samples defined in parameter file
-
-cat("✓ Observed data loaded:", nrow(observed_euchromatic), "rows\n")
-cat("Samples:", paste(unique(observed_euchromatic$name), collapse = ", "), "\n\n")
-
-# Create new results directory
-list_results_dir <- file.path(output_dir, "list_results")
-dir.create(list_results_dir, showWarnings = FALSE, recursive = TRUE)
-
-# Define positions to process
-positions <- seq(euchromatin_start, euchromatin_end, by = 10000)
-samples <- names_in_bam
-
-cat("Processing", length(positions), "positions for", length(samples), "samples\n")
-cat("Method:", method, "\n\n")
 
 if (method == "adaptive_h4") {
   # Run adaptive_h4 with list format
@@ -491,30 +428,26 @@ if (method == "adaptive_h4") {
   # For smooth_h4, we use a 21-position sliding window (matching original implementation)
   window_size <- 21
   
-  # First, we need to determine the quality of each position based on groups
-  # We'll check groups directly in the smooth_h4 logic - no need for position_ok
-  adaptive_data_with_quality <- adaptive_data
-  
   # Apply 21-position sliding window smoothing
-  smooth_data <- adaptive_data_with_quality %>%
+  smooth_data <- adaptive_data %>%
     arrange(pos) %>%
     mutate(
-                 # Calculate quality count: how many positions in 21-position window have 8 groups?
-           quality_count = map_dbl(seq_len(n()), function(i) {
-             start_idx <- max(1, i - 10)  # 10 positions before
-             end_idx <- min(n(), i + 10)  # 10 positions after
-             window_positions <- start_idx:end_idx
-             
-             # Check if each position has 8 distinguishable groups (1:8)
-             positions_with_8_groups <- map_lgl(window_positions, function(j) {
-               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
-               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-               # Check if all 8 founders are in different groups (1:8)
-               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-             })
-             
-             sum(positions_with_8_groups, na.rm = TRUE)
-           }),
+      # Calculate quality count: how many positions in 21-position window have 8 groups?
+      quality_count = map_dbl(seq_len(n()), function(i) {
+        start_idx <- max(1, i - 10)  # 10 positions before
+        end_idx <- min(n(), i + 10)  # 10 positions after
+        window_positions <- start_idx:end_idx
+        
+        # Check if each position has 8 distinguishable groups (1:8)
+        positions_with_8_groups <- map_lgl(window_positions, function(j) {
+          groups_at_pos <- adaptive_data$Groups[[j]][[1]]
+          if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+          # Check if all 8 founders are in different groups (1:8)
+          length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+        })
+        
+        sum(positions_with_8_groups, na.rm = TRUE)
+      }),
       
       # New estimate_OK: OK if at least 17 out of 21 positions are OK
       new_estimate_ok = quality_count >= 17,
@@ -532,22 +465,22 @@ if (method == "adaptive_h4") {
       
       # Average the haplotype frequencies using 21-position sliding window
       Haps = list(map(seq_along(sample[[1]]), function(i) {
-        pos_idx <- which(adaptive_data_with_quality$pos == pos)
+        pos_idx <- which(adaptive_data$pos == pos)
         start_idx <- max(1, pos_idx - 10)  # 10 positions before
-        end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
+        end_idx <- min(nrow(adaptive_data), pos_idx + 10)  # 10 positions after
         
-                     # Get haplotype estimates for this sample across the 21-position window
-             window_haps <- map(start_idx:end_idx, function(j) {
-               adaptive_data_with_quality$Haps[[j]][[1]][[i]]
-             })
-             
-             # Only use positions where the original estimate had 8 groups
-             valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
-               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-               # Check if all 8 founders are in different groups (1:8)
-               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-             })
+        # Get haplotype estimates for this sample across the 21-position window
+        window_haps <- map(start_idx:end_idx, function(j) {
+          adaptive_data$Haps[[j]][[1]][[i]]
+        })
+        
+        # Only use positions where the original estimate had 8 groups
+        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+          groups_at_pos <- adaptive_data$Groups[[j]][[1]]
+          if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+          # Check if all 8 founders are in different groups (1:8)
+          length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+        })
         
         # Filter to only OK positions (not all 21 positions)
         valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
@@ -567,22 +500,22 @@ if (method == "adaptive_h4") {
       
       # Average the error matrices using 21-position sliding window
       Err = list(map(seq_along(sample[[1]]), function(i) {
-        pos_idx <- which(adaptive_data_with_quality$pos == pos)
+        pos_idx <- which(adaptive_data$pos == pos)
         start_idx <- max(1, pos_idx - 10)  # 10 positions before
-        end_idx <- min(nrow(adaptive_data_with_quality), pos_idx + 10)  # 10 positions after
+        end_idx <- min(nrow(adaptive_data), pos_idx + 10)  # 10 positions after
         
-                     # Get error matrices for this sample across the 21-position window
-             window_errs <- map(start_idx:end_idx, function(j) {
-               adaptive_data_with_quality$Err[[j]][[1]][[i]]
-             })
-             
-             # Only use positions where the original estimate had 8 groups
-             valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-               groups_at_pos <- adaptive_data_with_quality$Groups[[j]][[1]]
-               if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-               # Check if all 8 founders are in different groups (1:8)
-               length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-             })
+        # Get error matrices for this sample across the 21-position window
+        window_errs <- map(start_idx:end_idx, function(j) {
+          adaptive_data$Err[[j]][[1]][[i]]
+        })
+        
+        # Only use positions where the original estimate had 8 groups
+        valid_positions <- map_lgl(start_idx:end_idx, function(j) {
+          groups_at_pos <- adaptive_data$Groups[[j]][[1]]
+          if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
+          # Check if all 8 founders are in different groups (1:8)
+          length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
+        })
         
         # Filter to only OK positions (not all 21 positions)
         valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
@@ -600,7 +533,7 @@ if (method == "adaptive_h4") {
         }
       }))
     ) %>%
-             select(-quality_count, -new_estimate_ok)  # Clean up temporary columns
+    select(-quality_count, -new_estimate_ok)  # Clean up temporary columns
   
   # Save smooth_h4 results
   output_file <- file.path(list_results_dir, paste0("smooth_h4_list_format_", chr, ".RDS"))
