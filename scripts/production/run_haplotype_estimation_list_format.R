@@ -156,8 +156,8 @@ if (method == "adaptive_h4") {
           # If smooth estimate is OK, use 1:8 (all founders distinguishable)
           return(1:8)
         } else {
-          # If smooth estimate is not OK, use the original groups from this position
-          return(Groups[[1]][[i]])
+          # If smooth estimate is not OK, use all 1s (fallback)
+          return(rep(1, length(founders)))
         }
       })),
       
@@ -177,15 +177,18 @@ if (method == "adaptive_h4") {
           adaptive_data_with_quality$position_ok[j]
         })
         
+        # Filter to only OK positions (not all 21 positions)
         valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
         
-        if (length(valid_haps) > 0) {
-          # Average valid estimates
+        if (new_estimate_ok && length(valid_haps) > 0) {
+          # Average over only the OK positions (not all 21 positions)
           avg_haps <- reduce(valid_haps, `+`) / length(valid_haps)
+          # Normalize so they sum to 1
+          avg_haps <- avg_haps / sum(avg_haps)
           names(avg_haps) <- founders
           return(avg_haps)
         } else {
-          # No valid estimates, return NAs
+          # If <17 positions are OK, return NAs
           return(set_names(rep(NA, length(founders)), founders))
         }
       })),
@@ -206,16 +209,17 @@ if (method == "adaptive_h4") {
           adaptive_data_with_quality$position_ok[j]
         })
         
+        # Filter to only OK positions (not all 21 positions)
         valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
         
-        if (length(valid_errs) > 0) {
-          # Average valid error matrices
+        if (new_estimate_ok && length(valid_errs) > 0) {
+          # Average over only the OK positions (not all 21 positions)
           avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
           rownames(avg_err) <- founders
           colnames(avg_err) <- founders
           return(avg_err)
         } else {
-          # No valid error matrices, return NAs
+          # If <17 positions are OK, return NAs
           return(matrix(NA, length(founders), length(founders), 
                        dimnames = list(founders, founders)))
         }
