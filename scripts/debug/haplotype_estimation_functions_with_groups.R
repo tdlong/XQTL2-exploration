@@ -132,6 +132,8 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
     final_window_size <- window_sizes[1]
     final_wide_data <- NULL
     previous_n_groups <- 0
+    final_groups <- NULL
+    final_error_matrix <- NULL
     
     # CONSTRAINT ACCUMULATION (core of adaptive algorithm)
     accumulated_constraints <- NULL
@@ -300,6 +302,15 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
           final_result <- result
           final_n_groups <- n_groups
           
+          # Capture groups and error matrix
+          final_groups <- groups
+          names(final_groups) <- founders
+          if (!is.null(result$cov)) {
+            final_error_matrix <- result$cov
+            rownames(final_error_matrix) <- founders
+            colnames(final_error_matrix) <- founders
+          }
+          
           # Check if all founders are separated
           if (n_groups == length(founders)) {
             if (verbose >= 2) {
@@ -356,7 +367,8 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
     # Return result
     return(create_result(chr, pos, sample_name, method, final_window_size, 
                         ifelse(is.null(final_result), 0, nrow(final_wide_data)), 
-                        estimate_OK, founder_frequencies, founders, h_cutoff))
+                        estimate_OK, founder_frequencies, founders, h_cutoff,
+                        groups = final_groups, error_matrix = final_error_matrix))
   }
 }
 
