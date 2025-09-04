@@ -21,7 +21,7 @@
 library(tidyverse)
 
 # Source unified function
-source("scripts/production/haplotype_estimation_functions.R")
+source("scripts/debug/haplotype_estimation_functions_with_groups.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -285,11 +285,15 @@ if (nrow(results_df) > 0) {
   cat(paste0("'", results_df$sample, "'", collapse = ", "))
   cat(")\n")
   
-  # Create Groups (for now, we don't have this from working function, so show placeholder)
+  # Create Groups (now we have this from modified function!)
   groups_list <- list()
   for (i in 1:nrow(results_df)) {
-    # Placeholder: we don't have groups from working function yet
-    groups_list[[i]] <- list(rep(1, length(founder_cols)))  # All 1s as placeholder
+    # Get actual groups from modified function result
+    if (!is.null(results_df$groups[i]) && !is.na(results_df$groups[i])) {
+      groups_list[[i]] <- list(as.numeric(results_df$groups[i]))
+    } else {
+      groups_list[[i]] <- list(rep(1, length(founder_cols)))  # Fallback to all 1s
+    }
   }
   cat("Groups: list(")
   for (i in 1:length(groups_list)) {
@@ -318,14 +322,22 @@ if (nrow(results_df) > 0) {
   }
   cat(")\n")
   
-  # Create Err (error matrices - placeholder since working function doesn't have this)
+  # Create Err (error matrices - now we have this from modified function!)
   err_list <- list()
   for (i in 1:nrow(results_df)) {
-    # Placeholder: we don't have error matrices from working function yet
-    err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
-    rownames(err_matrix) <- founder_cols
-    colnames(err_matrix) <- founder_cols
-    err_list[[i]] <- list(err_matrix)
+    # Get actual error matrix from modified function result
+    if (!is.null(results_df$error_matrix[i]) && !is.na(results_df$error_matrix[i])) {
+      err_matrix <- results_df$error_matrix[i]
+      rownames(err_matrix) <- founder_cols
+      colnames(err_matrix) <- founder_cols
+      err_list[[i]] <- list(err_matrix)
+    } else {
+      # Fallback to NA matrix
+      err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
+      rownames(err_matrix) <- founder_cols
+      colnames(err_matrix) <- founder_cols
+      err_list[[i]] <- list(err_matrix)
+    }
   }
   cat("Err: list(")
   for (i in 1:length(err_list)) {
@@ -346,8 +358,8 @@ if (nrow(results_df) > 0) {
   }
   cat(")\n")
   
-  cat("\nNOTE: Groups and Err are placeholders (NA/1s) because working function doesn't capture these yet.\n")
-  cat("We need to modify the working function to capture groups from clustering and error matrix from lsei.\n")
+  cat("\nNOTE: Groups and Err are now captured from the modified working function!\n")
+  cat("Groups come from clustering step (cutree result) and Err comes from lsei with fulloutput=TRUE.\n")
   
 } else {
   cat("✗ No results generated\n")
