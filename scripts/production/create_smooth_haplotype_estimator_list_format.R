@@ -11,11 +11,22 @@ suppressPackageStartupMessages({
 # This script creates a "smooth_h4" estimator in LIST FORMAT by applying 
 # 21-position sliding window smoothing to adaptive_h4 LIST FORMAT results.
 #
-# KEY RULES FOR LIST FORMAT:
-# - Use Groups information instead of estimate_OK
-# - Quality: ≥17 out of 21 positions must have 8 distinguishable groups (1:8)
-# - Only average over positions with 8 groups (not all 21 positions)
-# - Groups for smooth_h4: 1:8 if quality OK, else all 1s (fallback)
+# KEY RULES FOR LIST FORMAT (in plain English):
+# 
+# GROUPS = Which founders are clustered together:
+# - Groups = [1,2,3,4,5,6,7,8] = All 8 founders distinguishable (each in own group)
+# - Groups = [1,1,1,1,1,1,1,1] = All 8 founders clustered together (same group)
+#
+# QUALITY CHECK (21-position sliding window):
+# - Count how many of 21 positions have 8 distinguishable groups [1,2,3,4,5,6,7,8]
+# - If ≥17 out of 21 positions are good → Quality OK
+# - If <17 out of 21 positions are good → Quality NOT OK
+#
+# SMOOTH_H4 OUTPUT:
+# - If Quality OK: Groups=[1,2,3,4,5,6,7,8], Haps=averaged frequencies, Err=averaged errors
+# - If Quality NOT OK: Groups=[1,1,1,1,1,1,1,1], Haps=all NAs, Err=all NAs
+#
+# AVERAGING: Only average over the good positions (8 distinguishable groups), not all 21
 #
 # USAGE:
 # Rscript scripts/production/create_smooth_haplotype_estimator_list_format.R <chr> <param_file> <output_dir>
@@ -66,33 +77,33 @@ cat("Applying 21-position sliding window smoothing using Groups information...\n
 smooth_data <- adaptive_data %>%
   arrange(pos) %>%
   mutate(
-    # Calculate quality count: how many positions in 21-position window have 8 groups?
+    # QUALITY CHECK: Count how many of 21 positions have 8 distinguishable groups
     quality_count = map_dbl(seq_len(n()), function(i) {
       start_idx <- max(1, i - 10)  # 10 positions before
       end_idx <- min(n(), i + 10)  # 10 positions after
       window_positions <- start_idx:end_idx
       
-      # Check if each position has 8 distinguishable groups (1:8)
+      # Check each position: does it have 8 distinguishable groups [1,2,3,4,5,6,7,8]?
       positions_with_8_groups <- map_lgl(window_positions, function(j) {
         groups_at_pos <- adaptive_data$Groups[[j]][[1]]
         if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-        # Check if all 8 founders are in different groups (1:8)
+        # All 8 founders in different groups = [1,2,3,4,5,6,7,8]
         length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
       })
       
       sum(positions_with_8_groups, na.rm = TRUE)
     }),
     
-    # New quality: OK if at least 17 out of 21 positions are OK
+    # QUALITY DECISION: OK if at least 17 out of 21 positions have 8 distinguishable groups
     quality_ok = quality_count >= 17,
     
-    # For smooth_h4, groups depend on the quality
+    # GROUPS FOR SMOOTH_H4: Depends on quality
     Groups = list(map(seq_along(sample[[1]]), function(i) {
       if (quality_ok) {
-        # If smooth estimate is OK, use 1:8 (all founders distinguishable)
+        # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
         return(1:8)
       } else {
-        # If smooth estimate is not OK, use all 1s (fallback)
+        # Quality NOT OK: All founders clustered together [1,1,1,1,1,1,1,1]
         return(rep(1, length(founders)))
       }
     })),
@@ -119,14 +130,13 @@ smooth_data <- adaptive_data %>%
       valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
       
       if (quality_ok && length(valid_haps) > 0) {
-        # Average over only the OK positions (not all 21 positions)
+        # Quality OK: Average over good positions only, normalize to sum to 1
         avg_haps <- reduce(valid_haps, `+`) / length(valid_haps)
-        # Normalize so they sum to 1
-        avg_haps <- avg_haps / sum(avg_haps)
+        avg_haps <- avg_haps / sum(avg_haps)  # Normalize so frequencies sum to 1
         names(avg_haps) <- founders
         return(avg_haps)
       } else {
-        # If <17 positions are OK, return NAs
+        # Quality NOT OK: Return all NAs (can't estimate frequencies reliably)
         return(set_names(rep(NA, length(founders)), founders))
       }
     })),
@@ -153,13 +163,13 @@ smooth_data <- adaptive_data %>%
       valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
       
       if (quality_ok && length(valid_errs) > 0) {
-        # Average over only the OK positions (not all 21 positions)
+        # Quality OK: Average over good positions only
         avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
         rownames(avg_err) <- founders
         colnames(avg_err) <- founders
         return(avg_err)
       } else {
-        # If <17 positions are OK, return NA matrix
+        # Quality NOT OK: Return all NAs (can't estimate errors reliably)
         na_matrix <- matrix(NA, length(founders), length(founders))
         rownames(na_matrix) <- founders
         colnames(na_matrix) <- founders
