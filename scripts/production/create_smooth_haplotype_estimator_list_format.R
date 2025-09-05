@@ -94,6 +94,25 @@ average_err <- function(err_list, founders) {
     colnames(na_matrix) <- founders
     return(na_matrix)
   }
+  
+  # Check dimensions of first matrix
+  first_err <- err_list[[1]]
+  if (is.null(first_err) || !is.matrix(first_err)) {
+    na_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(na_matrix) <- founders
+    colnames(na_matrix) <- founders
+    return(na_matrix)
+  }
+  
+  # Ensure all matrices have same dimensions
+  n_founders <- length(founders)
+  if (nrow(first_err) != n_founders || ncol(first_err) != n_founders) {
+    na_matrix <- matrix(NA, n_founders, n_founders)
+    rownames(na_matrix) <- founders
+    colnames(na_matrix) <- founders
+    return(na_matrix)
+  }
+  
   avg_err <- reduce(err_list, `+`) / length(err_list)
   rownames(avg_err) <- founders
   colnames(avg_err) <- founders
