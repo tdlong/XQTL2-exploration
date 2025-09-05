@@ -203,6 +203,15 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
         valid_errs <- sample_data$Err[window_indices][sample_data$estimate_OK[window_indices]]
         valid_errs <- valid_errs[map_lgl(valid_errs, ~ !any(is.na(.x)))]
         
+        # Debug: print what we're averaging
+        if (i == 7) {  # Only debug the 7th position where error occurs
+          cat("DEBUG: Position", i, "valid_errs length:", length(valid_errs), "\n")
+          if (length(valid_errs) > 0) {
+            cat("DEBUG: First valid_err dimensions:", dim(valid_errs[[1]]), "\n")
+            cat("DEBUG: First valid_err class:", class(valid_errs[[1]]), "\n")
+          }
+        }
+        
         return(average_err(valid_errs, founders))
       }),
       
