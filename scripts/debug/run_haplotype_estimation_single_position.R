@@ -15,8 +15,10 @@
 #    To: if (length(args) != 5)
 # 3. Remove test_position <- as.numeric(args[6]) and use scan_positions <- seq(...) instead
 #
-# Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> <position>
-# Example: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000
+# Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> [position]
+# Example (single position): Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000
+# Example (all positions): Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file>
+# Note: If position is omitted, processes all positions on the chromosome
 
 library(tidyverse)
 
@@ -25,10 +27,11 @@ source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 6 || length(args) > 7) {
-  cat("Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> <position> [verbose]\n")
+if (length(args) < 5 || length(args) > 7) {
+  cat("Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> [position] [verbose]\n")
   cat("Examples:\n")
-  cat("  Adaptive window: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
+  cat("  Single position: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
+  cat("  All positions: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file>\n")
   cat("  With verbose: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000 1\n")
   quit(status = 1)
 }
@@ -38,7 +41,7 @@ method <- args[2]
 parameter <- as.numeric(args[3])
 output_dir <- args[4]
 param_file <- args[5]
-test_position <- as.numeric(args[6])
+test_position <- if (length(args) >= 6) as.numeric(args[6]) else NULL
 verbose <- if (length(args) >= 7) as.numeric(args[7]) else 0
 
 cat("=== PRODUCTION HAPLOTYPE ESTIMATION ===\n")
@@ -151,15 +154,22 @@ cat("\n3. Defining scan positions...\n")
 scan_start <- ceiling(euchrom_start / step) * step
 scan_end <- floor(euchrom_end / step) * step
 
-# *** MODIFICATION FOR SINGLE POSITION TESTING ***
-# ORIGINAL: scan_positions <- seq(scan_start, scan_end, by = step)
-# MODIFIED: Only process the test position
-scan_positions <- test_position  # Only process the test position
-# *** END MODIFICATION ***
+# Determine scan positions based on whether test_position is provided
+if (is.null(test_position)) {
+  # All positions mode - process entire chromosome
+  scan_positions <- seq(scan_start, scan_end, by = step)
+  cat("✓ ALL POSITIONS MODE: Processing entire chromosome\n")
+} else {
+  # Single position mode - only process test position
+  scan_positions <- test_position
+  cat("✓ SINGLE POSITION MODE: Testing position", test_position, "\n")
+}
 
 cat("✓ Scan grid:", scan_start, "to", scan_end, "by", step, "\n")
 cat("✓ Scan positions:", length(scan_positions), "\n")
-cat("✓ TEST POSITION:", test_position, "\n")
+if (!is.null(test_position)) {
+  cat("✓ TEST POSITION:", test_position, "\n")
+}
 
 # 4. Run haplotype estimation (same pattern as test wrapper)
 cat("\n4. Running haplotype estimation...\n")
@@ -225,15 +235,31 @@ results_df <- expand_grid(
 # 5. Save the natural 4-row dataframe first
 cat("\n5. Saving natural 4-row dataframe...\n")
 
-# Generate intelligent output filename - ADD "single_position" to avoid overwriting production files
-if (method == "fixed") {
-  output_filename <- paste0("fixed_window_", parameter, "kb_single_position_", test_position, "_results_", chr, ".RDS")
+# Generate intelligent output filename
+if (is.null(test_position)) {
+  # All positions mode - use production naming
+  if (method == "fixed") {
+    output_filename <- paste0("fixed_window_", parameter, "kb_results_", chr, ".RDS")
+  } else {
+    output_filename <- paste0("adaptive_window_h", parameter, "_results_", chr, ".RDS")
+  }
 } else {
-  output_filename <- paste0("adaptive_window_h", parameter, "_single_position_", test_position, "_results_", chr, ".RDS")
+  # Single position mode - use test naming
+  if (method == "fixed") {
+    output_filename <- paste0("fixed_window_", parameter, "kb_single_position_", test_position, "_results_", chr, ".RDS")
+  } else {
+    output_filename <- paste0("adaptive_window_h", parameter, "_single_position_", test_position, "_results_", chr, ".RDS")
+  }
 }
 
-# Create TEST results subdirectory - NEVER write to production directory
-results_dir <- file.path(output_dir, "test_results")
+# Create appropriate results directory
+if (is.null(test_position)) {
+  # All positions mode - use production directory
+  results_dir <- file.path(output_dir, "list_results")
+} else {
+  # Single position mode - use test directory
+  results_dir <- file.path(output_dir, "test_results")
+}
 dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 
 output_file <- file.path(results_dir, output_filename)

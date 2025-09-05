@@ -162,12 +162,20 @@ process/ZINC2/test_results/
 # Test single position with new functions
 Rscript scripts/debug/run_haplotype_estimation_single_position.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 5400000
 
+# Run all positions (production mode)
+Rscript scripts/debug/run_haplotype_estimation_single_position.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R
+
 # Test modified functions directly
 Rscript scripts/debug/test_modified_functions.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 5400000
 
 # Run full list-format pipeline (when ready)
 sbatch scripts/production/run_list_format_pipeline_slurm.sh
 ```
+
+**📁 OUTPUT MODES**:
+- **Single position mode**: Saves to `process/ZINC2/test_results/` with `_single_position_<pos>_` in filename
+- **All positions mode**: Saves to `process/ZINC2/list_results/` with production naming
+- **Verbose control**: Add `1` as last argument for debug output
 
 **📁 TEST OUTPUT LOCATIONS**:
 ```bash
