@@ -211,10 +211,6 @@ dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
 output_file <- file.path(results_dir, output_filename)
 
 if (nrow(results_df) > 0) {
-  # Save the NEW LIST FORMAT tibble, not the old wide format
-  saveRDS(target_tibble, output_file)
-  
-  cat("✓ Results saved:", output_file, "\n")
   cat("✓ Results:", nrow(results_df), "rows\n")
   cat("✓ Positions:", length(unique(results_df$pos)), "unique positions\n")
   cat("✓ Samples:", length(unique(results_df$sample)), "unique samples\n")
@@ -384,6 +380,10 @@ if (nrow(results_df) > 0) {
   # Print the target tibble
   cat("Target tibble format:\n")
   print(target_tibble)
+  
+  # Save the NEW LIST FORMAT tibble
+  saveRDS(target_tibble, output_file)
+  cat("✓ Results saved:", output_file, "\n")
   
   cat("\nNOTE: Groups and Err are now captured from the modified working function!\n")
   cat("Groups come from clustering step (cutree result) and Err comes from lsei with fulloutput=TRUE.\n")
