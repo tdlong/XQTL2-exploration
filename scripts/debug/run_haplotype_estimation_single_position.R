@@ -25,10 +25,11 @@ source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 6) {
-  cat("Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> <position>\n")
+if (length(args) < 6 || length(args) > 7) {
+  cat("Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> <position> [verbose]\n")
   cat("Examples:\n")
   cat("  Adaptive window: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
+  cat("  With verbose: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000 1\n")
   quit(status = 1)
 }
 
@@ -38,6 +39,7 @@ parameter <- as.numeric(args[3])
 output_dir <- args[4]
 param_file <- args[5]
 test_position <- as.numeric(args[6])
+verbose <- if (length(args) >= 7) as.numeric(args[7]) else 0
 
 cat("=== PRODUCTION HAPLOTYPE ESTIMATION ===\n")
 cat("Chromosome:", chr, "\n")
@@ -198,13 +200,15 @@ results_df <- expand_grid(
     )
     cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
     
-    # Debug: Print the raw result from your function
-    cat("DEBUG: Raw result from estimate_haplotypes:\n")
-    print(result)
-    cat("DEBUG: result$Groups:", result$Groups, "\n")
-    cat("DEBUG: result$Haps:", result$Haps, "\n")
-    cat("DEBUG: result$Err:", result$Err, "\n")
-    cat("DEBUG: result$Names:", result$Names, "\n")
+    # Debug: Print the raw result from your function (only if verbose)
+    if (verbose >= 1) {
+      cat("DEBUG: Raw result from estimate_haplotypes:\n")
+      print(result)
+      cat("DEBUG: result$Groups:", result$Groups, "\n")
+      cat("DEBUG: result$Haps:", result$Haps, "\n")
+      cat("DEBUG: result$Err:", result$Err, "\n")
+      cat("DEBUG: result$Names:", result$Names, "\n")
+    }
     
     # Create natural row format (your function returns Groups, Haps, Err, Names directly)
     return(tibble(
@@ -294,16 +298,22 @@ if (nrow(results_df) > 0) {
   }
   
   
-  # Show the natural 4-row dataframe
-  cat("\n=== NATURAL 4-ROW DATAFRAME ===\n")
-  print(results_df)
+  # Show the natural 4-row dataframe (only if verbose)
+  if (verbose >= 1) {
+    cat("\n=== NATURAL 4-ROW DATAFRAME ===\n")
+    print(results_df)
+  }
   
   # Save the natural 4-row dataframe
   saveRDS(results_df, output_file)
-  cat("\n✓ Natural 4-row dataframe saved:", output_file, "\n")
+  if (verbose >= 1) {
+    cat("\n✓ Natural 4-row dataframe saved:", output_file, "\n")
+  }
   
   # 6. Convert to final 1-row format
-  cat("\n6. Converting to final 1-row format...\n")
+  if (verbose >= 1) {
+    cat("\n6. Converting to final 1-row format...\n")
+  }
   
   # Create final 1-row tibble by collapsing samples
   final_tibble <- tibble(
@@ -316,14 +326,18 @@ if (nrow(results_df) > 0) {
     Names = list(results_df$Names)
   )
   
-  # Show the final format
-  cat("\n=== FINAL 1-ROW FORMAT ===\n")
-  print(final_tibble)
+  # Show the final format (only if verbose)
+  if (verbose >= 1) {
+    cat("\n=== FINAL 1-ROW FORMAT ===\n")
+    print(final_tibble)
+  }
   
   # Save the final format too
   final_output_file <- gsub(".RDS", "_final.RDS", output_file)
   saveRDS(final_tibble, final_output_file)
-  cat("\n✓ Final 1-row format saved:", final_output_file, "\n")
+  if (verbose >= 1) {
+    cat("\n✓ Final 1-row format saved:", final_output_file, "\n")
+  }
   
 } else {
   cat("✗ No results generated\n")
