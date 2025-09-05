@@ -198,7 +198,15 @@ results_df <- expand_grid(
     )
     cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
     
-    # Create natural row format
+    # Debug: Print the raw result from your function
+    cat("DEBUG: Raw result from estimate_haplotypes:\n")
+    print(result)
+    cat("DEBUG: result$Groups:", result$Groups, "\n")
+    cat("DEBUG: result$Haps:", result$Haps, "\n")
+    cat("DEBUG: result$Err:", result$Err, "\n")
+    cat("DEBUG: result$Names:", result$Names, "\n")
+    
+    # Create natural row format (your function returns Groups, Haps, Err, Names directly)
     return(tibble(
       CHROM = chr,
       pos = ..1,
