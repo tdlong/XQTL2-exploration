@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: ZINC2 ANALYSIS PHASE - SMOOTH_H4 ESTIMATOR INTEGRATED**
+## 🚀 **CURRENT STATUS: NEW LIST-FORMAT HAPLOTYPE ESTIMATOR DEVELOPMENT**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | 🔄 **ZINC2 ANALYSIS IN PROGRESS** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | ✅ **ZINC2 ANALYSIS COMPLETE** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED** | 🔄 **NEW LIST-FORMAT HAPLOTYPE ESTIMATOR IN DEVELOPMENT**
 
 ---
 
@@ -104,89 +104,77 @@ sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slur
 
 ---
 
-## 🔄 **CURRENT PHASE: ZINC2 DATASET ANALYSIS - IN PROGRESS**
+## 🔄 **CURRENT PHASE: NEW LIST-FORMAT HAPLOTYPE ESTIMATOR DEVELOPMENT**
 
-### **Status**: 🔧 **CRITICAL BUG FIXED** - Rerunning SNP Imputation Pipeline
+### **Status**: 🔧 **DEVELOPING NEW HAPLOTYPE ESTIMATOR WITH GROUPS AND ERROR MATRICES**
 
 **What's happening now**: 
-- **Critical bug identified and fixed** in SNP imputation logic
-- **Rerunning SNP imputation** with corrected algorithm
-- **New understanding**: Check `estimate_OK` flag, not just NA values
-- Output directory: `process/ZINC2/`
+- **New haplotype estimator being developed** that captures groups and error matrices
+- **Modified working functions** to capture additional information from `lsei` and clustering
+- **Testing new list-format output** that matches target tibble structure
+- **Debug scripts created** to test and validate the new estimator
 
-**🚨 CRITICAL BUG FIXED**:
-- **Problem**: SNP imputation was only checking for `NA` haplotype values
-- **Root cause**: Not checking `estimate_OK` flag for haplotype reliability
-- **Fix**: Modified `euchromatic_SNP_imputation_single.R` to:
-  1. Check `estimate_OK` flag (not just NA values)
-  2. Return `imputed = NA` when neither boundary is reliable
-  3. Process ALL SNPs (100% coverage) with proper quality control
+**🎯 NEW LIST-FORMAT HAPLOTYPE ESTIMATOR**:
+- **Goal**: Create new estimator that outputs list-based format instead of wide format
+- **Key additions**: Capture `Groups` from clustering and `Err` (error matrices) from `lsei`
+- **Target format**: Tibble with 1 row per position, lists per sample
+- **Structure**: `sample: [4], Groups: [4], Haps: [4], Err: [4], Names: [4]`
 
-**🔧 R Programming Style Fixed**:
-- **Problem**: Summary file creation script was using for loops and `rbind` (violating tidyverse rules)
-- **Root cause**: Not following proper R/tidyverse idioms
-- **Fix**: Rewrote `create_summary_file_chunked.R` to use:
-  1. `cut()` with breaks to create 10kb bins centered on haplotype positions
-  2. `group_by()` and `summarize()` to calculate MAE in each bin
-  3. Proper tidyverse data manipulation instead of loops
+**🔧 TECHNICAL IMPLEMENTATION**:
+- **Modified functions**: `scripts/debug/haplotype_estimation_functions_with_groups.R`
+- **Key changes**: Added `fulloutput = TRUE` to `lsei` calls to capture error matrices
+- **Groups capture**: Direct capture from `cutree` result in clustering step
+- **Error matrices**: Capture from `lsei_result$cov` with proper dimension handling
+- **Both methods**: Fixed and adaptive methods now return groups and error matrices
 
-**Expected results after fix**:
-- **Fixed 20kb**: More `imputed = NA` due to unreliable haplotype estimates
-- **Fixed 500kb**: Fewer `imputed = NA` due to more reliable estimates
-- **All methods**: Same total SNP count (1,079,052) but varying quality
-
-**Current pipeline status**:
-```bash
-# Haplotype testing completed
-sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
-
-# SNP imputation - RERUNNING WITH FIX
-sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+**📁 FILES CREATED**:
+```
+scripts/debug/haplotype_estimation_functions_with_groups.R  # Modified working functions
+scripts/debug/run_haplotype_estimation_single_position.R    # Test script for single position
+scripts/debug/test_modified_functions.R                     # Test script for new functions
+scripts/production/run_haplotype_estimation_list_format.R   # New list-format pipeline
+scripts/production/run_snp_imputation_list_format.R         # SNP imputation for list format
+scripts/production/run_list_format_pipeline_slurm.sh        # SLURM pipeline for list format
 ```
 
-**Pipeline commands available**:
+**🧪 TESTING STATUS**:
+- **Working function test**: ✅ Successfully captures groups and error matrices
+- **List format test**: 🔄 Currently debugging tibble structure
+- **Target format**: Working towards correct `[4]` list structure per sample
+- **Debug output**: Shows groups being captured correctly from clustering
+
+**🎮 TEST COMMANDS**:
 ```bash
-# Run haplotype testing
-sbatch scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+# Test single position with new functions
+Rscript scripts/debug/run_haplotype_estimation_single_position.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 5400000
 
-# Run SNP imputation  
-sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+# Test modified functions directly
+Rscript scripts/debug/test_modified_functions.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 5400000
 
-# Check SNP imputation status
-Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
-
-# Evaluate methods
-Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
-
-# Create summary
-Rscript scripts/production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
-
-# Plot specific region (3 methods comparison)
-Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
-
-# Plot entire chromosome (adaptive_h4 only)
-Rscript scripts/production/plot_summary_chromosome.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
+# Run full list-format pipeline (when ready)
+sbatch scripts/production/run_list_format_pipeline_slurm.sh
 ```
 
-**Next steps after SNP imputation completes**:
-```bash
-# Check completion status
-Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_slurm_params.tsv process/ZINC2
+**🔍 CURRENT DEBUGGING**:
+- **Issue**: Groups being treated as individual founder assignments instead of per-sample vectors
+- **Fix**: Modified debug script to group by sample instead of processing each founder separately
+- **Target**: 1 row per position with `[4]` lists (one per sample)
+- **Progress**: Debug output shows correct groups capture, working on proper tibble structure
 
-# Evaluate methods (should now show proper NA handling)
-Rscript scripts/production/evaluate_imputation_methods.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
-
-# Create summary
-Rscript scripts/production/create_summary_file_chunked.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
-
-# Plot specific region
-Rscript scripts/production/plot_summary_region.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 870
+**📊 EXPECTED OUTPUT FORMAT**:
+```r
+# A tibble: 1 × 7
+   CHROM    pos      sample       Groups         Haps          Err        Names
+   <chr>  <dbl> <list<chr>> <list<list>> <list<list>> <list<list>> <list<list>>
+ 1 chr2R  5400000        [4]         [4]         [4]         [4]         [4]
 ```
 
-**🔍 Key test case to verify fix**:
-- **Position 6390000**: Should now get `imputed = NA` because both boundaries have `estimate_OK = 0`
-- **Coverage**: All methods should have exactly 1,079,052 SNPs processed
-- **Quality**: Smaller fixed windows should show more NA imputations than larger ones
+**🎯 NEXT STEPS**:
+1. **Fix tibble structure** to show correct `[4]` format
+2. **Validate groups capture** from clustering step
+3. **Validate error matrices** from `lsei` with `fulloutput = TRUE`
+4. **Test full pipeline** with new list-format estimator
+5. **Integrate with SNP imputation** for complete workflow
 
 ---
 
@@ -438,4 +426,4 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - ZINC2 Analysis Phase Active, Critical SNP Imputation Bug Fixed, Plotting Infrastructure Complete, Script Paths Fixed, Smooth_h4 Estimator Integrated*
+*Last Updated: 2025-01-19 - New List-Format Haplotype Estimator Development, Groups and Error Matrices Capture, Tibble Structure Debugging, Modified Working Functions Testing*
