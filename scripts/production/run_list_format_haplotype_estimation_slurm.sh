@@ -38,14 +38,11 @@ echo "Start time: $(date)"
 echo ""
 
 # Create output directories
-mkdir -p $OUTPUT_DIR/list_results
+mkdir -p $OUTPUT_DIR/haplotype_results_list_format
 mkdir -p logs
 
-# Load R module
-module load R/4.3.0
-
-# Set R options
-export R_LIBS_USER=/home/$USER/R/x86_64-pc-linux-gnu-library/4.3
+# Load R module (with limSolve installed)
+module load R/4.4.2
 
 # Run haplotype estimation for all positions
 echo "Running haplotype estimation for all positions on $CHR..."
