@@ -183,20 +183,23 @@ run_lsei_and_clustering_list_format <- function(wide_data, founders, sample_name
   # Create founder matrix and sample frequencies (same as working function)
   founder_matrix <- wide_data %>%
     dplyr::select(all_of(founders)) %>%
-    dplyr::filter(complete.cases(.))
+    as.matrix()
   
   sample_freqs <- wide_data %>%
-    dplyr::select(all_of(sample_name)) %>%
-    dplyr::filter(complete.cases(.)) %>%
-    dplyr::pull(1)
+    dplyr::pull(!!sample_name)
   
-  if (nrow(founder_matrix) < 10) {
+  # Filter complete cases (same as working function)
+  complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+  founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+  sample_freqs_clean <- sample_freqs[complete_rows]
+  
+  if (nrow(founder_matrix_clean) < 10) {
     return(list(estimate_OK = FALSE, haplotype_freqs = rep(NA, length(founders)), 
                 groups = rep(1, length(founders)), error_matrix = matrix(NA, length(founders), length(founders))))
   }
   
-  # Run LSEI with fulloutput=TRUE to capture error matrix
-  result <- limSolve::lsei(A = as.matrix(founder_matrix), B = sample_freqs,
+  # Run LSEI with fulloutput=TRUE to capture error matrix (same as working function)
+  result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean,
                           G = diag(length(founders)), H = matrix(rep(0.0003, length(founders))),
                           fulloutput = TRUE)
   
