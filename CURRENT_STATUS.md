@@ -160,22 +160,23 @@ process/ZINC2/test_results/
 **🎮 TEST COMMANDS**:
 ```bash
 # Test single position with new functions
-Rscript scripts/debug/run_haplotype_estimation_single_position.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 5400000
+Rscript scripts/production/run_haplotype_estimation_list_format.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 5400000
 
 # Run all positions (production mode)
-Rscript scripts/debug/run_haplotype_estimation_single_position.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R
+Rscript scripts/production/run_haplotype_estimation_list_format.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R
+
+# Run via SLURM (all chromosomes supported)
+sbatch scripts/production/run_list_format_haplotype_estimation_slurm.sh chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R
 
 # Test modified functions directly
 Rscript scripts/debug/test_modified_functions.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 5400000
-
-# Run full list-format pipeline (when ready)
-sbatch scripts/production/run_list_format_pipeline_slurm.sh
 ```
 
 **📁 OUTPUT MODES**:
 - **Single position mode**: Saves to `process/ZINC2/test_results/` with `_single_position_<pos>_` in filename
-- **All positions mode**: Saves to `process/ZINC2/list_results/` with production naming
+- **All positions mode**: Saves to `process/ZINC2/haplotype_results_list_format/` with production naming
 - **Verbose control**: Add `1` as last argument for debug output
+- **Chromosome support**: chr2L, chr2R, chr3L, chr3R, chrX (all 5 chromosomes)
 
 **📁 TEST OUTPUT LOCATIONS**:
 ```bash

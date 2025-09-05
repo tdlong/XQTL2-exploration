@@ -48,43 +48,55 @@ module load R/4.3.0
 export R_LIBS_USER=/home/$USER/R/x86_64-pc-linux-gnu-library/4.3
 
 # Define scan positions (same as production pipeline)
-if [ "$CHR" = "chr2R" ]; then
-    SCAN_START=5400000
-    SCAN_END=24680000
-    SCAN_STEP=10000
-elif [ "$CHR" = "chr2L" ]; then
-    SCAN_START=1000000
-    SCAN_END=22000000
-    SCAN_STEP=10000
-else
-    echo "Error: Unsupported chromosome $CHR"
-    exit 1
-fi
+case "$CHR" in
+    chr2L)
+        SCAN_START=1000000
+        SCAN_END=22000000
+        SCAN_STEP=10000
+        ;;
+    chr2R)
+        SCAN_START=5400000
+        SCAN_END=24680000
+        SCAN_STEP=10000
+        ;;
+    chr3L)
+        SCAN_START=1000000
+        SCAN_END=22000000
+        SCAN_STEP=10000
+        ;;
+    chr3R)
+        SCAN_START=5000000
+        SCAN_END=31000000
+        SCAN_STEP=10000
+        ;;
+    chrX)
+        SCAN_START=500000
+        SCAN_END=22000000
+        SCAN_STEP=10000
+        ;;
+    *)
+        echo "Error: Unsupported chromosome $CHR"
+        echo "Supported chromosomes: chr2L, chr2R, chr3L, chr3R, chrX"
+        exit 1
+        ;;
+esac
 
-# Generate position list
-POSITIONS=()
-for ((pos=$SCAN_START; pos<=$SCAN_END; pos+=$SCAN_STEP)); do
-    POSITIONS+=($pos)
-done
-
-echo "Scan positions: ${#POSITIONS[@]} positions from $SCAN_START to $SCAN_END (step $SCAN_STEP)"
+# Run haplotype estimation for all positions (much more efficient!)
+echo "Running haplotype estimation for all positions on $CHR..."
+echo "This will process all positions from $SCAN_START to $SCAN_END (step $SCAN_STEP)"
 echo ""
 
-# Process each position
-for pos in "${POSITIONS[@]}"; do
-    echo "Processing position $pos..."
-    
-    # Run single position estimation
-    Rscript scripts/debug/run_haplotype_estimation_single_position.R \
-        $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE $pos
-    
-    # Check if successful
-    if [ $? -eq 0 ]; then
-        echo "✓ Position $pos completed successfully"
-    else
-        echo "✗ Position $pos failed"
-    fi
-done
+# Run the main script in all-positions mode (no position argument)
+Rscript scripts/production/run_haplotype_estimation_list_format.R \
+    $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE
+
+# Check if successful
+if [ $? -eq 0 ]; then
+    echo "✓ All positions completed successfully"
+else
+    echo "✗ Haplotype estimation failed"
+    exit 1
+fi
 
 echo ""
 echo "=== JOB COMPLETED ==="
