@@ -1,4 +1,4 @@
- #!/bin/bash
+#!/bin/bash
 
 # SLURM wrapper for list-format haplotype estimation
 # Runs the new list-format estimator for all positions
