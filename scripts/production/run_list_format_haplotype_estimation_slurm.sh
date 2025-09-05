@@ -47,48 +47,14 @@ module load R/4.3.0
 # Set R options
 export R_LIBS_USER=/home/$USER/R/x86_64-pc-linux-gnu-library/4.3
 
-# Define scan positions (same as production pipeline)
-case "$CHR" in
-    chr2L)
-        SCAN_START=1000000
-        SCAN_END=22000000
-        SCAN_STEP=10000
-        ;;
-    chr2R)
-        SCAN_START=5400000
-        SCAN_END=24680000
-        SCAN_STEP=10000
-        ;;
-    chr3L)
-        SCAN_START=1000000
-        SCAN_END=22000000
-        SCAN_STEP=10000
-        ;;
-    chr3R)
-        SCAN_START=5000000
-        SCAN_END=31000000
-        SCAN_STEP=10000
-        ;;
-    chrX)
-        SCAN_START=500000
-        SCAN_END=22000000
-        SCAN_STEP=10000
-        ;;
-    *)
-        echo "Error: Unsupported chromosome $CHR"
-        echo "Supported chromosomes: chr2L, chr2R, chr3L, chr3R, chrX"
-        exit 1
-        ;;
-esac
-
-# Run haplotype estimation for all positions (much more efficient!)
+# Run haplotype estimation for all positions
 echo "Running haplotype estimation for all positions on $CHR..."
-echo "This will process all positions from $SCAN_START to $SCAN_END (step $SCAN_STEP)"
+echo "The R script will determine scan positions from euchromatin boundaries"
 echo ""
 
-# Run the main script in all-positions mode with scan boundaries
+# Run the main script in all-positions mode (R script handles boundaries internally)
 Rscript scripts/production/run_haplotype_estimation_list_format.R \
-    $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE "" 0 $SCAN_START $SCAN_END $SCAN_STEP
+    $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE
 
 # Check if successful
 if [ $? -eq 0 ]; then
