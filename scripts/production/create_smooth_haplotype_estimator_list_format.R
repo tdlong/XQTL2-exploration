@@ -97,9 +97,9 @@ smooth_data <- adaptive_data %>%
     # QUALITY DECISION: OK if at least 17 out of 21 positions have 8 distinguishable groups
     quality_ok = quality_count >= 17,
     
-    # GROUPS FOR SMOOTH_H4: Depends on quality
+    # GROUPS FOR SMOOTH_H4: Depends on quality (single value per position)
     Groups = list(map(seq_along(sample[[1]]), function(i) {
-      if (quality_ok) {
+      if (quality_ok[1]) {  # Use first element since quality_ok is same for all samples at this position
         # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
         return(1:8)
       } else {
@@ -129,7 +129,7 @@ smooth_data <- adaptive_data %>%
       # Filter to only OK positions (not all 21 positions)
       valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
       
-      if (quality_ok && length(valid_haps) > 0) {
+      if (quality_ok[1] && length(valid_haps) > 0) {
         # Quality OK: Average over good positions only, normalize to sum to 1
         avg_haps <- reduce(valid_haps, `+`) / length(valid_haps)
         avg_haps <- avg_haps / sum(avg_haps)  # Normalize so frequencies sum to 1
@@ -162,7 +162,7 @@ smooth_data <- adaptive_data %>%
       # Filter to only OK positions (not all 21 positions)
       valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
       
-      if (quality_ok && length(valid_errs) > 0) {
+      if (quality_ok[1] && length(valid_errs) > 0) {
         # Quality OK: Average over good positions only
         avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
         rownames(avg_err) <- founders
