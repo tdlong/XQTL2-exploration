@@ -137,6 +137,20 @@ scripts/production/run_snp_imputation_list_format.R         # SNP imputation for
 scripts/production/run_list_format_pipeline_slurm.sh        # SLURM pipeline for list format
 ```
 
+**📁 TEST OUTPUT FILES**:
+```
+process/ZINC2/test_results/
+├── adaptive_window_h4_single_position_5400000_results_chr2R.RDS    # Test output for adaptive_h4
+├── fixed_window_20kb_single_position_5400000_results_chr2R.RDS     # Test output for fixed_20kb
+└── [other test files as needed]
+```
+
+**🎯 FILE NAMING CONVENTION**:
+- **Production files**: `adaptive_window_h4_results_chr2R.RDS`
+- **Test files**: `adaptive_window_h4_single_position_5400000_results_chr2R.RDS`
+- **Test directory**: `process/ZINC2/test_results/` (separate from production)
+- **Key difference**: Test files include `_single_position_<position>_` to avoid overwriting production
+
 **🧪 TESTING STATUS**:
 - **Working function test**: ✅ Successfully captures groups and error matrices
 - **List format test**: 🔄 Currently debugging tibble structure
@@ -153,6 +167,17 @@ Rscript scripts/debug/test_modified_functions.R chr2R helpfiles/ZINC2_haplotype_
 
 # Run full list-format pipeline (when ready)
 sbatch scripts/production/run_list_format_pipeline_slurm.sh
+```
+
+**📁 TEST OUTPUT LOCATIONS**:
+```bash
+# Test output files are saved to:
+process/ZINC2/test_results/adaptive_window_h4_single_position_5400000_results_chr2R.RDS
+
+# Production output files are saved to:
+process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS
+
+# Key difference: test files include "_single_position_<position>_" in filename
 ```
 
 **🔍 CURRENT DEBUGGING**:
