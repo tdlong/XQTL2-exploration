@@ -27,12 +27,12 @@ source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 5 || length(args) > 7) {
-  cat("Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> [position] [verbose]\n")
+if (length(args) < 5 || length(args) > 10) {
+  cat("Usage: Rscript run_haplotype_estimation_list_format.R <chr> <method> <parameter> <output_dir> <param_file> [position] [verbose] [scan_start] [scan_end] [scan_step]\n")
   cat("Examples:\n")
-  cat("  Single position: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
-  cat("  All positions: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file>\n")
-  cat("  With verbose: Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000 1\n")
+  cat("  Single position: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
+  cat("  All positions: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file>\n")
+  cat("  With scan boundaries: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file> \"\" 0 5400000 24680000 10000\n")
   quit(status = 1)
 }
 
@@ -41,8 +41,13 @@ method <- args[2]
 parameter <- as.numeric(args[3])
 output_dir <- args[4]
 param_file <- args[5]
-test_position <- if (length(args) >= 6) as.numeric(args[6]) else NULL
+test_position <- if (length(args) >= 6 && args[6] != "") as.numeric(args[6]) else NULL
 verbose <- if (length(args) >= 7) as.numeric(args[7]) else 0
+
+# Scan boundary parameters (optional)
+scan_start_param <- if (length(args) >= 8) as.numeric(args[8]) else NULL
+scan_end_param <- if (length(args) >= 9) as.numeric(args[9]) else NULL
+scan_step_param <- if (length(args) >= 10) as.numeric(args[10]) else NULL
 
 cat("=== PRODUCTION HAPLOTYPE ESTIMATION ===\n")
 cat("Chromosome:", chr, "\n")
@@ -150,9 +155,19 @@ gc()
 # 3. Define scan positions (chromosome-wide grid)
 cat("\n3. Defining scan positions...\n")
 
-# Calculate proper grid-based scan positions
-scan_start <- ceiling(euchrom_start / step) * step
-scan_end <- floor(euchrom_end / step) * step
+# Use provided scan boundaries or fall back to euchromatin boundaries
+if (!is.null(scan_start_param) && !is.null(scan_end_param) && !is.null(scan_step_param)) {
+  # Use provided scan boundaries
+  scan_start <- scan_start_param
+  scan_end <- scan_end_param
+  step <- scan_step_param
+  cat("✓ Using provided scan boundaries:", scan_start, "to", scan_end, "by", step, "\n")
+} else {
+  # Use euchromatin boundaries with default step
+  scan_start <- ceiling(euchrom_start / step) * step
+  scan_end <- floor(euchrom_end / step) * step
+  cat("✓ Using euchromatin boundaries:", scan_start, "to", scan_end, "by", step, "\n")
+}
 
 # Determine scan positions based on whether test_position is provided
 if (is.null(test_position)) {

@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 
 # SLURM wrapper for list-format haplotype estimation
 # Runs the new list-format estimator for all positions
@@ -86,9 +86,9 @@ echo "Running haplotype estimation for all positions on $CHR..."
 echo "This will process all positions from $SCAN_START to $SCAN_END (step $SCAN_STEP)"
 echo ""
 
-# Run the main script in all-positions mode (no position argument)
+# Run the main script in all-positions mode with scan boundaries
 Rscript scripts/production/run_haplotype_estimation_list_format.R \
-    $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE
+    $CHR $METHOD $PARAMETER $OUTPUT_DIR $PARAM_FILE "" 0 $SCAN_START $SCAN_END $SCAN_STEP
 
 # Check if successful
 if [ $? -eq 0 ]; then
