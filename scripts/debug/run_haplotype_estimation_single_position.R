@@ -20,8 +20,8 @@
 
 library(tidyverse)
 
-# Source unified function
-source("scripts/debug/haplotype_estimation_functions_with_groups.R")
+# Source the new list format function
+source("scripts/debug/estimate_haplotypes_list_format.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -182,17 +182,22 @@ results_df <- expand_grid(
   pos = scan_positions,
   sample_name = names_in_bam
 ) %>%
-  purrr::pmap_dfr(~ estimate_haplotypes(
-    pos = ..1,
-    sample_name = ..2,
-    df3 = df3,
-    founders = founders,
-    h_cutoff = h_cutoff_used,
-    method = method,
-    window_size_bp = window_size_bp,
-    chr = chr,
-    verbose = 0  # Only show errors and critical warnings
-  ))
+  purrr::pmap_dfr(~ {
+    cat("Processing pos:", ..1, "sample:", ..2, "method:", method, "\n")
+    result <- estimate_haplotypes_list_format(
+      pos = ..1,
+      sample_name = ..2,
+      df3 = df3,
+      founders = founders,
+      h_cutoff = h_cutoff_used,
+      method = method,
+      window_size_bp = window_size_bp,
+      chr = chr,
+      verbose = 1  # Show adaptive algorithm progress
+    )
+    cat("Result for", ..2, "at", ..1, ":", result$estimate_OK, "\n")
+    return(result)
+  })
 
 # 5. Save results with intelligent filename
 cat("\n5. Saving results...\n")
