@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: NEW LIST-FORMAT HAPLOTYPE ESTIMATOR DEVELOPMENT**
+## 🚀 **CURRENT STATUS: LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | ✅ **ZINC2 ANALYSIS COMPLETE** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED** | 🔄 **NEW LIST-FORMAT HAPLOTYPE ESTIMATOR IN DEVELOPMENT**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | ✅ **ZINC2 ANALYSIS COMPLETE** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED** | 🚀 **LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN**
 
 ---
 
@@ -104,21 +104,29 @@ sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slur
 
 ---
 
-## 🔄 **CURRENT PHASE: NEW LIST-FORMAT HAPLOTYPE ESTIMATOR DEVELOPMENT**
+## 🔄 **CURRENT PHASE: LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN**
 
-### **Status**: 🔧 **DEVELOPING NEW HAPLOTYPE ESTIMATOR WITH GROUPS AND ERROR MATRICES**
+### **Status**: 🚀 **RUNNING BOTH ORIGINAL AND NEW ESTIMATORS IN PARALLEL**
 
 **What's happening now**: 
-- **New haplotype estimator being developed** that captures groups and error matrices
-- **Modified working functions** to capture additional information from `lsei` and clustering
-- **Testing new list-format output** that matches target tibble structure
-- **Debug scripts created** to test and validate the new estimator
+- **Original estimator**: Re-running `adaptive_h4` (output was accidentally deleted)
+- **New list-format estimator**: Running `adaptive_h4` with new list-based output format
+- **Next step**: Implement `smooth_h4` method based on `adaptive_h4` results
 
-**🎯 NEW LIST-FORMAT HAPLOTYPE ESTIMATOR**:
-- **Goal**: Create new estimator that outputs list-based format instead of wide format
-- **Key additions**: Capture `Groups` from clustering and `Err` (error matrices) from `lsei`
-- **Target format**: Tibble with 1 row per position, lists per sample
-- **Structure**: `sample: [4], Groups: [4], Haps: [4], Err: [4], Names: [4]`
+**🎯 PARALLEL RUNS**:
+- **Original format**: `process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS`
+- **New list format**: `process/ZINC2/haplotype_results_list_format/adaptive_window_h4_results_chr2R.RDS`
+- **Comparison**: Will compare results to ensure consistency before implementing `smooth_h4`
+
+**📋 CURRENT RUNS**:
+- **Original estimator**: `sbatch --array=6 scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2`
+- **New list-format estimator**: `sbatch scripts/production/run_list_format_haplotype_estimation_slurm.sh chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R`
+
+**🎯 NEXT STEPS**:
+1. **Wait for both runs to complete** (several hours)
+2. **Compare results** to ensure list-format estimator produces consistent results
+3. **Implement `smooth_h4` method** based on `adaptive_h4` results
+4. **Integrate `smooth_h4`** into the list-format pipeline
 
 **🔧 TECHNICAL IMPLEMENTATION**:
 - **Modified functions**: `scripts/debug/haplotype_estimation_functions_with_groups.R`
