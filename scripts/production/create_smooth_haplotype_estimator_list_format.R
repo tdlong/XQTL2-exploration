@@ -71,118 +71,127 @@ cat("Founders:", paste(adaptive_data$Names[[1]][[1]], collapse = ", "), "\n\n")
 # Get founder names from the data
 founders <- adaptive_data$Names[[1]][[1]]
 
+# Helper functions for smooth_h4
+check_estimate_ok <- function(groups) {
+  if (is.null(groups) || any(is.na(groups))) return(FALSE)
+  length(unique(groups)) == 8 && all(sort(unique(groups)) == 1:8)
+}
+
+average_haps <- function(haps_list, founders) {
+  if (length(haps_list) == 0) {
+    return(set_names(rep(NA, length(founders)), founders))
+  }
+  avg_haps <- reduce(haps_list, `+`) / length(haps_list)
+  avg_haps <- avg_haps / sum(avg_haps)  # Normalize so frequencies sum to 1
+  names(avg_haps) <- founders
+  return(avg_haps)
+}
+
+average_err <- function(err_list, founders) {
+  if (length(err_list) == 0) {
+    na_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(na_matrix) <- founders
+    colnames(na_matrix) <- founders
+    return(na_matrix)
+  }
+  avg_err <- reduce(err_list, `+`) / length(err_list)
+  rownames(avg_err) <- founders
+  colnames(avg_err) <- founders
+  return(avg_err)
+}
+
 # Apply 21-position sliding window smoothing
 cat("Applying 21-position sliding window smoothing using Groups information...\n")
 
-smooth_data <- adaptive_data %>%
-  arrange(pos) %>%
-  mutate(
-    # QUALITY CHECK: Count how many of 21 positions have 8 distinguishable groups
-    quality_count = map_dbl(seq_len(n()), function(i) {
-      start_idx <- max(1, i - 10)  # 10 positions before
-      end_idx <- min(n(), i + 10)  # 10 positions after
-      window_positions <- start_idx:end_idx
+# First add estimate_OK column
+adaptive_data <- adaptive_data %>%
+  mutate(estimate_OK = map_lgl(Groups, check_estimate_ok))
+
+# Get unique samples and positions
+unique_samples <- unique(adaptive_data$sample)
+unique_positions <- sort(unique(adaptive_data$pos))
+n_positions <- length(unique_positions)
+
+# Process each sample separately
+smooth_data <- map_dfr(unique_samples, function(sample_name) {
+  cat("Processing sample:", sample_name, "\n")
+  
+  # Get data for this sample only
+  sample_data <- adaptive_data %>% 
+    filter(sample == sample_name) %>%
+    arrange(pos)
+  
+  # Apply sliding window to this sample
+  sample_data %>%
+    mutate(
+      # For each position, look at 21-position window
+      window_quality = map_dbl(seq_len(n()), function(i) {
+        start_idx <- max(1, i - 10)  # 10 positions before
+        end_idx <- min(n(), i + 10)  # 10 positions after
+        window_indices <- start_idx:end_idx
+        
+        # Count how many positions in window have estimate_OK = TRUE
+        sum(sample_data$estimate_OK[window_indices], na.rm = TRUE)
+      }),
       
-      # Check each position: does it have 8 distinguishable groups [1,2,3,4,5,6,7,8]?
-      positions_with_8_groups <- map_lgl(window_positions, function(j) {
-        groups_at_pos <- adaptive_data$Groups[[j]][[1]]
-        if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-        # All 8 founders in different groups = [1,2,3,4,5,6,7,8]
-        length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-      })
+      # Quality decision: OK if at least 17 out of 21 positions are good
+      quality_ok = window_quality >= 17,
       
-      sum(positions_with_8_groups, na.rm = TRUE)
-    }),
-    
-    # QUALITY DECISION: OK if at least 17 out of 21 positions have 8 distinguishable groups
-    quality_ok = quality_count >= 17,
-    
-    # GROUPS FOR SMOOTH_H4: Depends on quality (single value per position)
-    Groups = list(map(seq_along(sample[[1]]), function(i) {
-      if (quality_ok[1]) {  # Use first element since quality_ok is same for all samples at this position
-        # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
-        return(1:8)
-      } else {
-        # Quality NOT OK: All founders clustered together [1,1,1,1,1,1,1,1]
-        return(rep(1, length(founders)))
-      }
-    })),
-    
-    # Average the haplotype frequencies using 21-position sliding window
-    Haps = list(map(seq_along(sample[[1]]), function(i) {
-      start_idx <- max(1, i - 10)  # 10 positions before
-      end_idx <- min(nrow(adaptive_data), i + 10)  # 10 positions after
+      # New Groups: depends on quality
+      Groups = map2(Groups, quality_ok, function(groups, quality) {
+        if (quality) {
+          # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
+          return(1:8)
+        } else {
+          # Quality NOT OK: All founders clustered together [1,1,1,1,1,1,1,1]
+          return(rep(1, length(founders)))
+        }
+      }),
       
-      # Get haplotype estimates for this sample across the 21-position window
-      window_haps <- map(start_idx:end_idx, function(j) {
-        adaptive_data$Haps[[j]][[1]][[i]]
-      })
+      # New Haps: average over good positions in window
+      Haps = map2(seq_len(n()), quality_ok, function(i, quality) {
+        if (!quality) {
+          # Quality NOT OK: Return all NAs
+          return(set_names(rep(NA, length(founders)), founders))
+        }
+        
+        start_idx <- max(1, i - 10)  # 10 positions before
+        end_idx <- min(n(), i + 10)  # 10 positions after
+        window_indices <- start_idx:end_idx
+        
+        # Get haps from good positions only
+        valid_haps <- sample_data$Haps[window_indices][sample_data$estimate_OK[window_indices]]
+        valid_haps <- valid_haps[map_lgl(valid_haps, ~ !any(is.na(.x)))]
+        
+        return(average_haps(valid_haps, founders))
+      }),
       
-      # Only use positions where the original estimate had 8 groups
-      valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-        groups_at_pos <- adaptive_data$Groups[[j]][[1]]
-        if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-        # Check if all 8 founders are in different groups (1:8)
-        length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-      })
+      # New Err: average over good positions in window
+      Err = map2(seq_len(n()), quality_ok, function(i, quality) {
+        if (!quality) {
+          # Quality NOT OK: Return all NAs
+          na_matrix <- matrix(NA, length(founders), length(founders))
+          rownames(na_matrix) <- founders
+          colnames(na_matrix) <- founders
+          return(na_matrix)
+        }
+        
+        start_idx <- max(1, i - 10)  # 10 positions before
+        end_idx <- min(n(), i + 10)  # 10 positions after
+        window_indices <- start_idx:end_idx
+        
+        # Get error matrices from good positions only
+        valid_errs <- sample_data$Err[window_indices][sample_data$estimate_OK[window_indices]]
+        valid_errs <- valid_errs[map_lgl(valid_errs, ~ !any(is.na(.x)))]
+        
+        return(average_err(valid_errs, founders))
+      }),
       
-      # Filter to only OK positions (not all 21 positions)
-      valid_haps <- window_haps[valid_positions & map_lgl(window_haps, ~ !any(is.na(.x)))]
-      
-      if (quality_ok[1] && length(valid_haps) > 0) {
-        # Quality OK: Average over good positions only, normalize to sum to 1
-        avg_haps <- reduce(valid_haps, `+`) / length(valid_haps)
-        avg_haps <- avg_haps / sum(avg_haps)  # Normalize so frequencies sum to 1
-        names(avg_haps) <- founders
-        return(avg_haps)
-      } else {
-        # Quality NOT OK: Return all NAs (can't estimate frequencies reliably)
-        return(set_names(rep(NA, length(founders)), founders))
-      }
-    })),
-    
-    # Average the error matrices using 21-position sliding window
-    Err = list(map(seq_along(sample[[1]]), function(i) {
-      start_idx <- max(1, i - 10)  # 10 positions before
-      end_idx <- min(nrow(adaptive_data), i + 10)  # 10 positions after
-      
-      # Get error matrices for this sample across the 21-position window
-      window_errs <- map(start_idx:end_idx, function(j) {
-        adaptive_data$Err[[j]][[1]][[i]]
-      })
-      
-      # Only use positions where the original estimate had 8 groups
-      valid_positions <- map_lgl(start_idx:end_idx, function(j) {
-        groups_at_pos <- adaptive_data$Groups[[j]][[1]]
-        if (is.null(groups_at_pos) || any(is.na(groups_at_pos))) return(FALSE)
-        # Check if all 8 founders are in different groups (1:8)
-        length(unique(groups_at_pos)) == 8 && all(sort(unique(groups_at_pos)) == 1:8)
-      })
-      
-      # Filter to only OK positions (not all 21 positions)
-      valid_errs <- window_errs[valid_positions & map_lgl(window_errs, ~ !any(is.na(.x)))]
-      
-      if (quality_ok[1] && length(valid_errs) > 0) {
-        # Quality OK: Average over good positions only
-        avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
-        rownames(avg_err) <- founders
-        colnames(avg_err) <- founders
-        return(avg_err)
-      } else {
-        # Quality NOT OK: Return all NAs (can't estimate errors reliably)
-        na_matrix <- matrix(NA, length(founders), length(founders))
-        rownames(na_matrix) <- founders
-        colnames(na_matrix) <- founders
-        return(na_matrix)
-      }
-    })),
-    
-    # Names remain the same
-    Names = list(map(seq_along(sample[[1]]), function(i) {
-      return(founders)
-    }))
-  ) %>%
-  select(-quality_count)  # Clean up temporary column
+      # Names remain the same
+      Names = map(seq_len(n()), ~ founders)
+    ) %>%
+    select(-window_quality)  # Clean up temporary column
+})
 
 # Save the smooth_h4 LIST FORMAT results
 output_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
