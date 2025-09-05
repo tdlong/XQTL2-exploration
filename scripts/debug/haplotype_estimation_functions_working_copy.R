@@ -22,7 +22,7 @@ library(limSolve)
 #' 
 #' @return List with chr, pos, sample, method, final_window_size, n_snps, 
 #'         estimate_OK, and individual founder frequencies
-estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
+estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
                                method = "adaptive",
                                window_size_bp = NULL,
                                chr = "chr2R",

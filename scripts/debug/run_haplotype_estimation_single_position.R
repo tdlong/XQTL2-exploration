@@ -185,7 +185,7 @@ results_df <- expand_grid(
 ) %>%
   purrr::pmap_dfr(~ {
     cat("Processing pos:", ..1, "sample:", ..2, "method:", method, "\n")
-    result <- estimate_haplotypes(
+    result <- estimate_haplotypes_list_format(
       pos = ..1,
       sample_name = ..2,
       df3 = df3,
