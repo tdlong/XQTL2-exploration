@@ -283,7 +283,7 @@ if (nrow(results_df) > 0) {
   target_tibble <- tibble(
     CHROM = chr,
     pos = test_position,
-    sample = list(results_df$sample),  # List of sample names
+    sample = list(unique(results_df$sample)),  # List of unique sample names (4 samples)
     Groups = list(list()),  # Will be filled below
     Haps = list(list()),    # Will be filled below
     Err = list(list()),     # Will be filled below
@@ -294,6 +294,8 @@ if (nrow(results_df) > 0) {
   # Group by sample - we want 4 samples, not 32 founder assignments
   unique_samples <- unique(results_df$sample)
   groups_list <- list()
+  
+  cat("\n=== TARGET FORMAT (what we want to achieve) ===\n")
   
   for (i in 1:length(unique_samples)) {
     sample_name <- unique_samples[i]
