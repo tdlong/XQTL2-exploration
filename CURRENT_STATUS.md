@@ -110,8 +110,8 @@ sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slur
 
 **What's happening now**: 
 - **Original estimator**: Re-running `adaptive_h4` (output was accidentally deleted)
-- **New list-format estimator**: Running `adaptive_h4` with new list-based output format
-- **Next step**: Implement `smooth_h4` method based on `adaptive_h4` results
+- **New list-format estimator**: ✅ **RUNNING** `adaptive_h4` with new list-based output format
+- **Next step**: Run `smooth_h4` list-format script once adaptive_h4 completes
 
 **🎯 PARALLEL RUNS**:
 - **Original format**: `process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS`
@@ -120,13 +120,16 @@ sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slur
 
 **📋 CURRENT RUNS**:
 - **Original estimator**: `sbatch --array=6 scripts/production/haplotype_testing_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2`
-- **New list-format estimator**: `sbatch scripts/production/run_list_format_haplotype_estimation_slurm.sh chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R`
+- **New list-format estimator**: `sbatch scripts/production/run_list_format_haplotype_estimation_slurm.sh chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R` - ✅ **RUNNING**
+
+**📋 READY TO RUN** (once adaptive_h4 completes):
+- **Smooth_h4 list-format**: `Rscript scripts/production/create_smooth_haplotype_estimator_list_format.R chr2R helpfiles/ZINC2_haplotype_parameters.R process/ZINC2`
 
 **🎯 NEXT STEPS**:
-1. **Wait for both runs to complete** (several hours)
-2. **Compare results** to ensure list-format estimator produces consistent results
-3. **Implement `smooth_h4` method** based on `adaptive_h4` results
-4. **Integrate `smooth_h4`** into the list-format pipeline
+1. **Wait for adaptive_h4 list-format run to complete** (several hours) - ✅ **IN PROGRESS**
+2. **Run smooth_h4 list-format script** once adaptive_h4 completes
+3. **Compare results** to ensure list-format estimator produces consistent results
+4. **Integrate `smooth_h4`** into the complete list-format pipeline
 
 **🔧 TECHNICAL IMPLEMENTATION**:
 - **Modified functions**: `scripts/debug/haplotype_estimation_functions_with_groups.R`
