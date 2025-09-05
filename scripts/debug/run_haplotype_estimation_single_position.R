@@ -279,99 +279,108 @@ if (nrow(results_df) > 0) {
   # Create the actual list format structure from the working data
   founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
   
-  # Extract sample names
-  sample_list <- as.list(results_df$sample)
-  cat("sample: list(")
-  cat(paste0("'", results_df$sample, "'", collapse = ", "))
-  cat(")\n")
+  # Create the target tibble format (1 row per position, lists per sample)
+  target_tibble <- tibble(
+    CHROM = chr,
+    pos = test_position,
+    sample = list(results_df$sample),  # List of sample names
+    Groups = list(list()),  # Will be filled below
+    Haps = list(list()),    # Will be filled below
+    Err = list(list()),     # Will be filled below
+    Names = list(list())    # Will be filled below
+  )
   
   # Create Groups (now we have this from modified function!)
+  # Group by sample - we want 4 samples, not 32 founder assignments
+  unique_samples <- unique(results_df$sample)
   groups_list <- list()
-  for (i in 1:nrow(results_df)) {
-    # Get actual groups from modified function result
-    if (!is.null(results_df$groups[i]) && !is.na(results_df$groups[i])) {
-      # results_df$groups[i] is a vector, so we need to extract it properly
-      groups_vector <- results_df$groups[i][[1]]  # Extract the vector from the list
-      groups_list[[i]] <- list(groups_vector)
-      
-      # DEBUG: Show what we're getting
-      cat("DEBUG: Sample", i, "groups:", paste(groups_vector, collapse = ","), "\n")
-    } else {
-      groups_list[[i]] <- list(rep(1, length(founder_cols)))  # Fallback to all 1s
-      cat("DEBUG: Sample", i, "groups: FALLBACK (all 1s)\n")
+  
+  for (i in 1:length(unique_samples)) {
+    sample_name <- unique_samples[i]
+    sample_rows <- which(results_df$sample == sample_name)
+    
+    # Get groups for this sample (should be the same for all founders of this sample)
+    if (length(sample_rows) > 0) {
+      sample_groups <- results_df$groups[sample_rows[1]]  # Take first row for this sample
+      if (!is.null(sample_groups) && !is.na(sample_groups)) {
+        groups_vector <- sample_groups[[1]]  # Extract the vector from the list
+        groups_list[[i]] <- groups_vector
+        
+        # DEBUG: Show what we're getting
+        cat("DEBUG: Sample", sample_name, "groups:", paste(groups_vector, collapse = ","), "\n")
+      } else {
+        groups_list[[i]] <- rep(1, length(founder_cols))  # Fallback to all 1s
+        cat("DEBUG: Sample", sample_name, "groups: FALLBACK (all 1s)\n")
+      }
     }
   }
-  cat("Groups: list(")
-  for (i in 1:length(groups_list)) {
-    cat("list(c(", paste(groups_list[[i]][[1]], collapse = ","), "))")
-    if (i < length(groups_list)) cat(", ")
-  }
-  cat(")\n")
+  target_tibble$Groups[[1]] <- groups_list
   
   # Create Haps (haplotype frequencies)
   haps_list <- list()
-  for (i in 1:nrow(results_df)) {
-    hap_freqs <- numeric(length(founder_cols))
-    names(hap_freqs) <- founder_cols
-    for (j in seq_along(founder_cols)) {
-      founder <- founder_cols[j]
-      if (founder %in% names(results_df)) {
-        hap_freqs[j] <- results_df[[founder]][i]
+  for (i in 1:length(unique_samples)) {
+    sample_name <- unique_samples[i]
+    sample_rows <- which(results_df$sample == sample_name)
+    
+    # Get haplotype frequencies for this sample
+    if (length(sample_rows) > 0) {
+      hap_freqs <- numeric(length(founder_cols))
+      names(hap_freqs) <- founder_cols
+      for (j in seq_along(founder_cols)) {
+        founder <- founder_cols[j]
+        if (founder %in% names(results_df)) {
+          hap_freqs[j] <- results_df[[founder]][sample_rows[1]]  # Take first row for this sample
+        }
       }
+      haps_list[[i]] <- hap_freqs
     }
-    haps_list[[i]] <- list(hap_freqs)
   }
-  cat("Haps: list(")
-  for (i in 1:length(haps_list)) {
-    cat("list(c(", paste(sprintf("%.3f", haps_list[[i]][[1]]), collapse = ","), "))")
-    if (i < length(haps_list)) cat(", ")
-  }
-  cat(")\n")
+  target_tibble$Haps[[1]] <- haps_list
   
   # Create Err (error matrices - now we have this from modified function!)
   err_list <- list()
-  for (i in 1:nrow(results_df)) {
-    # Get actual error matrix from modified function result
-    if (!is.null(results_df$error_matrix[i]) && !is.na(results_df$error_matrix[i])) {
-      # results_df$error_matrix[i] is a matrix, so we need to extract it properly
-      err_matrix <- results_df$error_matrix[i][[1]]  # Extract the matrix from the list
-      if (is.matrix(err_matrix) && nrow(err_matrix) > 0 && ncol(err_matrix) > 0) {
-        rownames(err_matrix) <- founder_cols
-        colnames(err_matrix) <- founder_cols
-        err_list[[i]] <- list(err_matrix)
+  for (i in 1:length(unique_samples)) {
+    sample_name <- unique_samples[i]
+    sample_rows <- which(results_df$sample == sample_name)
+    
+    # Get error matrix for this sample
+    if (length(sample_rows) > 0) {
+      sample_error_matrix <- results_df$error_matrix[sample_rows[1]]  # Take first row for this sample
+      if (!is.null(sample_error_matrix) && !is.na(sample_error_matrix)) {
+        # results_df$error_matrix[i] is a matrix, so we need to extract it properly
+        err_matrix <- sample_error_matrix[[1]]  # Extract the matrix from the list
+        if (is.matrix(err_matrix) && nrow(err_matrix) > 0 && ncol(err_matrix) > 0) {
+          rownames(err_matrix) <- founder_cols
+          colnames(err_matrix) <- founder_cols
+          err_list[[i]] <- err_matrix
+        } else {
+          # Fallback to NA matrix if extraction failed
+          err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
+          rownames(err_matrix) <- founder_cols
+          colnames(err_matrix) <- founder_cols
+          err_list[[i]] <- err_matrix
+        }
       } else {
-        # Fallback to NA matrix if extraction failed
+        # Fallback to NA matrix
         err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
         rownames(err_matrix) <- founder_cols
         colnames(err_matrix) <- founder_cols
-        err_list[[i]] <- list(err_matrix)
+        err_list[[i]] <- err_matrix
       }
-    } else {
-      # Fallback to NA matrix
-      err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
-      rownames(err_matrix) <- founder_cols
-      colnames(err_matrix) <- founder_cols
-      err_list[[i]] <- list(err_matrix)
     }
   }
-  cat("Err: list(")
-  for (i in 1:length(err_list)) {
-    cat("list(matrix(NA, 8, 8))")
-    if (i < length(err_list)) cat(", ")
-  }
-  cat(")\n")
+  target_tibble$Err[[1]] <- err_list
   
   # Create Names (founder names)
   names_list <- list()
-  for (i in 1:nrow(results_df)) {
-    names_list[[i]] <- list(founder_cols)
+  for (i in 1:length(unique_samples)) {
+    names_list[[i]] <- founder_cols
   }
-  cat("Names: list(")
-  for (i in 1:length(names_list)) {
-    cat("list(c(", paste0("'", founder_cols, "'", collapse = ","), "))")
-    if (i < length(names_list)) cat(", ")
-  }
-  cat(")\n")
+  target_tibble$Names[[1]] <- names_list
+  
+  # Print the target tibble
+  cat("Target tibble format:\n")
+  print(target_tibble)
   
   cat("\nNOTE: Groups and Err are now captured from the modified working function!\n")
   cat("Groups come from clustering step (cutree result) and Err comes from lsei with fulloutput=TRUE.\n")
@@ -382,3 +391,4 @@ if (nrow(results_df) > 0) {
 }
 
 cat("\n=== PRODUCTION HAPLOTYPE ESTIMATION COMPLETE ===\n")
+
