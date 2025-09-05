@@ -377,13 +377,39 @@ if (nrow(results_df) > 0) {
   }
   target_tibble$Names[[1]] <- names_list
   
-  # Print the target tibble
+  # Print the target tibble with DETAILED CONTENT
   cat("Target tibble format:\n")
   print(target_tibble)
   
+  # Show detailed content of each list column
+  cat("\n=== DETAILED TIBBLE CONTENT ===\n")
+  cat("Sample names:\n")
+  print(target_tibble$sample[[1]])
+  
+  cat("\nGroups (should be 4 vectors of length 8):\n")
+  for (i in 1:4) {
+    cat("Sample", i, "groups:", paste(target_tibble$Groups[[1]][[i]], collapse = ","), "\n")
+  }
+  
+  cat("\nHaps (should be 4 vectors of length 8):\n")
+  for (i in 1:4) {
+    cat("Sample", i, "haps:", paste(round(target_tibble$Haps[[1]][[i]], 3), collapse = ","), "\n")
+  }
+  
+  cat("\nError matrices (should be 4 matrices 8x8):\n")
+  for (i in 1:4) {
+    cat("Sample", i, "error matrix dimensions:", dim(target_tibble$Err[[1]][[i]]), "\n")
+    cat("Sample", i, "error matrix has NAs:", all(is.na(target_tibble$Err[[1]][[i]])), "\n")
+  }
+  
+  cat("\nNames (should be 4 vectors of length 8):\n")
+  for (i in 1:4) {
+    cat("Sample", i, "names:", paste(target_tibble$Names[[1]][[i]], collapse = ","), "\n")
+  }
+  
   # Save the NEW LIST FORMAT tibble
   saveRDS(target_tibble, output_file)
-  cat("✓ Results saved:", output_file, "\n")
+  cat("\n✓ Results saved:", output_file, "\n")
   
   cat("\nNOTE: Groups and Err are now captured from the modified working function!\n")
   cat("Groups come from clustering step (cutree result) and Err comes from lsei with fulloutput=TRUE.\n")
