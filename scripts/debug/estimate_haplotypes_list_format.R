@@ -46,12 +46,14 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       cat("Fixed window size:", window_size_bp, "bp\n")
     }
     
-    # Get data for this position and sample
-    sample_data <- df3 %>%
-      dplyr::filter(POS >= pos - window_size_bp/2, POS <= pos + window_size_bp/2) %>%
-      dplyr::filter(name == sample_name)
+    # Get data for this position and sample (same as working function)
+    window_start <- pos - window_size_bp/2
+    window_end <- pos + window_size_bp/2
     
-    if (nrow(sample_data) == 0) {
+    window_data <- df3 %>%
+      dplyr::filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+    
+    if (nrow(window_data) == 0) {
       if (verbose >= 1) {
         cat("No data found for position", pos, "sample", sample_name, "\n")
       }
@@ -59,8 +61,21 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
                                rep(NA, length(founders)), founders, groups, error_matrix))
     }
     
+    # Pivot to wide format (same as working function)
+    wide_data <- window_data %>%
+      dplyr::select(POS, name, freq) %>%
+      tidyr::pivot_wider(names_from = name, values_from = freq)
+    
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
+      if (verbose >= 1) {
+        cat("Insufficient data in window\n")
+      }
+      return(create_list_result(chr, pos, sample_name, method, window_size_bp, 0, NA,
+                               rep(NA, length(founders)), founders, groups, error_matrix))
+    }
+    
     # Run LSEI and clustering
-    result <- run_lsei_and_clustering_list_format(sample_data, founders, h_cutoff, verbose)
+    result <- run_lsei_and_clustering_list_format(wide_data, founders, sample_name, h_cutoff, verbose)
     
     if (result$estimate_OK) {
       groups <- result$groups
@@ -98,24 +113,38 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
         cat("--- Window", i, ":", window_size/1000, "kb ---\n")
       }
       
-      # Get data for this window size
-      sample_data <- df3 %>%
-        dplyr::filter(POS >= pos - window_size/2, POS <= pos + window_size/2) %>%
-        dplyr::filter(name == sample_name)
+      # Get data for this window size (same as working function)
+      window_start <- pos - window_size/2
+      window_end <- pos + window_size/2
       
-      if (nrow(sample_data) < 10) {
+      window_data <- df3 %>%
+        dplyr::filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+      
+      if (nrow(window_data) < 10) {
         if (verbose >= 1) {
-          cat("Insufficient SNPs (", nrow(sample_data), ") for window", window_size/1000, "kb\n")
+          cat("Insufficient SNPs (", nrow(window_data), ") for window", window_size/1000, "kb\n")
+        }
+        next
+      }
+      
+      # Pivot to wide format (same as working function)
+      wide_data <- window_data %>%
+        dplyr::select(POS, name, freq) %>%
+        tidyr::pivot_wider(names_from = name, values_from = freq)
+      
+      if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
+        if (verbose >= 1) {
+          cat("Insufficient data in window", window_size/1000, "kb\n")
         }
         next
       }
       
       # Run LSEI and clustering
-      result <- run_lsei_and_clustering_list_format(sample_data, founders, h_cutoff, verbose)
+      result <- run_lsei_and_clustering_list_format(wide_data, founders, sample_name, h_cutoff, verbose)
       
       if (result$estimate_OK) {
         if (verbose >= 1) {
-          cat("✓ Window", window_size/1000, "kb successful -", nrow(sample_data), "SNPs\n")
+          cat("✓ Window", window_size/1000, "kb successful -", nrow(wide_data), "SNPs\n")
         }
         final_result <- result
         final_window_size <- window_size
@@ -139,28 +168,27 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     
     if (verbose >= 1) {
       cat("✅ FINAL RESULT: estimate_OK:", final_result$estimate_OK, 
-          "final_window_size:", final_window_size/1000, "kb n_snps:", nrow(sample_data), "\n")
+          "final_window_size:", final_window_size/1000, "kb n_snps:", nrow(wide_data), "\n")
     }
     
     return(create_list_result(chr, pos, sample_name, method, final_window_size,
-                             nrow(sample_data), final_result$estimate_OK, final_result$haplotype_freqs,
+                             nrow(wide_data), final_result$estimate_OK, final_result$haplotype_freqs,
                              founders, final_groups, final_error_matrix))
   }
 }
 
 #' Run LSEI estimation and clustering analysis with list format output
-run_lsei_and_clustering_list_format <- function(sample_data, founders, h_cutoff, verbose) {
+run_lsei_and_clustering_list_format <- function(wide_data, founders, sample_name, h_cutoff, verbose) {
   
-  # Create founder matrix and sample frequencies
-  founder_matrix <- sample_data %>%
-    dplyr::select(POS, all_of(founders)) %>%
-    dplyr::filter(complete.cases(.)) %>%
-    dplyr::select(-POS)
+  # Create founder matrix and sample frequencies (same as working function)
+  founder_matrix <- wide_data %>%
+    dplyr::select(all_of(founders)) %>%
+    dplyr::filter(complete.cases(.))
   
-  sample_freqs <- sample_data %>%
-    dplyr::select(POS, freq) %>%
+  sample_freqs <- wide_data %>%
+    dplyr::select(all_of(sample_name)) %>%
     dplyr::filter(complete.cases(.)) %>%
-    dplyr::pull(freq)
+    dplyr::pull(1)
   
   if (nrow(founder_matrix) < 10) {
     return(list(estimate_OK = FALSE, haplotype_freqs = rep(NA, length(founders)), 
