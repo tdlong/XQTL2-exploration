@@ -41,6 +41,19 @@ cat("✓ Parameters loaded\n")
 cat("Founders:", paste(founders, collapse = ", "), "\n")
 cat("H cutoff:", h_cutoff, "\n\n")
 
+# Define euchromatin boundaries (same as existing working code)
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
+
+euchromatin_start <- euchromatin_boundaries[[chr]][1]
+euchromatin_end <- euchromatin_boundaries[[chr]][2]
+cat("Euchromatin region:", euchromatin_start, "-", euchromatin_end, "bp\n\n")
+
 # Load observed data
 refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
@@ -48,39 +61,51 @@ if (!file.exists(refalt_file)) {
 }
 
 cat("Loading REFALT data from:", refalt_file, "\n")
-refalt_data <- read_tsv(refalt_file, col_names = c("chr", "pos", "name", "ref_count", "alt_count"), 
-                       col_types = "cdcdd", show_col_types = FALSE)
+refalt_data <- read.table(refalt_file, header = TRUE)
 
 cat("✓ REFALT data loaded:", nrow(refalt_data), "rows\n")
+cat("Columns:", paste(names(refalt_data), collapse = ", "), "\n")
 
-# Convert counts to frequencies
-observed_data <- refalt_data %>%
+# Transform to frequencies (same as existing working code)
+cat("Converting counts to frequencies...\n")
+refalt_processed <- refalt_data %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
   mutate(
-    total_count = ref_count + alt_count,
-    freq = alt_count / total_count
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
   ) %>%
-  filter(total_count > 0) %>%
-  select(chr, pos, name, freq)
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    total_count = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+# Filter for high-quality SNPs (same as existing working code)
+cat("Filtering for high-quality SNPs...\n")
+good_snps <- refalt_processed %>%
+  filter(name %in% founders) %>%
+  group_by(CHROM, POS) %>%
+  summarize(
+    zeros = sum(total_count == 0),
+    not_fixed = sum(total_count != 0 & freq > 0.03 & freq < 0.97),
+    informative = (sum(freq) > 0.05 | sum(freq) < 0.95),
+    .groups = "drop"
+  ) %>%
+  ungroup() %>%
+  filter(zeros == 0 & not_fixed == 0 & informative == TRUE) %>%
+  select(c(CHROM, POS))
+
+# Get valid SNPs for euchromatin
+observed_data <- good_snps %>%
+  filter(POS >= euchromatin_start & POS <= euchromatin_end) %>%
+  left_join(refalt_processed, multiple = "all")
 
 cat("✓ Converted to frequencies:", nrow(observed_data), "rows\n")
-
-# Filter for euchromatin
-euchromatin_boundaries <- list(
-  chr2L = c(1, 23011544),
-  chr2R = c(5398184, 24684540),
-  chr3L = c(1, 24543557),
-  chr3R = c(1, 27905053),
-  chr4 = c(1, 1351857),
-  chrX = c(1, 22422827)
-)
-
-if (chr %in% names(euchromatin_boundaries)) {
-  boundaries <- euchromatin_boundaries[[chr]]
-  observed_data <- observed_data %>%
-    filter(pos >= boundaries[1] & pos <= boundaries[2])
-  cat("✓ Filtered for euchromatin:", nrow(observed_data), "rows\n")
-  cat("Euchromatin region:", boundaries[1], "-", boundaries[2], "bp\n")
-}
+cat("✓ Filtered for euchromatin:", nrow(observed_data), "rows\n")
+cat("Euchromatin region:", euchromatin_start, "-", euchromatin_end, "bp\n")
 
 # Get samples
 samples <- unique(observed_data$name)

@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+y #!/usr/bin/env Rscript
 
 # SNP Imputation Coverage Diagnostic - SIMPLIFIED VERSION
 # Reuses existing pipeline code instead of reinventing the wheel
