@@ -20,8 +20,8 @@
 
 library(tidyverse)
 
-# Source the new list format function
-source("scripts/debug/estimate_haplotypes_list_format.R")
+# Source the modified working copy that returns list format
+source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -178,13 +178,14 @@ cat("Processing", length(scan_positions), "positions ×", length(names_in_bam), 
 cat("\nMemory before processing positions:\n")
 print(gc())
 
+# Create natural 4-row dataframe (one row per sample)
 results_df <- expand_grid(
   pos = scan_positions,
   sample_name = names_in_bam
 ) %>%
   purrr::pmap_dfr(~ {
     cat("Processing pos:", ..1, "sample:", ..2, "method:", method, "\n")
-    result <- estimate_haplotypes_list_format(
+    result <- estimate_haplotypes(
       pos = ..1,
       sample_name = ..2,
       df3 = df3,
@@ -195,12 +196,22 @@ results_df <- expand_grid(
       chr = chr,
       verbose = 1  # Show adaptive algorithm progress
     )
-    cat("Result for", ..2, "at", ..1, ":", result$estimate_OK, "\n")
-    return(result)
+    cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
+    
+    # Create natural row format
+    return(tibble(
+      CHROM = chr,
+      pos = ..1,
+      sample = ..2,
+      Groups = list(result$Groups),
+      Haps = list(result$Haps),
+      Err = list(result$Err),
+      Names = list(result$Names)
+    ))
   })
 
-# 5. Save results with intelligent filename
-cat("\n5. Saving results...\n")
+# 5. Save the natural 4-row dataframe first
+cat("\n5. Saving natural 4-row dataframe...\n")
 
 # Generate intelligent output filename - ADD "single_position" to avoid overwriting production files
 if (method == "fixed") {
@@ -275,149 +286,36 @@ if (nrow(results_df) > 0) {
   }
   
   
-  # Show what we WANT to achieve (new list format) - ACTUAL DATA
-  cat("\n=== TARGET FORMAT (what we want to achieve) ===\n")
+  # Show the natural 4-row dataframe
+  cat("\n=== NATURAL 4-ROW DATAFRAME ===\n")
+  print(results_df)
   
-  # Create the actual list format structure from the working data
-  founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+  # Save the natural 4-row dataframe
+  saveRDS(results_df, output_file)
+  cat("\n✓ Natural 4-row dataframe saved:", output_file, "\n")
   
-  # Create the target tibble format (1 row per position, lists per sample)
-  target_tibble <- tibble(
+  # 6. Convert to final 1-row format
+  cat("\n6. Converting to final 1-row format...\n")
+  
+  # Create final 1-row tibble by collapsing samples
+  final_tibble <- tibble(
     CHROM = chr,
     pos = test_position,
-    sample = list(unique(results_df$sample)),  # List of unique sample names (4 samples)
-    Groups = list(list()),  # Will be filled below
-    Haps = list(list()),    # Will be filled below
-    Err = list(list()),     # Will be filled below
-    Names = list(list())    # Will be filled below
+    sample = list(results_df$sample),
+    Groups = list(results_df$Groups),
+    Haps = list(results_df$Haps),
+    Err = list(results_df$Err),
+    Names = list(results_df$Names)
   )
   
-  # Create Groups (now we have this from modified function!)
-  # Group by sample - we want 4 samples, not 32 founder assignments
-  unique_samples <- unique(results_df$sample)
-  groups_list <- list()
+  # Show the final format
+  cat("\n=== FINAL 1-ROW FORMAT ===\n")
+  print(final_tibble)
   
-  cat("\n=== TARGET FORMAT (what we want to achieve) ===\n")
-  
-  for (i in 1:length(unique_samples)) {
-    sample_name <- unique_samples[i]
-    sample_rows <- which(results_df$sample == sample_name)
-    
-    # Get groups for this sample (should be the same for all founders of this sample)
-    if (length(sample_rows) > 0) {
-      sample_groups <- results_df$groups[sample_rows[1]]  # Take first row for this sample
-      if (!is.null(sample_groups) && !is.na(sample_groups)) {
-        groups_vector <- sample_groups[[1]]  # Extract the vector from the list
-        groups_list[[i]] <- groups_vector
-        
-        # DEBUG: Show what we're getting
-        cat("DEBUG: Sample", sample_name, "groups:", paste(groups_vector, collapse = ","), "\n")
-      } else {
-        groups_list[[i]] <- rep(1, length(founder_cols))  # Fallback to all 1s
-        cat("DEBUG: Sample", sample_name, "groups: FALLBACK (all 1s)\n")
-      }
-    }
-  }
-  target_tibble$Groups[[1]] <- groups_list
-  
-  # Create Haps (haplotype frequencies)
-  haps_list <- list()
-  for (i in 1:length(unique_samples)) {
-    sample_name <- unique_samples[i]
-    sample_rows <- which(results_df$sample == sample_name)
-    
-    # Get haplotype frequencies for this sample
-    if (length(sample_rows) > 0) {
-      hap_freqs <- numeric(length(founder_cols))
-      names(hap_freqs) <- founder_cols
-      for (j in seq_along(founder_cols)) {
-        founder <- founder_cols[j]
-        if (founder %in% names(results_df)) {
-          hap_freqs[j] <- results_df[[founder]][sample_rows[1]]  # Take first row for this sample
-        }
-      }
-      haps_list[[i]] <- hap_freqs
-    }
-  }
-  target_tibble$Haps[[1]] <- haps_list
-  
-  # Create Err (error matrices - now we have this from modified function!)
-  err_list <- list()
-  for (i in 1:length(unique_samples)) {
-    sample_name <- unique_samples[i]
-    sample_rows <- which(results_df$sample == sample_name)
-    
-    # Get error matrix for this sample
-    if (length(sample_rows) > 0) {
-      sample_error_matrix <- results_df$error_matrix[sample_rows[1]]  # Take first row for this sample
-      if (!is.null(sample_error_matrix) && !is.na(sample_error_matrix)) {
-        # results_df$error_matrix[i] is a matrix, so we need to extract it properly
-        err_matrix <- sample_error_matrix[[1]]  # Extract the matrix from the list
-        if (is.matrix(err_matrix) && nrow(err_matrix) > 0 && ncol(err_matrix) > 0) {
-          rownames(err_matrix) <- founder_cols
-          colnames(err_matrix) <- founder_cols
-          err_list[[i]] <- err_matrix
-        } else {
-          # Fallback to NA matrix if extraction failed
-          err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
-          rownames(err_matrix) <- founder_cols
-          colnames(err_matrix) <- founder_cols
-          err_list[[i]] <- err_matrix
-        }
-      } else {
-        # Fallback to NA matrix
-        err_matrix <- matrix(NA, length(founder_cols), length(founder_cols))
-        rownames(err_matrix) <- founder_cols
-        colnames(err_matrix) <- founder_cols
-        err_list[[i]] <- err_matrix
-      }
-    }
-  }
-  target_tibble$Err[[1]] <- err_list
-  
-  # Create Names (founder names)
-  names_list <- list()
-  for (i in 1:length(unique_samples)) {
-    names_list[[i]] <- founder_cols
-  }
-  target_tibble$Names[[1]] <- names_list
-  
-  # Print the target tibble with DETAILED CONTENT
-  cat("Target tibble format:\n")
-  print(target_tibble)
-  
-  # Show detailed content of each list column
-  cat("\n=== DETAILED TIBBLE CONTENT ===\n")
-  cat("Sample names:\n")
-  print(target_tibble$sample[[1]])
-  
-  cat("\nGroups (should be 4 vectors of length 8):\n")
-  for (i in 1:4) {
-    cat("Sample", i, "groups:", paste(target_tibble$Groups[[1]][[i]], collapse = ","), "\n")
-  }
-  
-  cat("\nHaps (should be 4 vectors of length 8):\n")
-  for (i in 1:4) {
-    cat("Sample", i, "haps:", paste(round(target_tibble$Haps[[1]][[i]], 3), collapse = ","), "\n")
-  }
-  
-  cat("\nError matrices (should be 4 matrices 8x8):\n")
-  for (i in 1:4) {
-    cat("Sample", i, "error matrix dimensions:", dim(target_tibble$Err[[1]][[i]]), "\n")
-    cat("Sample", i, "error matrix has NAs:", all(is.na(target_tibble$Err[[1]][[i]])), "\n")
-  }
-  
-  cat("\nNames (should be 4 vectors of length 8):\n")
-  for (i in 1:4) {
-    cat("Sample", i, "names:", paste(target_tibble$Names[[1]][[i]], collapse = ","), "\n")
-  }
-  
-  # Save the NEW LIST FORMAT tibble
-  saveRDS(target_tibble, output_file)
-  cat("\n✓ Results saved:", output_file, "\n")
-  
-  cat("\nNOTE: Groups and Err are now captured from the modified working function!\n")
-  cat("Groups come from clustering step (cutree result) and Err comes from lsei with fulloutput=TRUE.\n")
+  # Save the final format too
+  final_output_file <- gsub(".RDS", "_final.RDS", output_file)
+  saveRDS(final_tibble, final_output_file)
+  cat("\n✓ Final 1-row format saved:", final_output_file, "\n")
   
 } else {
   cat("✗ No results generated\n")
