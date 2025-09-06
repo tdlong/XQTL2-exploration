@@ -168,10 +168,10 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
       Groups = map2(Groups, quality_ok, function(groups, quality) {
         if (quality) {
           # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
-          return(list(1:8))
+          return(1:8)
         } else {
           # Quality NOT OK: All founders clustered together [1,1,1,1,1,1,1,1]
-          return(list(rep(1, length(founders))))
+          return(rep(1, length(founders)))
         }
       }),
       
@@ -179,7 +179,7 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
       Haps = map2(seq_len(n()), quality_ok, function(i, quality) {
         if (!quality) {
           # Quality NOT OK: Return all NAs
-          return(list(set_names(rep(NA, length(founders)), founders)))
+          return(set_names(rep(NA, length(founders)), founders))
         }
         
         start_idx <- max(1, i - 10)  # 10 positions before
@@ -190,7 +190,7 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
         valid_haps <- sample_data$Haps[window_indices][sample_data$estimate_OK[window_indices]]
         valid_haps <- valid_haps[map_lgl(valid_haps, ~ !any(is.na(.x)))]
         
-        return(list(average_haps(valid_haps, founders)))
+        return(average_haps(valid_haps, founders))
       }),
       
       # New Err: average over good positions in window
@@ -200,7 +200,7 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
           na_matrix <- matrix(NA, length(founders), length(founders))
           rownames(na_matrix) <- founders
           colnames(na_matrix) <- founders
-          return(list(na_matrix))
+          return(na_matrix)
         }
         
         start_idx <- max(1, i - 10)  # 10 positions before
@@ -212,13 +212,13 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
         valid_errs <- valid_errs[map_lgl(valid_errs, ~ !any(is.na(.x)))]
         
         
-        return(list(average_err(valid_errs, founders)))
+        return(average_err(valid_errs, founders))
       }),
       
       # Names remain the same
-      Names = map(seq_len(n()), ~ list(founders))
+      Names = map(seq_len(n()), ~ founders)
     ) %>%
-    select(-window_quality)  # Clean up temporary column
+    select(CHROM, pos, sample, Groups, Haps, Err, Names)  # Only keep required columns
 })
 
 # Save the smooth_h4 LIST FORMAT results
