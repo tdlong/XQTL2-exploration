@@ -52,3 +52,28 @@ if(length(valid_haps) > 0) {
 } else {
   cat("\nNo valid positions found!\n")
 }
+
+# Get valid error matrices (positions with 8 groups)
+valid_errs <- first_sample$Err[has_8_groups]
+cat("\nValid error matrices (positions with 8 groups):\n")
+for(i in seq_along(valid_errs)) {
+  cat("Valid position", i, "Err dimensions:", dim(valid_errs[[i]]), "\n")
+}
+
+# Calculate average error matrix
+if(length(valid_errs) > 0) {
+  cat("\nCalculating average error matrix...\n")
+  avg_err <- reduce(valid_errs, `+`) / length(valid_errs)
+  cat("Average error matrix dimensions:", dim(avg_err), "\n")
+  cat("Average error matrix:\n")
+  print(avg_err)
+} else {
+  cat("\nNo valid error matrices found!\n")
+}
+
+# Show the 4 lists that result
+cat("\n=== FINAL 4 LISTS FOR SMOOTH_H4 ===\n")
+cat("1. Groups:", 1:8, "\n")
+cat("2. Haps:", avg_haps_norm, "\n")
+cat("3. Err dimensions:", dim(avg_err), "\n")
+cat("4. Names:", c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8"), "\n")
