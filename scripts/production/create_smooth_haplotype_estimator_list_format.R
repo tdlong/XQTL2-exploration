@@ -230,14 +230,18 @@ cat("✓ Smooth h4 LIST FORMAT results saved to:", output_file, "\n")
 # Print summary statistics
 cat("\n=== SMOOTH H4 LIST FORMAT SUMMARY ===\n")
 cat("Total positions:", nrow(smooth_data), "\n")
-cat("Positions with quality_ok = TRUE:", sum(smooth_data$quality_ok, na.rm = TRUE), "\n")
-cat("Positions with quality_ok = FALSE:", sum(!smooth_data$quality_ok, na.rm = TRUE), "\n")
 
-# Check that frequencies sum to 1 for valid positions
-valid_positions <- smooth_data$quality_ok
+# Check that frequencies sum to 1 for valid positions (where Groups has 8 unique values)
+valid_positions <- map_lgl(smooth_data$Groups, function(groups) {
+  length(unique(groups)) == 8 && all(sort(unique(groups)) == 1:8)
+})
+
+cat("Positions with 8 distinguishable groups:", sum(valid_positions, na.rm = TRUE), "\n")
+cat("Positions with clustered groups:", sum(!valid_positions, na.rm = TRUE), "\n")
+
 if (sum(valid_positions, na.rm = TRUE) > 0) {
   freq_sums <- map_dbl(which(valid_positions), function(i) {
-    haps <- smooth_data$Haps[[i]][[1]]
+    haps <- smooth_data$Haps[[i]]
     if (any(is.na(haps))) return(NA)
     sum(haps)
   })
