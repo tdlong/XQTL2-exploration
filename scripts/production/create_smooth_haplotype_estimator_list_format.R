@@ -66,10 +66,10 @@ adaptive_data <- readRDS(adaptive_file)
 
 cat("✓ Adaptive h4 LIST FORMAT data loaded:", nrow(adaptive_data), "positions\n")
 cat("Samples available:", paste(adaptive_data$sample[[1]], collapse = ", "), "\n")
-cat("Founders:", paste(adaptive_data$Names[[1]][[1]], collapse = ", "), "\n\n")
+cat("Founders:", paste(adaptive_data$Names[[1]], collapse = ", "), "\n\n")
 
 # Get founder names from the data
-founders <- adaptive_data$Names[[1]][[1]]
+founders <- adaptive_data$Names[[1]]
 
 # Helper functions for smooth_h4
 check_estimate_ok <- function(groups) {
@@ -139,7 +139,7 @@ unique_samples <- unique(adaptive_data$sample)
 unique_positions <- sort(unique(adaptive_data$pos))
 n_positions <- length(unique_positions)
 
-# Process each sample separately
+# Process each sample separately to handle sliding window correctly
 smooth_data <- map_dfr(unique_samples, function(sample_name) {
   cat("Processing sample:", sample_name, "\n")
   
@@ -148,13 +148,23 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
     filter(sample == sample_name) %>%
     arrange(pos)
   
-  # Apply sliding window to this sample
-  sample_data %>%
+  n_positions <- nrow(sample_data)
+  
+  # Only process positions that have full 21-position window (skip first 10 and last 10)
+  valid_positions <- 11:(n_positions - 10)
+  
+  if (length(valid_positions) == 0) {
+    return(tibble())
+  }
+  
+  # Create new dataframe for this sample
+  sample_smooth <- sample_data[valid_positions, ] %>%
+    select(CHROM, pos, sample) %>%
     mutate(
       # For each position, look at 21-position window
-      window_quality = map_dbl(seq_len(n()), function(i) {
-        start_idx <- max(1, i - 10)  # 10 positions before
-        end_idx <- min(n(), i + 10)  # 10 positions after
+      window_quality = map_dbl(valid_positions, function(i) {
+        start_idx <- i - 10  # 10 positions before
+        end_idx <- i + 10    # 10 positions after
         window_indices <- start_idx:end_idx
         
         # Count how many positions in window have estimate_OK = TRUE
@@ -165,7 +175,7 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
       quality_ok = window_quality >= 17,
       
       # New Groups: depends on quality
-      Groups = map2(Groups, quality_ok, function(groups, quality) {
+      Groups = map2(valid_positions, quality_ok, function(i, quality) {
         if (quality) {
           # Quality OK: All 8 founders distinguishable [1,2,3,4,5,6,7,8]
           return(1:8)
@@ -176,14 +186,14 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
       }),
       
       # New Haps: average over good positions in window
-      Haps = map2(seq_len(n()), quality_ok, function(i, quality) {
+      Haps = map2(valid_positions, quality_ok, function(i, quality) {
         if (!quality) {
           # Quality NOT OK: Return all NAs
           return(set_names(rep(NA, length(founders)), founders))
         }
         
-        start_idx <- max(1, i - 10)  # 10 positions before
-        end_idx <- min(n(), i + 10)  # 10 positions after
+        start_idx <- i - 10  # 10 positions before
+        end_idx <- i + 10    # 10 positions after
         window_indices <- start_idx:end_idx
         
         # Get haps from good positions only
@@ -194,7 +204,7 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
       }),
       
       # New Err: average over good positions in window
-      Err = map2(seq_len(n()), quality_ok, function(i, quality) {
+      Err = map2(valid_positions, quality_ok, function(i, quality) {
         if (!quality) {
           # Quality NOT OK: Return all NAs
           na_matrix <- matrix(NA, length(founders), length(founders))
@@ -203,22 +213,23 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
           return(na_matrix)
         }
         
-        start_idx <- max(1, i - 10)  # 10 positions before
-        end_idx <- min(n(), i + 10)  # 10 positions after
+        start_idx <- i - 10  # 10 positions before
+        end_idx <- i + 10    # 10 positions after
         window_indices <- start_idx:end_idx
         
         # Get error matrices from good positions only
         valid_errs <- sample_data$Err[window_indices][sample_data$estimate_OK[window_indices]]
         valid_errs <- valid_errs[map_lgl(valid_errs, ~ !any(is.na(.x)))]
         
-        
         return(average_err(valid_errs, founders))
       }),
       
       # Names remain the same
-      Names = map(seq_len(n()), ~ founders)
+      Names = map(valid_positions, ~ founders)
     ) %>%
     select(CHROM, pos, sample, Groups, Haps, Err, Names)  # Only keep required columns
+  
+  return(sample_smooth)
 })
 
 # Save the smooth_h4 LIST FORMAT results
@@ -226,6 +237,10 @@ output_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".R
 saveRDS(smooth_data, output_file)
 
 cat("✓ Smooth h4 LIST FORMAT results saved to:", output_file, "\n")
+
+# Print structure of resulting dataframe
+cat("\n=== RESULTING DATAFRAME STRUCTURE ===\n")
+smooth_data
 
 # Print summary statistics
 cat("\n=== SMOOTH H4 LIST FORMAT SUMMARY ===\n")
