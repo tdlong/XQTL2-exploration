@@ -22,7 +22,7 @@ if (!is.null(position)) {
 
 # File paths
 old_adaptive_file <- paste0("process/ZINC2/haplotype_results/adaptive_window_h4_results_", chromosome, ".RDS")
-old_smooth_file <- paste0("process/ZINC2/smooth_h4_results_", chromosome, ".RDS")
+old_smooth_file <- paste0("process/ZINC2/haplotype_results/smooth_h4_results_", chromosome, ".RDS")
 new_adaptive_file <- paste0("process/ZINC2/haplotype_results_list_format/adaptive_window_h4_results_", chromosome, ".RDS")
 new_smooth_file <- paste0("process/ZINC2/haplotype_results_list_format/smooth_h4_results_", chromosome, ".RDS")
 
