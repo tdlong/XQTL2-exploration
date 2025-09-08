@@ -637,4 +637,15 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
+## ✅ List-Format Reshaping Status (one row per position)
+- Implemented one-row-per-position outputs for both adaptive_h4 and smooth_h4.
+- Script: `scripts/production/create_smooth_haplotype_estimator_list_format.R` now writes:
+  - `process/<dataset>/haplotype_results_list_format/adapt_h4/R.haps.<chr>.out.rds`
+  - `process/<dataset>/haplotype_results_list_format/smooth_h4/R.haps.<chr>.out.rds`
+  - Also preserves original smooth output: `process/<dataset>/haplotype_results_list_format/smooth_h4_results_<chr>.RDS`
+- Verified consistency vs prior per-(pos×sample) format using `scripts/debug/compare_old_vs_list_format.R` (SSQ <= 1e-6 at all rows).
+- Example (60-sample): one row per position with `[60]` entries in `sample/Groups/Haps/Err/Names`.
+
+---
+
 *Last Updated: 2025-01-19 - List-Format Haplotype Estimators Complete, Perfect List-Column Structure Achieved, Smooth_H4 Sliding Window Working, Ready for Pipeline Integration*
