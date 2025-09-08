@@ -81,13 +81,26 @@ extract_new <- function(df, pos = NULL) {
 # Comparator
 compare_frames <- function(old_df, new_df, label, eps) {
 	message("\n===== ", label, " =====")
+	# Keys overview
+	old_keys <- old_df %>% dplyr::select(CHROM, pos, sample)
+	new_keys <- new_df %>% dplyr::select(CHROM, pos, sample)
+	old_pos <- dplyr::n_distinct(old_keys$pos); old_samp <- dplyr::n_distinct(old_keys$sample)
+	new_pos <- dplyr::n_distinct(new_keys$pos); new_samp <- dplyr::n_distinct(new_keys$sample)
+	message(sprintf("Old: positions=%d, samples=%d, rows=%d", old_pos, old_samp, nrow(old_df)))
+	message(sprintf("New: positions=%d, samples=%d, rows=%d", new_pos, new_samp, nrow(new_df)))
+	
 	# Align rows that exist in both
 	joined <- dplyr::inner_join(
 		old_df, new_df,
 		by = c("CHROM","pos","sample"), suffix = c("_old","_new")
 	)
-	message("Rows in common: ", nrow(joined))
+	j_pos <- dplyr::n_distinct(joined$pos); j_samp <- dplyr::n_distinct(joined$sample)
+	message(sprintf("Rows in common: %d (positions=%d * samples=%d = %d)", nrow(joined), j_pos, j_samp, j_pos*j_samp))
 	if (nrow(joined) == 0) {
+		# Show a brief mismatch summary
+		only_old <- dplyr::anti_join(old_keys, new_keys, by = c("CHROM","pos","sample")) %>% nrow()
+		only_new <- dplyr::anti_join(new_keys, old_keys, by = c("CHROM","pos","sample")) %>% nrow()
+		message(sprintf("Key mismatches — only_in_old=%d, only_in_new=%d", only_old, only_new))
 		message("No overlapping rows; skipping.")
 		return(invisible(NULL))
 	}
