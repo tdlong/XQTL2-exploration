@@ -282,6 +282,23 @@ process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS
 
 ## 📁 **DIRECTORY STRUCTURE & PATH RULES**
 
+### **🌐 Cluster Environment & Relative Paths**
+- **ALL DATA AND ANALYSIS HAPPENS ON THE CLUSTER** - never run data analysis commands locally
+- All input/output files live on the compute cluster.
+- Always use relative paths from the project/process working directory in commands and scripts.
+- Do not use absolute local filesystem paths in documentation or usage examples.
+
+### **🚨 CRITICAL WORKFLOW RULE: CLUSTER-ONLY ANALYSIS**
+- **NEVER run data analysis commands locally** (Rscript, file operations on data, etc.)
+- **ALWAYS follow this workflow**:
+  1. Create/edit scripts locally
+  2. `git add`, `git commit`, `git push` 
+  3. User pulls on cluster and runs analysis
+  4. User reports results back
+- **Local commands are ONLY for**: git operations, file creation/editing, directory listing
+- **Cluster commands are for**: all data analysis, R scripts, file processing
+- **This rule prevents**: attempting to access cluster data from local environment
+
 ### **🔧 Production Scripts Location**
 - **All production scripts**: `scripts/production/`
 - **All shell scripts must reference**: `scripts/production/` (not `scripts/`)
