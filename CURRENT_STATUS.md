@@ -285,43 +285,56 @@ process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS
 ### **🧬 Haplotype Estimation Results - Standard Format**
 **File Pattern**: `process/<dataset>/haplotype_results/<method>_results_<chr>.RDS`
 
-**Structure**: Data frame with columns:
-- `CHROM`: Chromosome identifier (chr2L, chr2R, chr3L, chr3R, chrX)
+**Structure**: Data frame with 16 columns:
+- `chr`: Chromosome identifier (chr2L, chr2R, chr3L, chr3R, chrX)
 - `pos`: Genomic position (integer)
-- `sample`: Sample identifier (e.g., Rep01_W_F, Rep02_W_F, etc.)
-- `B1_freq`, `B2_freq`, ..., `B8_freq`: Founder haplotype frequencies (0-1, sum to 1.0)
-- `estimate_OK`: Boolean flag for reliability (TRUE/FALSE)
-- `window_size`: Window size used for estimation (integer, kb)
+- `sample`: Sample identifier (e.g., Rep01_W_F, Rep01_W_M, Rep01_Z_F, Rep01_Z_M)
+- `method`: Method used ("adaptive" or "smooth_h4")
+- `h_cutoff`: h_cutoff parameter (e.g., 4)
+- `final_window_size`: Final window size used (integer, bp)
 - `n_snps`: Number of SNPs in window (integer)
+- `estimate_OK`: Reliability flag (1 = OK, 0 = not OK, NA for smooth_h4)
+- `B1`, `B2`, `B3`, `B4`, `B5`, `B6`, `B7`, `AB8`: Founder haplotype frequencies (0-1, sum to 1.0)
+
+**Dimensions**: 7,716 rows × 16 columns (4 samples × 1,929 positions)
 
 **Example**:
 ```r
-# A tibble: 7,636 × 11
-   CHROM     pos sample    B1_freq B2_freq B3_freq B4_freq B5_freq B6_freq B7_freq B8_freq estimate_OK window_size n_snps
-   <chr>   <dbl> <chr>       <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl> <lgl>            <dbl>  <int>
- 1 chr2R 5500000 Rep01_W_F   0.125   0.125   0.125   0.125   0.125   0.125   0.125   0.125 TRUE                20     45
- 2 chr2R 5510000 Rep01_W_F   0.200   0.150   0.100   0.150   0.200   0.100   0.050   0.050 TRUE                20     52
+# A tibble: 7,716 × 16
+   chr   pos sample    method   h_cutoff final_window_size n_snps estimate_OK    B1    B2    B3     B4    B5    B6     B7   AB8
+   <chr> <dbl> <chr>    <chr>      <dbl>            <dbl> <int>       <dbl> <dbl> <dbl> <dbl>  <dbl> <dbl> <dbl>  <dbl> <dbl>
+ 1 chr2R 5400000 Rep01_W_F adaptive        4         200000  1513           1 0.075 0.077 0.369 0.0003 0.034 0.231 0.062 0.151
+ 2 chr2R 5400000 Rep01_W_M adaptive        4         200000  1513           1 0.111 0.085 0.314 0.0003 0.046 0.216 0.024 0.204
 ```
+
+**Key Notes**:
+- **Adaptive format**: `estimate_OK` is 1 or 0
+- **Smooth format**: `estimate_OK` is NA (all values are NA)
+- **Founder names**: B1-B7, AB8 (not B8)
 
 ### **🧬 Haplotype Estimation Results - List Format**
 **File Pattern**: `process/<dataset>/haplotype_results_list_format/<method>_results_<chr>.RDS`
 
-**Structure**: Data frame with list-columns:
+**Structure**: Data frame with 7 columns (list-columns):
 - `CHROM`: Chromosome identifier (chr2L, chr2R, chr3L, chr3R, chrX)
 - `pos`: Genomic position (integer)
-- `sample`: Sample identifier (e.g., Rep01_W_F, Rep02_W_F, etc.)
+- `sample`: Sample identifier (e.g., Rep01_W_F, Rep01_W_M, Rep01_Z_F, Rep01_Z_M)
 - `Groups`: List of integers `[8]` - founder group assignments from clustering
 - `Haps`: List of doubles `[8]` - founder haplotype frequencies (0-1, sum to 1.0)
 - `Err`: List of matrices `[8×8]` - error covariance matrices from lsei
-- `Names`: List of strings `[8]` - founder names (B1, B2, ..., B8)
+- `Names`: List of strings `[8]` - founder names (B1, B2, B3, B4, B5, B6, B7, AB8)
+
+**Dimensions**: 
+- **Adaptive**: 7,716 rows × 7 columns (4 samples × 1,929 positions)
+- **Smooth**: 7,636 rows × 7 columns (4 samples × 1,909 positions after sliding window)
 
 **Example**:
 ```r
-# A tibble: 7,636 × 7
+# A tibble: 7,716 × 7
    CHROM     pos sample    Groups    Haps      Err           Names    
    <chr>   <dbl> <chr>     <list>    <list>    <list>        <list>   
- 1 chr2R 5500000 Rep01_W_F <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
- 2 chr2R 5510000 Rep01_W_F <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
+ 1 chr2R 5400000 Rep01_W_F <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
+ 2 chr2R 5400000 Rep01_W_M <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
 ```
 
 **List-Column Access**:
@@ -332,6 +345,11 @@ groups <- data$Groups[[1]]     # Returns vector of 8 group assignments
 error_matrix <- data$Err[[1]]  # Returns 8×8 error covariance matrix
 founder_names <- data$Names[[1]] # Returns vector of 8 founder names
 ```
+
+**Key Notes**:
+- **Column name difference**: `CHROM` (not `chr`) in list format
+- **Founder names**: B1-B7, AB8 (not B8) - same as standard format
+- **Row count difference**: Smooth format has fewer rows due to sliding window edge effects
 
 ### **🧬 SNP Imputation Results**
 **File Pattern**: `process/<dataset>/haplotype_results/snp_imputation_<method>_<chr>.RDS`
