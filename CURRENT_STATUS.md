@@ -649,3 +649,18 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 ---
 
 *Last Updated: 2025-01-19 - List-Format Haplotype Estimators Complete, Perfect List-Column Structure Achieved, Smooth_H4 Sliding Window Working, Ready for Pipeline Integration*
+
+---
+
+## ⏳ In-Progress: 60-sample list-format runs (all chromosomes)
+- Submission: `sbatch scripts/production/run_list_format_all_chroms.slurm`
+- Array: `--array=1-5` over `chrX, chr2L, chr2R, chr3L, chr3R`
+- Resources: `--time=72:00:00`, `--cpus-per-task=2`, `--mem=12G`
+- Parameters: `helpfiles/ZINC2_haplotype_parameters.R` updated with full 60-sample `names_in_bam`
+- Pipeline per chromosome:
+  1) Adaptive list-format estimation (fresh run)
+  2) Smooth_h4 creation from adaptive list-format
+- Outputs per chromosome (list-format, one row per position):
+  - `process/ZINC2/haplotype_results_list_format/adapt_h4/R.haps.<chr>.out.rds`
+  - `process/ZINC2/haplotype_results_list_format/smooth_h4/R.haps.<chr>.out.rds`
+- Reference (kept): `process/ZINC2/haplotype_results_list_format/smooth_h4_results_<chr>.RDS`
