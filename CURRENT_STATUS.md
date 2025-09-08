@@ -351,6 +351,30 @@ founder_names <- data$Names[[1]] # Returns vector of 8 founder names
 - **Founder names**: B1-B7, AB8 (not B8) - same as standard format
 - **Row count difference**: Smooth format has fewer rows due to sliding window edge effects
 
+### One-row-per-position List Format (target)
+- One row per `(CHROM, pos)`; all samples for that position are stored as lists.
+- Column contents per row:
+  - `sample`: list<chr> of length = number of samples
+  - `Groups`: list<list<int[8]>> length = number of samples
+  - `Haps`: list<list<dbl[8]>> length = number of samples
+  - `Err`: list<list<dbl[8×8]>> length = number of samples
+  - `Names`: list<list<chr[8]>> length = number of samples
+
+Example (60-sample experiment):
+```r
+# A tibble: 4,649 × 7
+   CHROM    pos      sample       Groups         Haps          Err        Names
+   <chr>  <dbl> <list<chr>> <list<list>> <list<list>> <list<list>> <list<list>>
+ 1 chr2L  60000        [60]         [60]         [60]         [60]         [60]
+ 2 chr2L  65000        [60]         [60]         [60]         [60]         [60]
+ 3 chr2L  70000        [60]         [60]         [60]         [60]         [60]
+```
+
+### Output naming (reshaped list-format)
+- Reshaped adaptive_h4: `process/<dataset>/haplotype_results_list_format/adapt_h4/R.haps.<chr>.out.rds`
+- Reshaped smooth_h4: `process/<dataset>/haplotype_results_list_format/smooth_h4/R.haps.<chr>.out.rds`
+- Original smooth_h4 (per position×sample, for reference): `process/<dataset>/haplotype_results_list_format/smooth_h4_results_<chr>.RDS`
+
 ### **🧬 SNP Imputation Results**
 **File Pattern**: `process/<dataset>/haplotype_results/snp_imputation_<method>_<chr>.RDS`
 

@@ -232,23 +232,69 @@ smooth_data <- map_dfr(unique_samples, function(sample_name) {
   return(sample_smooth)
 })
 
-# Save the smooth_h4 LIST FORMAT results
-output_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
-saveRDS(smooth_data, output_file)
+# Reshape to one row per position with samples as lists
+smooth_data_reshaped <- smooth_data %>%
+  dplyr::arrange(CHROM, pos, sample) %>%
+  dplyr::group_by(CHROM, pos) %>%
+  dplyr::summarise(
+    sample = list(sample),
+    Groups = list(Groups),
+    Haps   = list(Haps),
+    Err    = list(Err),
+    Names  = list(Names),
+    .groups = "drop"
+  )
 
-cat("✓ Smooth h4 LIST FORMAT results saved to:", output_file, "\n")
+# Also reshape the original adaptive_h4 data to the same format
+adaptive_data_reshaped <- adaptive_data %>%
+  dplyr::arrange(CHROM, pos, sample) %>%
+  dplyr::group_by(CHROM, pos) %>%
+  dplyr::summarise(
+    sample = list(sample),
+    Groups = list(Groups),
+    Haps   = list(Haps),
+    Err    = list(Err),
+    Names  = list(Names),
+    .groups = "drop"
+  )
+
+## Output subdirectories for reshaped outputs
+smooth_dir <- file.path(list_results_dir, "smooth_h4")
+adapt_dir  <- file.path(list_results_dir, "adapt_h4")
+dir.create(smooth_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(adapt_dir,  recursive = TRUE, showWarnings = FALSE)
+
+# Save smooth_h4 in both formats (original and reshaped)
+smooth_original_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
+smooth_reshaped_file <- file.path(smooth_dir, paste0("R.haps.", chr, ".out.rds"))
+
+# Save adaptive_h4 in reshaped format (don't overwrite original)
+adaptive_reshaped_file <- file.path(adapt_dir, paste0("R.haps.", chr, ".out.rds"))
+
+saveRDS(smooth_data, smooth_original_file)                    # Original format
+saveRDS(smooth_data_reshaped, smooth_reshaped_file)           # Reshaped format
+saveRDS(adaptive_data_reshaped, adaptive_reshaped_file)       # Reshaped format
+
+cat("✓ Smooth h4 (original format) saved to:", basename(smooth_original_file), "\n")
+cat("✓ Smooth h4 (reshaped format) saved to:", basename(smooth_reshaped_file), "\n")
+cat("✓ Adaptive h4 (reshaped format) saved to:", basename(adaptive_reshaped_file), "\n")
 
 # Print structure of resulting dataframe
 cat("\n=== RESULTING DATAFRAME STRUCTURE ===\n")
-smooth_data
+smooth_data_reshaped
 
 # Print summary statistics
 cat("\n=== SMOOTH H4 LIST FORMAT SUMMARY ===\n")
-cat("Total positions:", nrow(smooth_data), "\n")
+cat("Total positions:", nrow(smooth_data_reshaped), "\n")
+cat("Samples per position:", length(smooth_data_reshaped$sample[[1]]), "\n")
 
 # Check that frequencies sum to 1 for valid positions (where Groups has 8 unique values)
-valid_positions <- map_lgl(smooth_data$Groups, function(groups) {
-  length(unique(groups)) == 8 && all(sort(unique(groups)) == 1:8)
+valid_positions <- map_lgl(smooth_data_reshaped$Groups, function(groups_list) {
+  # groups_list is a list of groups for all samples at this position
+  # Check if any sample has 8 distinguishable groups
+  any(map_lgl(groups_list, function(groups) {
+    length(unique(groups)) == 8 && all(sort(unique(groups)) == 1:8)
+  }))
 })
 
 cat("Positions with 8 distinguishable groups:", sum(valid_positions, na.rm = TRUE), "\n")
@@ -256,7 +302,9 @@ cat("Positions with clustered groups:", sum(!valid_positions, na.rm = TRUE), "\n
 
 if (sum(valid_positions, na.rm = TRUE) > 0) {
   freq_sums <- map_dbl(which(valid_positions), function(i) {
-    haps <- smooth_data$Haps[[i]]
+    haps_list <- smooth_data_reshaped$Haps[[i]]
+    # Get first sample's frequencies for validation
+    haps <- haps_list[[1]]
     if (any(is.na(haps))) return(NA)
     sum(haps)
   })
