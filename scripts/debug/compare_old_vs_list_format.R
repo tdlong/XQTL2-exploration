@@ -130,9 +130,9 @@ compare_frequencies <- function(old_data, new_data, method_name) {
 }
 
 # Load and compare adaptive_h4
-cat("\n" , "="*50, "\n")
+cat("\n", paste(rep("=", 50), collapse=""), "\n")
 cat("LOADING ADAPTIVE_H4 DATA\n")
-cat("="*50, "\n")
+cat(paste(rep("=", 50), collapse=""), "\n")
 
 if (file.exists(old_adaptive_file) && file.exists(new_adaptive_file)) {
   old_adaptive <- readRDS(old_adaptive_file)
@@ -155,9 +155,9 @@ if (file.exists(old_adaptive_file) && file.exists(new_adaptive_file)) {
 }
 
 # Load and compare smooth_h4
-cat("\n" , "="*50, "\n")
+cat("\n", paste(rep("=", 50), collapse=""), "\n")
 cat("LOADING SMOOTH_H4 DATA\n")
-cat("="*50, "\n")
+cat(paste(rep("=", 50), collapse=""), "\n")
 
 if (file.exists(old_smooth_file) && file.exists(new_smooth_file)) {
   old_smooth <- readRDS(old_smooth_file)
@@ -180,9 +180,9 @@ if (file.exists(old_smooth_file) && file.exists(new_smooth_file)) {
 }
 
 # Summary
-cat("\n" , "="*50, "\n")
+cat("\n", paste(rep("=", 50), collapse=""), "\n")
 cat("SUMMARY\n")
-cat("="*50, "\n")
+cat(paste(rep("=", 50), collapse=""), "\n")
 
 if (!is.na(adaptive_match)) {
   cat("Adaptive_h4 frequencies match:", ifelse(adaptive_match, "✅ YES", "❌ NO"), "\n")

@@ -280,6 +280,80 @@ process/ZINC2/haplotype_results/adaptive_window_h4_results_chr2R.RDS
 
 ---
 
+## 📋 **FILE FORMAT DOCUMENTATION**
+
+### **🧬 Haplotype Estimation Results - Standard Format**
+**File Pattern**: `process/<dataset>/haplotype_results/<method>_results_<chr>.RDS`
+
+**Structure**: Data frame with columns:
+- `CHROM`: Chromosome identifier (chr2L, chr2R, chr3L, chr3R, chrX)
+- `pos`: Genomic position (integer)
+- `sample`: Sample identifier (e.g., Rep01_W_F, Rep02_W_F, etc.)
+- `B1_freq`, `B2_freq`, ..., `B8_freq`: Founder haplotype frequencies (0-1, sum to 1.0)
+- `estimate_OK`: Boolean flag for reliability (TRUE/FALSE)
+- `window_size`: Window size used for estimation (integer, kb)
+- `n_snps`: Number of SNPs in window (integer)
+
+**Example**:
+```r
+# A tibble: 7,636 × 11
+   CHROM     pos sample    B1_freq B2_freq B3_freq B4_freq B5_freq B6_freq B7_freq B8_freq estimate_OK window_size n_snps
+   <chr>   <dbl> <chr>       <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl>   <dbl> <lgl>            <dbl>  <int>
+ 1 chr2R 5500000 Rep01_W_F   0.125   0.125   0.125   0.125   0.125   0.125   0.125   0.125 TRUE                20     45
+ 2 chr2R 5510000 Rep01_W_F   0.200   0.150   0.100   0.150   0.200   0.100   0.050   0.050 TRUE                20     52
+```
+
+### **🧬 Haplotype Estimation Results - List Format**
+**File Pattern**: `process/<dataset>/haplotype_results_list_format/<method>_results_<chr>.RDS`
+
+**Structure**: Data frame with list-columns:
+- `CHROM`: Chromosome identifier (chr2L, chr2R, chr3L, chr3R, chrX)
+- `pos`: Genomic position (integer)
+- `sample`: Sample identifier (e.g., Rep01_W_F, Rep02_W_F, etc.)
+- `Groups`: List of integers `[8]` - founder group assignments from clustering
+- `Haps`: List of doubles `[8]` - founder haplotype frequencies (0-1, sum to 1.0)
+- `Err`: List of matrices `[8×8]` - error covariance matrices from lsei
+- `Names`: List of strings `[8]` - founder names (B1, B2, ..., B8)
+
+**Example**:
+```r
+# A tibble: 7,636 × 7
+   CHROM     pos sample    Groups    Haps      Err           Names    
+   <chr>   <dbl> <chr>     <list>    <list>    <list>        <list>   
+ 1 chr2R 5500000 Rep01_W_F <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
+ 2 chr2R 5510000 Rep01_W_F <int [8]> <dbl [8]> <dbl [8 × 8]> <chr [8]>
+```
+
+**List-Column Access**:
+```r
+# Access frequencies for first row
+frequencies <- data$Haps[[1]]  # Returns vector of 8 frequencies
+groups <- data$Groups[[1]]     # Returns vector of 8 group assignments
+error_matrix <- data$Err[[1]]  # Returns 8×8 error covariance matrix
+founder_names <- data$Names[[1]] # Returns vector of 8 founder names
+```
+
+### **🧬 SNP Imputation Results**
+**File Pattern**: `process/<dataset>/haplotype_results/snp_imputation_<method>_<chr>.RDS`
+
+**Structure**: Data frame with columns:
+- `CHROM`: Chromosome identifier
+- `pos`: Genomic position (integer)
+- `sample`: Sample identifier
+- `snp_id`: SNP identifier
+- `ref_allele`: Reference allele
+- `alt_allele`: Alternative allele
+- `imputed`: Imputed genotype (0, 1, 2, or NA)
+- `confidence`: Imputation confidence score (0-1)
+- `method`: Imputation method used
+
+### **📊 Summary Files**
+**File Pattern**: `process/<dataset>/summary_<chr>_<method>.RDS`
+
+**Structure**: Aggregated results with performance metrics, MAE, coverage statistics, etc.
+
+---
+
 ## 📁 **DIRECTORY STRUCTURE & PATH RULES**
 
 ### **🌐 Cluster Environment & Relative Paths**
