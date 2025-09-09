@@ -16,16 +16,18 @@ source("estimate_haplotypes_centromere.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2 || length(args) > 3) {
-  cat("Usage: Rscript hap_estimation_centromere.R <param_file> <input_dir> [debug]\n")
+if (length(args) < 2 || length(args) > 4) {
+  cat("Usage: Rscript hap_estimation_centromere.R <param_file> <input_dir> [debug] [debug2]\n")
   cat("Example: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2\n")
   cat("Debug mode: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug\n")
+  cat("Debug2 mode: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug debug2\n")
   quit(status = 1)
 }
 
 param_file <- args[1]
 input_dir <- args[2]
-debug_mode <- if (length(args) == 3 && args[3] == "debug") TRUE else FALSE
+debug_mode <- if (length(args) >= 3 && args[3] == "debug") TRUE else FALSE
+debug2_mode <- if (length(args) == 4 && args[4] == "debug2") TRUE else FALSE
 
 # Chromosomes to process
 chromosomes <- c("chr2L", "chr2R", "chr3L", "chr3R")
@@ -74,6 +76,12 @@ for (chr in chromosomes) {
   if (length(chr_positions) == 0) {
     cat("No centromere positions found for", chr, "- skipping\n")
     next
+  }
+  
+  # Debug2 mode: limit chr2L to 1500 most proximal SNPs (highest positions)
+  if (debug2_mode && chr == "chr2L" && length(chr_positions) > 1500) {
+    chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
+    cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
   }
   
   cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
