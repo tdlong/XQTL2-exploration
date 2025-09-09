@@ -59,6 +59,9 @@ cat("✓ Parameter file:", param_file, "\n")
 cat("✓ Founders:", paste(founders, collapse=", "), "\n")
 cat("✓ Samples:", length(names_in_bam), "\n\n")
 
+# Collect all results in one tibble
+all_results <- tibble()
+
 # Process each chromosome
 for (chr in chromosomes) {
   cat("\n--- PROCESSING CHROMOSOME:", chr, "---\n")
@@ -147,43 +150,56 @@ for (chr in chromosomes) {
     cat("Processing all", length(samples_to_process), "samples\n")
   }
   
-  results_list <- list()
-  for (sample_name in samples_to_process) {
-    cat("Processing sample:", sample_name, "\n")
-    
-    result <- estimate_haplotypes_single_window(
-      pos = window_center,
-      sample_name = sample_name,
-      df3 = df3,
-      founders = founders,
-      h_cutoff = 4,
-      window_size_bp = max(chr_positions) - min(chr_positions) + 1,  # Use full range
-      chr = chr
-    )
-    
-    if (!is.null(result) && !is.null(result$Haps)) {
-      results_list[[sample_name]] <- result
-      cat("  ✓ Success\n")
-    } else {
-      cat("  ✗ Failed\n")
-    }
-  }
+  # Process samples using the same pattern as working production script
+  chr_results <- expand_grid(
+    pos = window_center,
+    sample_name = samples_to_process
+  ) %>%
+    purrr::pmap_dfr(~ {
+      cat("Processing pos:", ..1, "sample:", ..2, "\n")
+      result <- estimate_haplotypes_single_window(
+        pos = ..1,
+        sample_name = ..2,
+        df3 = df3,
+        founders = founders,
+        h_cutoff = 4,
+        window_size_bp = max(chr_positions) - min(chr_positions) + 1,
+        chr = chr
+      )
+      cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
+      
+      # Create natural row format (same as working production script)
+      return(tibble(
+        CHROM = chr,
+        pos = ..1,
+        sample = ..2,
+        Groups = list(result$Groups),
+        Haps = list(result$Haps),
+        Err = list(result$Err),
+        Names = list(result$Names)
+      ))
+    })
   
-  # Save results for this chromosome
-  if (length(results_list) > 0) {
-    output_file <- paste0("centromere_", chr, "_results.RDS")
-    saveRDS(results_list, output_file)
-    cat("✓ Results saved:", output_file, "\n")
-    cat("✓ Successful samples:", length(results_list), "/", length(names_in_bam), "\n")
-  } else {
-    cat("✗ No successful results for", chr, "\n")
-  }
+  # Add chromosome results to main results
+  all_results <- bind_rows(all_results, chr_results)
   
   # Clear memory
-  rm(df, df_subset, df2, df3, results_list)
+  rm(df, df_subset, df2, df3)
   gc()
   
 }  # End of chromosome loop
+
+# Save all results in one file
+if (nrow(all_results) > 0) {
+  output_file <- "centromere_all_results.RDS"
+  saveRDS(all_results, output_file)
+  cat("\n✓ All results saved:", output_file, "\n")
+  cat("✓ Total results:", nrow(all_results), "rows\n")
+  cat("✓ Chromosomes:", length(unique(all_results$CHROM)), "\n")
+  cat("✓ Samples:", length(unique(all_results$sample)), "\n")
+} else {
+  cat("\n✗ No successful results\n")
+}
 
 cat("\n=== CENTROMERE HAPLOTYPE ESTIMATION COMPLETE ===\n")
 
