@@ -328,8 +328,6 @@ if (nrow(all_results) > 0) {
     print(groups_results)
     cat("\n")
   }
-} else {
-  cat("\n✗ No successful results\n")
 }
 
 cat("\n=== CENTROMERE HAPLOTYPE ESTIMATION COMPLETE ===\n")
