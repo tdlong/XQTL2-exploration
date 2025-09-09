@@ -223,6 +223,37 @@ if (nrow(all_results) > 0) {
   output_file <- "combined_centromere_all_results.RDS"
   saveRDS(all_results, output_file)
   cat("\n✓ All results saved:", output_file, "\n")
+  cat("✓ Total results:", nrow(all_results), "rows\n")
+  cat("✓ Chromosomes:", length(unique(all_results$CHROM)), "\n")
+  cat("✓ Samples:", length(unique(all_results$sample)), "\n")
+  
+  # Show summary table for each sample across all chromosomes
+  cat("\n--- SUMMARY BY SAMPLE ---\n")
+  for (sample_name in unique(all_results$sample)) {
+    cat("\n", sample_name, ":\n")
+    
+    # Haplotype frequencies table
+    sample_results <- all_results %>%
+      filter(sample == sample_name) %>%
+      mutate(across(Haps, ~ map_chr(.x, ~ paste(sprintf("%02d", round(.x * 100)), collapse = " ")))) %>%
+      select(CHROM, Haps) %>%
+      separate(Haps, into = founders, sep = " ") %>%
+      as.data.frame()
+    
+    print(sample_results)
+    
+    # Groups table
+    cat("Groups:\n")
+    groups_results <- all_results %>%
+      filter(sample == sample_name) %>%
+      mutate(across(Groups, ~ map_chr(.x, ~ paste(.x, collapse = " ")))) %>%
+      select(CHROM, Groups) %>%
+      separate(Groups, into = founders, sep = " ") %>%
+      as.data.frame()
+    
+    print(groups_results)
+    cat("\n")
+  }
 } else {
   cat("\n✗ No successful results\n")
 }
