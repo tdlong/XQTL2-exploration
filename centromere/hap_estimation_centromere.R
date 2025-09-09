@@ -89,16 +89,11 @@ for (chr in chromosomes) {
   }
   
   df <- read.table(filein, header = TRUE)
-  cat("✓ RefAlt data loaded:", nrow(df), "positions\n")
-  
   # Check subsetting - how many sasha positions are in RefAlt?
   sasha_in_refalt <- sum(chr_positions %in% df$POS)
   subsetting_fraction <- sasha_in_refalt / length(chr_positions)
   
-  cat("✓ SUBSETTING STATISTICS:\n")
-  cat("  Sasha positions:", length(chr_positions), "\n")
-  cat("  Found in RefAlt:", sasha_in_refalt, "\n")
-  cat("  Fraction found:", sprintf("%.3f", subsetting_fraction), "\n")
+  cat("✓ Found", sasha_in_refalt, "of", length(chr_positions), "centromere positions (", sprintf("%.1f%%", subsetting_fraction*100), ")\n")
   
   if (subsetting_fraction < 0.8) {
     cat("  WARNING: Low subsetting fraction - may indicate a problem!\n")
@@ -108,10 +103,7 @@ for (chr in chromosomes) {
   df_subset <- df %>%
     filter(POS %in% chr_positions)
   
-  cat("✓ Subsetted RefAlt:", nrow(df_subset), "positions\n\n")
-  
   # Transform data for haplotype estimation
-  cat("Transforming data...\n")
   df2 <- df_subset %>%
     pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
     mutate(
@@ -131,9 +123,7 @@ for (chr in chromosomes) {
   df3 <- df2 %>%
     filter(name %in% c(founders, names_in_bam))
   
-  cat("✓ Transformed data:", nrow(df3), "rows\n")
-  cat("✓ Positions:", length(unique(df3$POS)), "\n")
-  cat("✓ Samples/founders:", length(unique(df3$name)), "\n\n")
+  cat("✓ Using", length(unique(df3$POS)), "positions for haplotype estimation\n")
   
   # Run haplotype estimation - ONE WINDOW per chromosome (all SNPs in subset)
   cat("Running haplotype estimation (one window per chromosome)...\n")
@@ -156,7 +146,6 @@ for (chr in chromosomes) {
     sample_name = samples_to_process
   ) %>%
     purrr::pmap_dfr(~ {
-      cat("Processing pos:", ..1, "sample:", ..2, "\n")
       result <- estimate_haplotypes_single_window(
         pos = ..1,
         sample_name = ..2,
@@ -166,7 +155,17 @@ for (chr in chromosomes) {
         window_size_bp = max(chr_positions) - min(chr_positions) + 1,
         chr = chr
       )
-      cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
+      
+      # Show useful information: haplotype estimates
+      if (!is.null(result) && !is.null(result$Haps)) {
+        cat("✓", ..2, "haplotype frequencies:\n")
+        for (i in seq_along(founders)) {
+          cat(sprintf("  %s: %.4f\n", founders[i], result$Haps[i]))
+        }
+        cat("  Sum:", sprintf("%.6f", sum(result$Haps)), "\n\n")
+      } else {
+        cat("✗", ..2, "FAILED\n")
+      }
       
       # Create natural row format (same as working production script)
       return(tibble(
