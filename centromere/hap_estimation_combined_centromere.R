@@ -81,8 +81,8 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
   }
   
   # Load RefAlt data (copy from working script)
-  df <- read_tsv(filein, col_types = cols(.default = "c")) %>%
-    mutate(POS = as.numeric(POS))
+  df <- read.table(filein, header = TRUE) %>%
+    mutate(CHROM = chr)
   
   # Check subsetting - how many sasha positions are in RefAlt?
   sasha_in_refalt <- sum(chr_positions %in% df$POS)
@@ -100,7 +100,7 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
   
   # Transform data for haplotype estimation (copy from working script)
   df2 <- df_subset %>%
-    pivot_longer(c(-POS), names_to = "lab", values_to = "count") %>%
+    pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
     mutate(
       RefAlt = str_sub(lab, 1, 3),
       name = str_sub(lab, 5)
