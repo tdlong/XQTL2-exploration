@@ -80,11 +80,32 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
     next
   }
   
+  # Load RefAlt data (copy from working script)
   df <- read_tsv(filein, col_types = cols(.default = "c")) %>%
-    mutate(POS = as.numeric(POS)) %>%
-    filter(POS %in% chr_positions) %>%
-    pivot_longer(cols = -POS, names_to = "lab", values_to = "count") %>%
-    separate(lab, into = c("RefAlt", "name"), sep = "_") %>%
+    mutate(POS = as.numeric(POS))
+  
+  # Check subsetting - how many sasha positions are in RefAlt?
+  sasha_in_refalt <- sum(chr_positions %in% df$POS)
+  subsetting_fraction <- sasha_in_refalt / length(chr_positions)
+  
+  cat("✓ Found", sasha_in_refalt, "of", length(chr_positions), "centromere positions (", sprintf("%.1f%%", subsetting_fraction*100), ")\n")
+  
+  if (subsetting_fraction < 0.8) {
+    cat("  WARNING: Low subsetting fraction - may indicate a problem!\n")
+  }
+  
+  # Subset RefAlt to only sasha positions
+  df_subset <- df %>%
+    filter(POS %in% chr_positions)
+  
+  # Transform data for haplotype estimation (copy from working script)
+  df2 <- df_subset %>%
+    pivot_longer(c(-POS), names_to = "lab", values_to = "count") %>%
+    mutate(
+      RefAlt = str_sub(lab, 1, 3),
+      name = str_sub(lab, 5)
+    ) %>%
+    select(-lab) %>%
     pivot_wider(names_from = RefAlt, values_from = count) %>%
     mutate(
       freq = REF / (REF + ALT),
@@ -93,27 +114,33 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
     select(-c("REF", "ALT")) %>%
     as_tibble()
   
-  # Apply quality filter
-  founder_wide <- df %>%
+  # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
+  founder_wide <- df2 %>%
     filter(name %in% founders) %>%
     select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
-  # Ensure column order matches founders order
+  # CRITICAL: Ensure column order matches founders order (pivot_wider can reorder lexically)
   founder_wide <- founder_wide[, c("POS", founders)]
   
-  # Quality filter: keep rows where ALL founders are fixed
+  # Verify column order is correct
+  cat("Column order after reordering:", paste(colnames(founder_wide)[-1], collapse=", "), "\n")
+  cat("Expected order:", paste(founders, collapse=", "), "\n")
+  if (!identical(colnames(founder_wide)[-1], founders)) {
+    stop("ERROR: Column order mismatch after reordering! This is a critical bug!")
+  }
+  
   quality_filtered_positions <- founder_wide %>%
     filter(
       if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
     ) %>%
     pull(POS)
   
-  # Filter to quality positions
-  df3 <- df %>%
+  # Filter to quality positions and include sample data
+  df3 <- df2 %>%
     filter(POS %in% quality_filtered_positions, name %in% c(founders, names_in_bam))
   
-  cat("✓ Found", nrow(df3), "quality-filtered positions for", chr, "\n")
+  cat("✓ Quality-filtered positions:", length(quality_filtered_positions), "\n")
   
   # Store the processed arm data
   arm_data[[chr]] <- df3
@@ -132,7 +159,7 @@ for (chr_group in c("2", "3")) {
     next
   }
   
-  # Combine the two arms
+  # Rowbind the two arms and renumber positions
   combined_df3 <- bind_rows(arm_data[[arm1]], arm_data[[arm2]]) %>%
     mutate(POS = row_number())  # Renumber positions from 1 to nrows
   
