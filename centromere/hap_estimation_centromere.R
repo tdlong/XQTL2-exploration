@@ -11,8 +11,8 @@
 
 library(tidyverse)
 
-# Source the haplotype estimation functions
-source("../scripts/production/haplotype_estimation_functions.R")
+# Source the modified working copy that returns list format
+source("../scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -151,7 +151,7 @@ for (chr in chromosomes) {
   for (sample_name in samples_to_process) {
     cat("Processing sample:", sample_name, "\n")
     
-    result <- estimate_haplotype_frequencies(
+    result <- estimate_haplotypes_list_format(
       pos = window_center,
       sample_name = sample_name,
       df3 = df3,
@@ -162,7 +162,7 @@ for (chr in chromosomes) {
       chr = chr
     )
     
-    if (!is.null(result)) {
+    if (!is.null(result) && !is.null(result$Haps)) {
       results_list[[sample_name]] <- result
       cat("  ✓ Success\n")
     } else {
