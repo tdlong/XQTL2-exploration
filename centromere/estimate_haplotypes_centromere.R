@@ -120,16 +120,11 @@ estimate_haplotypes_single_window <- function(pos, sample_name, df3, founders, h
     cat("After filtering: ", length(y), "complete positions\n")
   }
   
-  # Hierarchical clustering on founder frequencies
-  if (nrow(X) > 1) {
-    # Calculate distance matrix between positions based on founder frequencies
-    dist_matrix <- dist(X, method = "euclidean")
-    hc <- hclust(dist_matrix, method = "ward.D2")
-    groups <- cutree(hc, h = h_cutoff)
-  } else {
-    # Single position - all founders in same group
-    groups <- rep(1, length(founders))
-  }
+  # Hierarchical clustering on founders (not positions)
+  # Calculate distance matrix between founders based on their frequencies across positions
+  founder_dist <- dist(t(X), method = "euclidean")
+  hc <- hclust(founder_dist, method = "complete")
+  groups <- cutree(hc, h = h_cutoff)
   
   if (verbose >= 2) {
     cat("Clustering result: ", length(unique(groups)), "groups\n")
