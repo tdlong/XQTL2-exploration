@@ -123,13 +123,28 @@ estimate_haplotypes_single_window <- function(pos, sample_name, df3, founders, h
   # Hierarchical clustering on founders (not positions)
   # Calculate distance matrix between founders based on their frequencies across positions
   founder_dist <- dist(t(X), method = "euclidean")
+  
+  # Print distance matrix for debugging
+  cat("Founder distance matrix:\n")
+  dist_matrix <- as.matrix(founder_dist)
+  rownames(dist_matrix) <- founders
+  colnames(dist_matrix) <- founders
+  print(round(dist_matrix, 4))
+  cat("\n")
+  
   hc <- hclust(founder_dist, method = "complete")
   groups <- cutree(hc, h = h_cutoff)
   
-  if (verbose >= 2) {
-    cat("Clustering result: ", length(unique(groups)), "groups\n")
-    cat("Group assignments:", paste(groups, collapse = " "), "\n")
+  cat("Clustering result: ", length(unique(groups)), "groups\n")
+  cat("Group assignments:", paste(groups, collapse = " "), "\n")
+  cat("h_cutoff used:", h_cutoff, "\n")
+  
+  # Show which founders are in each group
+  for (group_id in unique(groups)) {
+    group_founders <- founders[groups == group_id]
+    cat("Group", group_id, ":", paste(group_founders, collapse = ", "), "\n")
   }
+  cat("\n")
   
   # Solve for haplotype frequencies using lsei
   # Constraint: frequencies must sum to 1

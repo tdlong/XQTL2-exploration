@@ -195,18 +195,7 @@ for (chr in chromosomes) {
   # Add chromosome results to main results
   all_results <- bind_rows(all_results, chr_results)
   
-  # Show summary table for this chromosome
-  if (nrow(chr_results) > 0) {
-    cat("\n--- SUMMARY FOR", chr, "---\n")
-    summary_table <- chr_results %>%
-      mutate(across(Haps, ~ map_chr(.x, ~ paste(sprintf("%02d", round(.x * 100)), collapse = " ")))) %>%
-      select(sample, Haps) %>%
-      separate(Haps, into = founders, sep = " ") %>%
-      as.data.frame()
-    
-    print(summary_table)
-    cat("\n")
-  }
+  # Don't show summary here - will show at the end for all chromosomes
   
   # Clear memory
   rm(df, df_subset, df2, df3)
@@ -222,6 +211,20 @@ if (nrow(all_results) > 0) {
   cat("✓ Total results:", nrow(all_results), "rows\n")
   cat("✓ Chromosomes:", length(unique(all_results$CHROM)), "\n")
   cat("✓ Samples:", length(unique(all_results$sample)), "\n")
+  
+  # Show summary table for each sample across all chromosomes
+  cat("\n--- SUMMARY BY SAMPLE ---\n")
+  for (sample_name in unique(all_results$sample)) {
+    cat("\n", sample_name, ":\n")
+    sample_results <- all_results %>%
+      filter(sample == sample_name) %>%
+      mutate(across(Haps, ~ map_chr(.x, ~ paste(sprintf("%02d", round(.x * 100)), collapse = " ")))) %>%
+      select(CHROM, Haps) %>%
+      separate(Haps, into = founders, sep = " ") %>%
+      as.data.frame()
+    
+    print(sample_results)
+  }
 } else {
   cat("\n✗ No successful results\n")
 }
