@@ -51,88 +51,134 @@ cat("✓ Samples:", length(names_in_bam), "\n\n")
 # Collect all results in one tibble
 all_results <- tibble()
 
-# Process combined chromosomes
-for (chr_group in c("2", "3")) {
-  cat("\n--- PROCESSING CHROMOSOME GROUP:", chr_group, "---\n")
+# Process each arm separately first
+arm_data <- list()
+
+for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
+  cat("\n--- PROCESSING ARM:", chr, "---\n")
   
-  # Get centromere positions for this chromosome group
+  # Get centromere positions for this chromosome
   chr_positions <- centromere_positions %>%
-    filter(CHROM %in% paste0("chr", chr_group, c("L", "R"))) %>%
+    filter(CHROM == chr) %>%
     pull(pos)
   
   if (length(chr_positions) == 0) {
-    cat("No centromere positions found for chr", chr_group, "- skipping\n")
+    cat("No centromere positions found for", chr, "- skipping\n")
     next
   }
   
-  cat("Combined chr", chr_group, " positions:", length(chr_positions), "\n")
-  cat("Position range:", min(chr_positions), "to", max(chr_positions), "\n\n")
+  # Apply debug2 mode (1500 proximal SNPs) to chr2L
+  if (debug2_mode && chr == "chr2L" && length(chr_positions) > 1500) {
+    chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
+    cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
+  }
   
-  # Load and combine RefAlt data from both arms
-  combined_data <- tibble()
-  for (arm in c("L", "R")) {
-    chr <- paste0("chr", chr_group, arm)
-    filein <- file.path(input_dir, paste0("RefAlt.", chr, ".txt"))
-    if (file.exists(filein)) {
-      chr_data <- read_tsv(filein, col_types = cols(.default = "c")) %>%
-        mutate(CHROM = chr)
+  cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
+  cat("Position range:", min(chr_positions), "to", max(chr_positions), "\n")
+  
+  # Load RefAlt data
+  filein <- file.path(input_dir, paste0("RefAlt.", chr, ".txt"))
+  if (!file.exists(filein)) {
+    cat("No RefAlt data found for", chr, "\n")
+    next
+  }
+  
+  df <- read_tsv(filein, col_types = cols(.default = "c")) %>%
+    mutate(POS = as.numeric(POS)) %>%
+    filter(POS %in% chr_positions) %>%
+    pivot_longer(cols = -POS, names_to = "lab", values_to = "count") %>%
+    separate(lab, into = c("RefAlt", "name"), sep = "_") %>%
+    pivot_wider(names_from = RefAlt, values_from = count) %>%
+    mutate(
+      freq = REF / (REF + ALT),
+      N = REF + ALT
+    ) %>%
+    select(-c("REF", "ALT")) %>%
+    as_tibble()
+  
+  # Apply quality filter
+  founder_wide <- df %>%
+    filter(name %in% founders) %>%
+    select(POS, name, freq) %>%
+    pivot_wider(names_from = name, values_from = freq)
+  
+  # Ensure column order matches founders order
+  founder_wide <- founder_wide[, c("POS", founders)]
+  
+  # Quality filter: keep rows where ALL founders are fixed
+  quality_filtered_positions <- founder_wide %>%
+    filter(
+      if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+    ) %>%
+    pull(POS)
+  
+  # Filter to quality positions
+  df3 <- df %>%
+    filter(POS %in% quality_filtered_positions, name %in% c(founders, names_in_bam))
+  
+  cat("✓ Found", nrow(df3), "quality-filtered positions for", chr, "\n")
+  
+  # Store the processed arm data
+  arm_data[[chr]] <- df3
+}
+
+# Now combine arms and run haplotype estimation
+for (chr_group in c("2", "3")) {
+  cat("\n--- COMBINING CHROMOSOME GROUP:", chr_group, "---\n")
+  
+  # Get the two arms for this group
+  arm1 <- paste0("chr", chr_group, "L")
+  arm2 <- paste0("chr", chr_group, "R")
+  
+  if (!(arm1 %in% names(arm_data)) || !(arm2 %in% names(arm_data))) {
+    cat("Missing arm data for chr", chr_group, "- skipping\n")
+    next
+  }
+  
+  # Combine the two arms
+  combined_df3 <- bind_rows(arm_data[[arm1]], arm_data[[arm2]]) %>%
+    mutate(POS = row_number())  # Renumber positions from 1 to nrows
+  
+  cat("Combined", arm1, "and", arm2, ":", nrow(combined_df3), "positions\n")
+  
+  # Run haplotype estimation for each sample
+  samples_to_process <- if (debug_mode) names_in_bam[1] else names_in_bam
+  
+  chr_results <- expand_grid(
+    pos = -99,  # Special position for combined
+    sample_name = samples_to_process
+  ) %>%
+    purrr::pmap_dfr(~ {
+      result <- estimate_haplotypes_single_window(
+        pos = ..1,
+        sample_name = ..2,
+        df3 = combined_df3,
+        founders = founders,
+        h_cutoff = h_cutoff,
+        window_size_bp = nrow(combined_df3),
+        chr = paste0("chr", chr_group)
+      )
       
-      # Apply debug2 mode (1500 proximal SNPs) to chr2L BEFORE combining
-      if (debug2_mode && chr == "chr2L") {
-        # Get chr2L centromere positions
-        chr2L_positions <- centromere_positions %>%
-          filter(CHROM == "chr2L") %>%
-          pull(pos)
-        
-        # Limit to 1500 most proximal SNPs (highest positions)
-        if (length(chr2L_positions) > 1500) {
-          chr2L_positions <- sort(chr2L_positions, decreasing = TRUE)[1:1500]
-          cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
+      if (!is.null(result) && !is.null(result$Haps)) {
+        cat("✓", ..2, "haplotype frequencies for chr", chr_group, ":\n")
+        for (i in seq_along(founders)) {
+          cat(sprintf("  %s: %.4f\n", founders[i], result$Haps[i]))
         }
-        
-        # Filter chr2L data to these positions
-        chr_data <- chr_data %>%
-          filter(POS %in% chr2L_positions)
+        cat("  Sum:", sprintf("%.6f", sum(result$Haps)), "\n\n")
+      } else {
+        cat("✗", ..2, "FAILED for chr", chr_group, "\n")
       }
       
-      combined_data <- bind_rows(combined_data, chr_data)
-    }
-  }
-  
-  if (nrow(combined_data) == 0) {
-    cat("No RefAlt data found for chr", chr_group, "\n")
-    next
-  }
-  
-  # Renumber positions from 1 to nrows to avoid overlap issues
-  combined_data <- combined_data %>%
-    mutate(POS = row_number())
-  
-  # For now, use all the combined data (we'll add centromere filtering later)
-  chr_data <- combined_data
-  
-  cat("Found", nrow(chr_data), "combined positions\n")
-  
-  if (nrow(chr_data) < 100) {
-    cat("WARNING: Very few positions found - may indicate a problem!\n")
-  }
-  
-  # Process the combined data
-  cat("Processing combined chr", chr_group, " data...\n")
-  
-  # TODO: Add the full haplotype estimation logic here
-  # This would be similar to the single chromosome processing but with combined data
-  
-  # Placeholder for now
-  chr_results <- tibble(
-    CHROM = paste0("chr", chr_group),
-    pos = -99,
-    sample = "placeholder",
-    Groups = list(1:8),
-    Haps = list(rep(0.125, 8)),
-    Err = list(diag(8)),
-    Names = list(founders)
-  )
+      return(tibble(
+        CHROM = paste0("chr", chr_group),
+        pos = -99,
+        sample = ..2,
+        Groups = list(result$Groups),
+        Haps = list(result$Haps),
+        Err = list(result$Err),
+        Names = list(result$Names)
+      ))
+    })
   
   all_results <- bind_rows(all_results, chr_results)
 }
