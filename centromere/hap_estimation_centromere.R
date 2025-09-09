@@ -133,6 +133,16 @@ for (chr in chromosomes) {
     select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
+  # CRITICAL: Ensure column order matches founders order (pivot_wider can reorder lexically)
+  founder_wide <- founder_wide[, c("POS", founders)]
+  
+  # Verify column order is correct
+  cat("Column order after reordering:", paste(colnames(founder_wide)[-1], collapse=", "), "\n")
+  cat("Expected order:", paste(founders, collapse=", "), "\n")
+  if (!identical(colnames(founder_wide)[-1], founders)) {
+    stop("ERROR: Column order mismatch after reordering! This is a critical bug!")
+  }
+  
   quality_filtered_positions <- founder_wide %>%
     filter(
       if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
