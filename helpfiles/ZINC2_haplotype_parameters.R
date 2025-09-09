@@ -11,7 +11,7 @@ step <- 10000  # 10kb steps
 # size <- 50000
 
 # Clustering parameters (used for fixed-window hierarchical clustering)
-h_cutoff <- 5
+h_cutoff <- 6
 
 # Samples to process (select subset from large REFALT files)
 # Full 60-sample experiment

@@ -164,7 +164,7 @@ for (chr in chromosomes) {
         sample_name = ..2,
         df3 = df3,
         founders = founders,
-        h_cutoff = 4,
+        h_cutoff = h_cutoff,
         window_size_bp = max(chr_positions) - min(chr_positions) + 1,
         chr = chr
       )
