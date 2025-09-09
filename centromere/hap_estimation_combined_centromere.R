@@ -141,6 +141,7 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
     filter(POS %in% quality_filtered_positions, name %in% c(founders, names_in_bam))
   
   cat("✓ Quality-filtered positions:", length(quality_filtered_positions), "\n")
+  cat("✓ Using", length(unique(df3$POS)), "positions for haplotype estimation\n")
   
   # Store the processed arm data
   arm_data[[chr]] <- df3
@@ -159,11 +160,21 @@ for (chr_group in c("2", "3")) {
     next
   }
   
-  # Rowbind the two arms and renumber positions
-  combined_df3 <- bind_rows(arm_data[[arm1]], arm_data[[arm2]]) %>%
-    mutate(POS = row_number())  # Renumber positions from 1 to nrows
+  # Get unique positions for each arm
+  arm1_positions <- unique(arm_data[[arm1]]$POS)
+  arm2_positions <- unique(arm_data[[arm2]]$POS)
   
-  cat("Combined", arm1, "and", arm2, ":", nrow(combined_df3), "positions\n")
+  # Renumber positions: 2L gets 1 to U_2L, 2R gets U_2L+1 to U_2L+U_2R
+  arm1_df3 <- arm_data[[arm1]] %>%
+    mutate(POS = match(POS, sort(arm1_positions)))
+  
+  arm2_df3 <- arm_data[[arm2]] %>%
+    mutate(POS = match(POS, sort(arm2_positions)) + length(arm1_positions))
+  
+  # Rowbind the renumbered arms
+  combined_df3 <- bind_rows(arm1_df3, arm2_df3)
+  
+  cat("Combined", arm1, "and", arm2, ":", length(unique(combined_df3$POS)), "positions\n")
   
   # Run haplotype estimation for each sample
   samples_to_process <- if (debug_mode) names_in_bam[1] else names_in_bam
