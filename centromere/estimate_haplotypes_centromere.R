@@ -122,14 +122,16 @@ estimate_haplotypes_single_window <- function(pos, sample_name, df3, founders, h
   
   # Hierarchical clustering on founders (not positions)
   # Calculate distance matrix between founders based on their frequencies across positions
+  # note Euclidean distance SQUARED for 0/1 SNP frequencies with founders tending to be 0 or 1
+  # it essentially the number of SNPs at which founders differ
   founder_dist <- dist(t(X), method = "euclidean")
   
-  # Print distance matrix for debugging
-  cat("Founder distance matrix:\n")
+  # Print distance matrix for debugging (squared = number of differing SNPs)
+  cat("Founder distance matrix (squared distance ~= number of SNPs at which founders i,j differ):\n")
   dist_matrix <- as.matrix(founder_dist)
   rownames(dist_matrix) <- founders
   colnames(dist_matrix) <- founders
-  print(round(dist_matrix, 4))
+  print(round(dist_matrix^2, 0))
   cat("\n")
   
   
