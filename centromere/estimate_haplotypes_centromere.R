@@ -132,6 +132,17 @@ estimate_haplotypes_single_window <- function(pos, sample_name, df3, founders, h
   print(round(dist_matrix, 4))
   cat("\n")
   
+  # Check correlation between B1 and AB8 specifically
+  if ("B1" %in% founders && "AB8" %in% founders) {
+    b1_idx <- which(founders == "B1")
+    ab8_idx <- which(founders == "AB8")
+    correlation <- cor(X[, b1_idx], X[, ab8_idx])
+    cat("B1 vs AB8 correlation:", round(correlation, 4), "\n")
+    cat("B1 + AB8 sum range:", round(range(X[, b1_idx] + X[, ab8_idx]), 4), "\n")
+    cat("B1 range:", round(range(X[, b1_idx]), 4), "\n")
+    cat("AB8 range:", round(range(X[, ab8_idx]), 4), "\n\n")
+  }
+  
   hc <- hclust(founder_dist, method = "complete")
   groups <- cutree(hc, h = h_cutoff)
   
