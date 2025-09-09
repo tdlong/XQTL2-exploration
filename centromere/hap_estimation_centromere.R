@@ -16,18 +16,20 @@ source("estimate_haplotypes_centromere.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2 || length(args) > 4) {
-  cat("Usage: Rscript hap_estimation_centromere.R <param_file> <input_dir> [debug] [debug2]\n")
+if (length(args) < 2 || length(args) > 5) {
+  cat("Usage: Rscript hap_estimation_centromere.R <param_file> <input_dir> [debug] [debug2] [debug3]\n")
   cat("Example: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2\n")
   cat("Debug mode: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug\n")
   cat("Debug2 mode: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug debug2\n")
+  cat("Debug3 mode: Rscript hap_estimation_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug debug3\n")
   quit(status = 1)
 }
 
 param_file <- args[1]
 input_dir <- args[2]
 debug_mode <- if (length(args) >= 3 && args[3] == "debug") TRUE else FALSE
-debug2_mode <- if (length(args) == 4 && args[4] == "debug2") TRUE else FALSE
+debug2_mode <- if (length(args) >= 4 && args[4] == "debug2") TRUE else FALSE
+debug3_mode <- if (length(args) == 5 && args[5] == "debug3") TRUE else FALSE
 
 # Chromosomes to process
 chromosomes <- c("chr2L", "chr2R", "chr3L", "chr3R")
@@ -64,28 +66,97 @@ cat("✓ Samples:", length(names_in_bam), "\n\n")
 # Collect all results in one tibble
 all_results <- tibble()
 
-# Process each chromosome
-for (chr in chromosomes) {
-  cat("\n--- PROCESSING CHROMOSOME:", chr, "---\n")
+# Debug3 mode: combine 2L+2R and 3L+3R
+if (debug3_mode) {
+  cat("\n--- DEBUG3 MODE: COMBINING CHROMOSOMES ---\n")
   
-  # Get centromere positions for this chromosome
-  chr_positions <- centromere_positions %>%
-    filter(CHROM == chr) %>%
+  # Process 2L+2R combined
+  cat("Processing 2L+2R combined...\n")
+  chr2_positions <- centromere_positions %>%
+    filter(CHROM %in% c("chr2L", "chr2R")) %>%
     pull(pos)
   
-  if (length(chr_positions) == 0) {
-    cat("No centromere positions found for", chr, "- skipping\n")
-    next
+  if (length(chr2_positions) > 0) {
+    cat("Combined 2L+2R positions:", length(chr2_positions), "\n")
+    cat("Position range:", min(chr2_positions), "to", max(chr2_positions), "\n\n")
+    
+    # Load and combine RefAlt data from 2L and 2R
+    combined_data <- tibble()
+    for (chr in c("chr2L", "chr2R")) {
+      filein <- file.path(input_dir, paste0("RefAlt.", chr, ".txt"))
+      if (file.exists(filein)) {
+        chr_data <- read_tsv(filein, col_types = cols(.default = "c")) %>%
+          mutate(CHROM = chr)
+        combined_data <- bind_rows(combined_data, chr_data)
+      }
+    }
+    
+    # Filter to centromere positions and process
+    chr_data <- combined_data %>%
+      filter(POS %in% chr2_positions)
+    
+    cat("Found", nrow(chr_data), "of", length(chr2_positions), "centromere positions (", 
+        round(100 * nrow(chr_data) / length(chr2_positions), 1), "% )\n")
+    
+    # Process combined 2L+2R data (simplified for now)
+    cat("Processing combined 2L+2R data...\n")
   }
   
-  # Debug2 mode: limit chr2L to 1500 most proximal SNPs (highest positions)
-  if (debug2_mode && chr == "chr2L" && length(chr_positions) > 1500) {
-    chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
-    cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
+  # Process 3L+3R combined
+  cat("Processing 3L+3R combined...\n")
+  chr3_positions <- centromere_positions %>%
+    filter(CHROM %in% c("chr3L", "chr3R")) %>%
+    pull(pos)
+  
+  if (length(chr3_positions) > 0) {
+    cat("Combined 3L+3R positions:", length(chr3_positions), "\n")
+    cat("Position range:", min(chr3_positions), "to", max(chr3_positions), "\n\n")
+    
+    # Load and combine RefAlt data from 3L and 3R
+    combined_data <- tibble()
+    for (chr in c("chr3L", "chr3R")) {
+      filein <- file.path(input_dir, paste0("RefAlt.", chr, ".txt"))
+      if (file.exists(filein)) {
+        chr_data <- read_tsv(filein, col_types = cols(.default = "c")) %>%
+          mutate(CHROM = chr)
+        combined_data <- bind_rows(combined_data, chr_data)
+      }
+    }
+    
+    # Filter to centromere positions and process
+    chr_data <- combined_data %>%
+      filter(POS %in% chr3_positions)
+    
+    cat("Found", nrow(chr_data), "of", length(chr3_positions), "centromere positions (", 
+        round(100 * nrow(chr_data) / length(chr3_positions), 1), "% )\n")
+    
+    # Process combined 3L+3R data (simplified for now)
+    cat("Processing combined 3L+3R data...\n")
   }
   
-  cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
-  cat("Position range:", min(chr_positions), "to", max(chr_positions), "\n\n")
+} else {
+  # Original single chromosome processing
+  for (chr in chromosomes) {
+    cat("\n--- PROCESSING CHROMOSOME:", chr, "---\n")
+    
+    # Get centromere positions for this chromosome
+    chr_positions <- centromere_positions %>%
+      filter(CHROM == chr) %>%
+      pull(pos)
+    
+    if (length(chr_positions) == 0) {
+      cat("No centromere positions found for", chr, "- skipping\n")
+      next
+    }
+    
+    # Debug2 mode: limit chr2L to 1500 most proximal SNPs (highest positions)
+    if (debug2_mode && chr == "chr2L" && length(chr_positions) > 1500) {
+      chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
+      cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
+    }
+    
+    cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
+    cat("Position range:", min(chr_positions), "to", max(chr_positions), "\n\n")
 
   # Load RefAlt data
   cat("Loading RefAlt data...\n")
