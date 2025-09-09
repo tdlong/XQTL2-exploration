@@ -61,9 +61,7 @@ cat("✓ Samples:", length(names_in_bam), "\n\n")
 
 # Process each chromosome
 for (chr in chromosomes) {
-  cat("\n", "="*60, "\n")
-  cat("PROCESSING CHROMOSOME:", chr, "\n")
-  cat("="*60, "\n")
+  cat("\n--- PROCESSING CHROMOSOME:", chr, "---\n")
   
   # Get centromere positions for this chromosome
   chr_positions <- centromere_positions %>%
