@@ -396,6 +396,141 @@ Example (60-sample experiment):
 
 ---
 
+## 📋 **PRODUCTION SCRIPTS DOCUMENTATION**
+
+### **🎯 Core Pipeline Scripts**
+
+#### **1. Haplotype Estimation**
+- **`haplotype_estimation_functions.R`** - Core R functions for fixed and adaptive window haplotype estimation
+  - **Purpose**: Unified algorithm with configurable verbosity
+  - **Key Functions**: `estimate_haplotype_frequencies()`, `adaptive_window_estimation()`
+  - **Usage**: Called by other scripts, not run directly
+
+- **`run_haplotype_estimation_list_format.R`** - Main haplotype estimation wrapper for list-format output
+  - **Purpose**: Runs chromosome-wide haplotype estimation with list-column output structure
+  - **Usage**: `Rscript scripts/production/run_haplotype_estimation_list_format.R <chr> <method> <parameter> <output_dir> <param_file>`
+  - **Output**: Creates `haplotype_results_list_format/` directory with list-format results
+
+- **`haplotype_estimation_list_format.R`** - List-format specific estimation functions
+  - **Purpose**: Modified functions that capture groups and error matrices for list-format output
+  - **Key Features**: Returns `Groups`, `Haps`, `Err`, `Names` as list-columns
+
+#### **2. Smoothing and Post-Processing**
+- **`create_smooth_haplotype_estimator_list_format.R`** - Creates smooth_h4 estimator from adaptive_h4
+  - **Purpose**: Applies 21-position sliding window mean to adaptive_h4 results
+  - **Usage**: `Rscript scripts/production/create_smooth_haplotype_estimator_list_format.R <chr> <param_file> <output_dir>`
+  - **Output**: Creates both smooth_h4 and reshaped adaptive_h4 in one-row-per-position format
+  - **Quality Control**: `estimate_OK` based on 17/21 reliable positions
+
+#### **3. SNP Imputation**
+- **`euchromatic_SNP_imputation_single.R`** - Single estimator SNP imputation
+  - **Purpose**: Imputes SNP genotypes from haplotype frequencies for one method at a time
+  - **Usage**: `Rscript scripts/production/euchromatic_SNP_imputation_single.R <chr> <param_file> <output_dir> <estimator>`
+  - **Key Fix**: Founder order mismatch corrected (AB8, B1, B2... vs B1, B2, B3..., AB8)
+  - **Output**: `snp_imputation_<method>_<chr>.RDS`
+
+- **`run_snp_imputation_list_format.R`** - SNP imputation for list-format estimators
+  - **Purpose**: Imputes SNPs using list-format haplotype data
+  - **Usage**: `Rscript scripts/production/run_snp_imputation_list_format.R <chr> <param_file> <output_dir> <estimator>`
+
+#### **4. SLURM Array Jobs**
+- **`run_list_format_all_chroms.slurm`** - Array job for all chromosomes (60-sample)
+  - **Purpose**: Runs adaptive_h4 and smooth_h4 list-format estimation for all 5 chromosomes
+  - **Usage**: `sbatch scripts/production/run_list_format_all_chroms.slurm`
+  - **Resources**: `--time=72:00:00`, `--cpus-per-task=2`, `--mem=12G`, `--array=1-5`
+  - **Chromosomes**: chrX, chr2L, chr2R, chr3L, chr3R
+
+- **`run_list_format_haplotype_estimation_slurm.sh`** - SLURM wrapper for single chromosome
+  - **Purpose**: SLURM job submission for haplotype estimation
+  - **Usage**: `sbatch scripts/production/run_list_format_haplotype_estimation_slurm.sh <chr> <method> <parameter> <output_dir> <param_file>`
+
+- **`run_list_format_reshape_all_slurm.sh`** - SLURM wrapper for reshaping
+  - **Purpose**: SLURM job submission for smooth_h4 creation
+  - **Usage**: `sbatch scripts/production/run_list_format_reshape_all_slurm.sh <chr> <param_file> <output_dir>`
+
+- **`snp_imputation_from_table.sh`** - Array job for SNP imputation
+  - **Purpose**: Runs SNP imputation for all parameter combinations in parallel
+  - **Usage**: `sbatch scripts/production/snp_imputation_from_table.sh <param_table> <param_file> <output_dir>`
+  - **Array**: `--array=1-10` (9 original + 1 smooth_h4)
+
+- **`haplotype_testing_from_table.sh`** - Array job for haplotype estimation
+  - **Purpose**: Runs haplotype estimation for all parameter combinations
+  - **Usage**: `sbatch scripts/production/haplotype_testing_from_table.sh <param_table> <param_file> <output_dir>`
+
+#### **5. Analysis and Evaluation**
+- **`evaluate_imputation_methods.R`** - Method comparison and evaluation
+  - **Purpose**: Compares performance across different haplotype estimation methods
+  - **Usage**: `Rscript scripts/production/evaluate_imputation_methods.R <chr> <param_file> <output_dir>`
+  - **Output**: Performance metrics, MAE calculations, reliability statistics
+
+- **`check_snp_imputation_status.R`** - Status checking utility
+  - **Purpose**: Checks which SNP imputation results exist and reports completion status
+  - **Usage**: `Rscript scripts/production/check_snp_imputation_status.R <param_table> <output_dir>`
+
+- **`create_summary_file_chunked.R`** - Summary file creation
+  - **Purpose**: Creates aggregated summary files with performance metrics
+  - **Usage**: `Rscript scripts/production/create_summary_file_chunked.R <chr> <param_file> <output_dir>`
+
+#### **6. Visualization**
+- **`plot_summary_chromosome.R`** - Chromosome-wide plotting
+  - **Purpose**: Creates plots for entire chromosome (adaptive_h4 focus)
+  - **Usage**: `Rscript scripts/production/plot_summary_chromosome.R <chr> <param_file> <output_dir> [method]`
+  - **Features**: LOESS smoothing, transparent points, professional styling
+
+- **`plot_summary_region.R`** - Regional plotting
+  - **Purpose**: Creates three-panel plots for specific regions
+  - **Usage**: `Rscript scripts/production/plot_summary_region.R <chr> <param_file> <output_dir> <midpoint_10kb>`
+  - **Panels**: B1 frequencies, MAE, SNP counts
+  - **Methods**: adaptive_h4, fixed_20kb, fixed_100kb
+
+### **🔄 Pipeline Workflow**
+
+#### **Complete Analysis Pipeline**:
+1. **Haplotype Estimation**: `haplotype_testing_from_table.sh` → `run_haplotype_estimation_list_format.R`
+2. **Smoothing**: `create_smooth_haplotype_estimator_list_format.R`
+3. **SNP Imputation**: `snp_imputation_from_table.sh` → `euchromatic_SNP_imputation_single.R`
+4. **Evaluation**: `evaluate_imputation_methods.R`
+5. **Summary**: `create_summary_file_chunked.R`
+6. **Visualization**: `plot_summary_chromosome.R` or `plot_summary_region.R`
+
+#### **60-Sample All-Chromosome Pipeline**:
+1. **Array Job**: `run_list_format_all_chroms.slurm`
+2. **Per Chromosome**: Adaptive estimation → Smooth creation
+3. **Output**: One-row-per-position list-format files
+
+### **📁 Input/Output Dependencies**
+
+#### **Input Files**:
+- **Parameter files**: `helpfiles/ZINC2_haplotype_parameters.R`, `helpfiles/production_slurm_params.tsv`
+- **SNP data**: `process/<dataset>/RefAlt.<chr>.txt`
+- **Haplotype results**: `process/<dataset>/haplotype_results/` or `haplotype_results_list_format/`
+
+#### **Output Files**:
+- **Haplotype results**: `process/<dataset>/haplotype_results/<method>_results_<chr>.RDS`
+- **List-format results**: `process/<dataset>/haplotype_results_list_format/<method>_results_<chr>.RDS`
+- **One-row-per-position**: `process/<dataset>/haplotype_results_list_format/<method>/R.haps.<chr>.out.rds`
+- **SNP imputation**: `process/<dataset>/haplotype_results/snp_imputation_<method>_<chr>.RDS`
+- **Summary files**: `process/<dataset>/summary_<chr>_<method>.RDS`
+
+### **🎯 Key Features**
+
+#### **List-Format Output**:
+- **Structure**: One row per position with list-columns for all samples
+- **Columns**: `CHROM`, `pos`, `sample`, `Groups`, `Haps`, `Err`, `Names`
+- **Benefits**: Efficient storage, easy access to per-sample data
+
+#### **Quality Control**:
+- **Adaptive**: `estimate_OK` flag based on clustering reliability
+- **Smooth**: `estimate_OK` based on 17/21 reliable positions
+- **SNP Imputation**: Proper handling of unreliable estimates
+
+#### **Scalability**:
+- **Array jobs**: Parallel processing across chromosomes and methods
+- **Parameterized**: Works with any dataset (JUICE, ZINC2, etc.)
+- **Modular**: Each script has single responsibility
+
+---
+
 ## 📁 **DIRECTORY STRUCTURE & PATH RULES**
 
 ### **🌐 Cluster Environment & Relative Paths**
@@ -664,3 +799,48 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
   - `process/ZINC2/haplotype_results_list_format/adapt_h4/R.haps.<chr>.out.rds`
   - `process/ZINC2/haplotype_results_list_format/smooth_h4/R.haps.<chr>.out.rds`
 - Reference (kept): `process/ZINC2/haplotype_results_list_format/smooth_h4_results_<chr>.RDS`
+
+---
+
+## 🧬 **CENTROMERE SIDE PROJECT - IN PROGRESS**
+
+### **Project Overview**
+Estimate haplotype frequencies for centromere regions using specialized single-window approach (no adaptive/sliding windows).
+
+### **Input Data Processing** ✅ **COMPLETE**
+- **Input files**: `helpfiles/2LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt`, `helpfiles/3LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt`
+- **Processing script**: `centromere/process_centromere_snps.R`
+- **Output**: `centromere/sasha_good.rds` - dataframe with `CHROM` (chr-prefixed) and `pos` columns
+- **Summary**: 44,369 total positions across chr2L, chr2R, chr3L, chr3R
+
+### **Single-Chromosome Centromere Estimation** ✅ **COMPLETE**
+- **Script**: `centromere/hap_estimation_centromere.R`
+- **Approach**: Single window per chromosome (no adaptive/sliding)
+- **Chromosomes**: chr2L, chr2R, chr3L, chr3R
+- **Quality Control**: Fixed founder frequencies (<3% or >97%)
+- **Special Filter**: chr2L limited to 1500 most proximal SNPs (highest positions)
+- **Output**: `centromere/centromere_all_results.RDS` - single tibble with list-columns
+- **Debug Features**: 
+  - Distance matrix shows squared distances (~number of differing SNPs)
+  - Concise haplotype frequency tables (whole percents)
+  - Group assignment summaries
+
+### **Combined-Chromosome Centromere Estimation** ✅ **COMPLETE**
+- **Script**: `centromere/hap_estimation_combined_centromere.R`
+- **Approach**: Combine arms (2L+2R → chr2, 3L+3R → chr3)
+- **Position Renumbering**: Sequential numbering after combining arms
+- **Output**: `centromere/combined_centromere_all_results.RDS`
+- **Special Features**: Always applies 1500 proximal 2L filter before combining
+
+### **Core Functions**
+- **`centromere/estimate_haplotypes_single_window.R`**: Single-window haplotype estimation
+- **Clustering**: Hierarchical clustering on founders (not SNPs)
+- **Constraints**: Non-negativity enforced in LSEI solver
+- **Distance Matrix**: Shows intuitive squared distances (number of differing SNPs)
+
+### **Key Improvements Made**
+- ✅ **Intuitive Distance Matrix**: Squared Euclidean distances show actual number of differing SNPs
+- ✅ **Column Order Safety**: Explicit reordering after `pivot_wider` to maintain founder order
+- ✅ **Quality Control**: Fixed founder frequency filtering (<3% or >97%)
+- ✅ **Debug Output**: Concise, useful summaries instead of verbose debugging
+- ✅ **Separate Scripts**: Clean separation between single-chromosome and combined approaches
