@@ -147,12 +147,16 @@ estimate_haplotypes_single_window <- function(pos, sample_name, df3, founders, h
   cat("\n")
   
   # Solve for haplotype frequencies using lsei
-  # Constraint: frequencies must sum to 1
+  # Constraint 1: frequencies must sum to 1
   E <- matrix(1, nrow = 1, ncol = length(founders))
   f <- 1
   
+  # Constraint 2: frequencies must be non-negative (>= 0.0003)
+  G <- diag(length(founders))
+  h <- rep(0.0003, length(founders))
+  
   # Solve the constrained least squares problem
-  result <- lsei(A = X, B = y, E = E, F = f, fulloutput = TRUE)
+  result <- lsei(A = X, B = y, E = E, F = f, G = G, H = h, fulloutput = TRUE)
   
   if (result$IsError) {
     if (verbose >= 1) {
