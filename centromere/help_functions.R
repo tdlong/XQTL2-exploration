@@ -1,3 +1,6 @@
+library(tidyverse)
+library(abind)
+
 average_variance <- function(cov_matrix, tolerance = 1e-10) {
   n <- nrow(cov_matrix)  
   # Calculate eigenvalues
@@ -106,17 +109,5 @@ Wald_wrapper = function(df3){
 	wt=wald.test3(p1,p2,covar1,covar2,nrepl,N1,N2)
 	Wald_log10p = -log10(wt$p.value)
     return(Wald_log10p)
-}
-
-# Analyze centromere results with pipes
-analyze_centromere_results <- function(results_file = "combined_centromere_all_results.RDS") {
-  readRDS(results_file) %>%
-    separate(sample, into = c("rep", "TRT", "sex"), sep = "_", remove = FALSE) %>%
-    group_by(CHROM, pos, sex) %>%
-    nest() %>%
-    mutate(
-      n_samples = map_int(data, nrow),
-      wald_results = map(data, Wald_wrapper)
-    )
 }
 
