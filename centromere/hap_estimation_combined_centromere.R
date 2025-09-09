@@ -64,10 +64,10 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
     next
   }
   
-  # Apply debug mode (1500 proximal SNPs) to chr2L
-  if (debug_mode && chr == "chr2L" && length(chr_positions) > 1500) {
+  # Apply 1500 proximal SNPs filter to chr2L (both debug and normal modes)
+  if (chr == "chr2L" && length(chr_positions) > 1500) {
     chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
-    cat("DEBUG MODE: Limited chr2L to 1500 most proximal SNPs\n")
+    cat("Limited chr2L to 1500 most proximal SNPs\n")
   }
   
   cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
