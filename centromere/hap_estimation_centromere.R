@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+#!/usr/bin/env Rscriptried 
 
 # CENTROMERE HAPLOTYPE ESTIMATION
 # 
@@ -11,8 +11,8 @@
 
 library(tidyverse)
 
-# Source the modified working copy that returns list format
-source("../scripts/debug/haplotype_estimation_functions_working_copy.R")
+# Source the centromere-specific function
+source("estimate_haplotypes_centromere.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -151,13 +151,12 @@ for (chr in chromosomes) {
   for (sample_name in samples_to_process) {
     cat("Processing sample:", sample_name, "\n")
     
-    result <- estimate_haplotypes_list_format(
+    result <- estimate_haplotypes_single_window(
       pos = window_center,
       sample_name = sample_name,
       df3 = df3,
       founders = founders,
       h_cutoff = 4,
-      method = "fixed",
       window_size_bp = max(chr_positions) - min(chr_positions) + 1,  # Use full range
       chr = chr
     )

@@ -6,27 +6,33 @@
 library(tidyverse)
 library(limSolve)
 
-#' Estimate Haplotype Frequencies
+#' Estimate Haplotype Frequencies (Adaptive Window Only)
 #' 
-#' Unified function for fixed window and adaptive window haplotype estimation
+#' Adaptive window haplotype estimation with hierarchical clustering
 #' 
 #' @param pos Genomic position (integer)
 #' @param sample_name Sample identifier (string)
 #' @param df3 Processed data frame with POS, name, freq columns
 #' @param founders Vector of founder names
 #' @param h_cutoff Hierarchical clustering cutoff threshold
-#' @param method Either "fixed" or "adaptive"
-#' @param window_size_bp Window size in base pairs (required for fixed method)
+#' @param method Method (ignored - always uses adaptive window)
+#' @param window_size_bp Window size in base pairs (ignored - always uses adaptive window)
 #' @param chr Chromosome name (for output)
 #' @param verbose Verbosity level (0=silent, 1=basic, 2=detailed, 3=full debug)
 #' 
-#' @return List with chr, pos, sample, method, final_window_size, n_snps, 
-#'         estimate_OK, and individual founder frequencies
-estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
-                               method = c("fixed", "adaptive"),
+#' @return List with:
+#'   - Groups: vector of group assignments from clustering (length = number of founders)
+#'   - Haps: vector of founder haplotype frequencies (length = number of founders, sums to 1.0)
+#'   - Err: error covariance matrix from lsei (n_founders x n_founders)
+#'   - Names: vector of founder names (length = number of founders)
+estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
+                               method = "adaptive",
                                window_size_bp = NULL,
                                chr = "chr2R",
                                verbose = 0) {
+  
+  # DEBUG: Confirm this modified function is being called
+  cat("DEBUG: Using MODIFIED estimate_haplotypes function from working_copy.R\n")
   
   method <- match.arg(method)
   
@@ -34,86 +40,6 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
     cat(sprintf("Processing pos: %s, sample: %s, method: %s\n", 
                 format(pos, big.mark=","), sample_name, method))
   }
-  
-  # Validate inputs
-  if (method == "fixed" && is.null(window_size_bp)) {
-    stop("window_size_bp required for fixed method")
-  }
-  
-  if (method == "fixed") {
-    # FIXED WINDOW METHOD
-    if (verbose >= 2) {
-      cat(sprintf("=== FIXED WINDOW METHOD: %d bp ===\n", window_size_bp))
-      cat(sprintf("Position: %s\n", format(pos, big.mark=",")))
-      cat(sprintf("Sample: %s\n", sample_name))
-    }
-    
-    # Calculate window boundaries
-    window_start <- pos - window_size_bp/2
-    window_end <- pos + window_size_bp/2
-    
-    if (verbose >= 2) {
-      cat(sprintf("Window range: %s to %s bp\n", 
-                  format(window_start, big.mark=","), 
-                  format(window_end, big.mark=",")))
-    }
-    
-    # Get data (same as test script)
-    window_data <- df3 %>%
-      filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
-    
-    if (nrow(window_data) == 0) {
-      if (verbose >= 1) cat("No data in window\n")
-      return(create_empty_result(chr, pos, sample_name, method, window_size_bp, founders))
-    }
-    
-    wide_data <- window_data %>%
-      select(POS, name, freq) %>%
-      pivot_wider(names_from = name, values_from = freq)
-    
-    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) {
-      if (verbose >= 1) cat("Insufficient data in window\n")
-      return(create_empty_result(chr, pos, sample_name, method, window_size_bp, founders))
-    }
-    
-    if (verbose >= 2) {
-      cat(sprintf("SNPs in window: %d positions\n", nrow(wide_data)))
-    }
-    
-    # Get founder matrix and sample frequencies
-    founder_matrix <- wide_data %>%
-      select(all_of(founders)) %>%
-      as.matrix()
-    sample_freqs <- wide_data %>%
-      pull(!!sample_name)
-    
-    complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
-    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
-    sample_freqs_clean <- sample_freqs[complete_rows]
-    
-    if (nrow(founder_matrix_clean) < 10) {
-      if (verbose >= 1) cat("Too few complete SNPs\n")
-      return(create_empty_result(chr, pos, sample_name, method, window_size_bp, founders))
-    }
-    
-    if (verbose >= 2) {
-      cat(sprintf("Complete SNPs for analysis: %d\n", nrow(founder_matrix_clean)))
-    }
-    
-    # Show diagnostic data if requested
-    if (verbose >= 3) {
-      show_snp_diagnostics(wide_data, founders, founder_matrix_clean)
-    }
-    
-    # Run LSEI and clustering
-    result <- run_lsei_and_clustering(founder_matrix_clean, sample_freqs_clean, 
-                                     founders, h_cutoff, verbose)
-    
-    # Return result
-    return(create_result(chr, pos, sample_name, method, window_size_bp, 
-                        nrow(wide_data), result$estimate_OK, result$haplotype_freqs, founders))
-    
-  } else {
     # ADAPTIVE WINDOW METHOD
     if (verbose >= 2) {
       cat(sprintf("=== ADAPTIVE WINDOW METHOD: h_cutoff = %g ===\n", h_cutoff))
@@ -229,7 +155,7 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       tryCatch({
         result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
                                 E = E, F = F, 
-                                G = diag(n_founders), H = matrix(rep(0.0003, n_founders)))
+                                G = diag(n_founders), H = matrix(rep(0.0003, n_founders)), fulloutput = TRUE)
         
         if (result$IsError == 0) {
           # LSEI successful - accumulate constraints for next window
@@ -351,226 +277,10 @@ estimate_haplotypes <- function(pos, sample_name, df3, founders, h_cutoff,
       cat(sprintf("  n_snps: %d\n", ifelse(is.null(final_result), 0, nrow(final_wide_data))))
     }
     
-    # Return result
-    return(create_result(chr, pos, sample_name, method, final_window_size, 
-                        ifelse(is.null(final_result), 0, nrow(final_wide_data)), 
-                        estimate_OK, founder_frequencies, founders, h_cutoff))
-  }
+    return(list(Groups=groups, Haps=founder_frequencies, Err=result$cov, Names=founders))
+  
 }
 
-#' Run LSEI estimation and clustering analysis
-#' @param founder_matrix_clean Clean founder matrix (no NAs)
-#' @param sample_freqs_clean Clean sample frequencies (no NAs) 
-#' @param founders Vector of founder names
-#' @param h_cutoff Clustering threshold
-#' @param verbose Verbosity level
-#' @return List with estimate_OK and haplotype_freqs
-run_lsei_and_clustering <- function(founder_matrix_clean, sample_freqs_clean, 
-                                   founders, h_cutoff, verbose) {
-  
-  # Initialize result variables
-  estimate_OK <- NA
-  haplotype_freqs <- rep(NA, length(founders))
-  names(haplotype_freqs) <- founders
-  
-  # ADDED: Detailed debugging output right before LSEI
-  if (verbose >= 3) {
-    cat("\n=== DETAILED DEBUGGING BEFORE LSEI ===\n")
-    cat("Founder matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
-    cat("Sample frequencies length:", length(sample_freqs_clean), "\n")
-    cat("h_cutoff:", h_cutoff, "\n")
-    
-    # Show founder matrix summary
-    cat("\nFounder matrix summary:\n")
-    for (i in seq_along(founders)) {
-      founder_data <- founder_matrix_clean[, i]
-      cat(sprintf("  %s: %d SNPs, range %.3f-%.3f, mean %.3f\n", 
-                 founders[i], length(founder_data), 
-                 min(founder_data, na.rm=TRUE), max(founder_data, na.rm=TRUE),
-                 mean(founder_data, na.rm=TRUE)))
-    }
-    
-    # Show sample frequency summary
-    cat("\nSample frequency summary:\n")
-    cat("  Range:", min(sample_freqs_clean, na.rm=TRUE), "-", max(sample_freqs_clean, na.rm=TRUE), "\n")
-    cat("  Mean:", mean(sample_freqs_clean, na.rm=TRUE), "\n")
-    cat("  NAs:", sum(is.na(sample_freqs_clean)), "\n")
-    
-    # Calculate and show founder distances
-    cat("\nFounder distance matrix:\n")
-    founder_dist <- dist(t(founder_matrix_clean))
-    founder_dist_matrix <- as.matrix(founder_dist)
-    print(round(founder_dist_matrix, 4))
-    
-    # Show clustering results
-    cat("\nHierarchical clustering results:\n")
-    hclust_result <- hclust(founder_dist, method = "complete")
-    groups <- cutree(hclust_result, h = h_cutoff)
-    n_groups <- length(unique(groups))
-    
-    cat("  h_cutoff:", h_cutoff, "\n")
-    cat("  Number of groups:", n_groups, "\n")
-    cat("  Expected groups:", length(founders), "\n")
-    cat("  Groups sufficient:", n_groups == length(founders), "\n")
-    
-    # Show group assignments
-    unique_clusters <- unique(groups)
-    for (cluster_id in unique_clusters) {
-      cluster_founders <- founders[groups == cluster_id]
-      if (length(cluster_founders) == 1) {
-        cat(sprintf("  Group %d: %s (individual)\n", cluster_id, cluster_founders))
-      } else {
-        cat(sprintf("  Group %d: %s\n", cluster_id, paste(cluster_founders, collapse=", ")))
-      }
-    }
-    
-    # Show minimum distance between any two founders
-    min_dist <- min(founder_dist)
-    cat("\nDistance analysis:\n")
-    cat("  Minimum distance between any two founders:", round(min_dist, 4), "\n")
-    cat("  h_cutoff satisfied:", min_dist >= h_cutoff, "\n")
-    
-    # Show which founders are closest
-    min_dist_idx <- which(founder_dist_matrix == min_dist, arr.ind = TRUE)
-    if (nrow(min_dist_idx) > 0) {
-      closest_pair <- min_dist_idx[1, ]
-      cat("  Closest founders:", founders[closest_pair[1]], "and", founders[closest_pair[2]], "\n")
-    }
-    
-    cat("=== END DEBUGGING ===\n\n")
-  }
-  
-  # Run LSEI with better error handling
-  tryCatch({
-    E <- matrix(rep(1, length(founders)), nrow = 1)  # Sum to 1 constraint
-    F <- 1.0
-    G <- diag(length(founders))  # Non-negativity constraints
-    H <- matrix(rep(0.0003, length(founders)))  # Lower bound
-    
-    if (verbose >= 2) {
-      cat("\nLSEI inputs:\n")
-      cat("Matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
-      cat("Number of constraints:", nrow(E), "equality +", nrow(G), "inequality\n")
-    }
-    
-    # Try LSEI with warning handler
-    withCallingHandlers({
-      lsei_result <- limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
-                                   E = E, F = F, G = G, H = H)
-    }, warning = function(w) {
-      if (verbose >= 1) {
-        cat("LSEI Warning:", conditionMessage(w), "\n")
-      }
-    })
-    
-    if (lsei_result$IsError == 0) {
-      # LSEI successful - get frequencies
-      haplotype_freqs <- lsei_result$X
-      names(haplotype_freqs) <- founders
-      
-      if (verbose >= 1) {
-        cat("✓ LSEI successful\n")
-      }
-      
-      if (verbose >= 3) {
-        cat("✓ LSEI successful!\n")
-        cat("Haplotype frequency estimates:\n")
-        for (i in seq_along(founders)) {
-          cat(sprintf("  %s: %.4f\n", founders[i], haplotype_freqs[i]))
-        }
-        cat("Sum of frequencies:", round(sum(haplotype_freqs), 4), "\n")
-      }
-      
-      # Check distinguishability
-      distances <- dist(t(founder_matrix_clean))
-      hclust_result <- hclust(distances, method = "complete")
-      groups <- cutree(hclust_result, h = h_cutoff)
-      n_groups <- length(unique(groups))
-      
-      if (verbose >= 3) {
-        show_clustering_diagnostics(distances, founders, h_cutoff, groups, n_groups, haplotype_freqs)
-      }
-      
-      estimate_OK <- ifelse(n_groups == length(founders), 1, 0)
-      
-    } else {
-      # LSEI failed with error code
-      estimate_OK <- NA
-      # Only show diagnostics on actual error
-      cat("✗ LSEI failed with error code:", lsei_result$IsError, "\n")
-      if (lsei_result$IsError == 3) {
-        cat("  Inequalities are contradictory - showing diagnostics:\n")
-        # Show founder ranges for this problematic case
-        for (i in seq_along(founders)) {
-          freq_range <- range(founder_matrix_clean[, i], na.rm = TRUE)
-          cat(sprintf("  %s: %.3f - %.3f\n", founders[i], freq_range[1], freq_range[2]))
-        }
-        # Show matrix condition if available
-        tryCatch({
-          cond <- kappa(founder_matrix_clean)
-          cat("  Matrix condition number:", format(cond, scientific = TRUE), "\n")
-        }, error = function(e) {})
-      }
-    }
-  }, error = function(e) {
-    # Catastrophic LSEI error
-    estimate_OK <- NA
-    if (verbose >= 1) {
-      cat("✗ LSEI error:", e$message, "\n")
-      cat("  Matrix dimensions:", nrow(founder_matrix_clean), "x", ncol(founder_matrix_clean), "\n")
-      cat("  Complete SNPs:", sum(complete.cases(founder_matrix_clean)), "\n")
-    }
-  })
-  
-  return(list(estimate_OK = estimate_OK, haplotype_freqs = haplotype_freqs))
-}
-
-#' Create empty result for failed cases
-create_empty_result <- function(chr, pos, sample_name, method, window_size, founders) {
-  result <- list(
-    chr = chr,
-    pos = pos,
-    sample = sample_name,
-    method = method,
-    final_window_size = window_size,
-    n_snps = 0,
-    estimate_OK = NA
-  )
-  
-  # Add founder frequencies as NA
-  for (founder in founders) {
-    result[[founder]] <- NA
-  }
-  
-  return(result)
-}
-
-#' Create result structure
-create_result <- function(chr, pos, sample_name, method, window_size, n_snps, estimate_OK, haplotype_freqs, founders, h_cutoff = NA) {
-  result <- list(
-    chr = chr,
-    pos = pos,
-    sample = sample_name,
-    method = method
-  )
-  
-  # Add h_cutoff for adaptive method (right after method)
-  if (method == "adaptive") {
-    result[["h_cutoff"]] <- h_cutoff
-  }
-  
-  # Continue with remaining columns
-  result[["final_window_size"]] <- window_size
-  result[["n_snps"]] <- n_snps
-  result[["estimate_OK"]] <- estimate_OK
-  
-  # Add founder frequencies
-  for (i in seq_along(founders)) {
-    result[[founders[i]]] <- haplotype_freqs[i]
-  }
-  
-  return(result)
-}
 
 #' Show SNP diagnostic information
 show_snp_diagnostics <- function(wide_data, founders, founder_matrix_clean) {
