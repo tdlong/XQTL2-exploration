@@ -119,10 +119,23 @@ for (chr in chromosomes) {
     select(-c("REF", "ALT")) %>%
     as_tibble()
   
-  # Filter to founders and samples only
-  df3 <- df2 %>%
-    filter(name %in% c(founders, names_in_bam))
+  # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
+  founder_wide <- df2 %>%
+    filter(name %in% founders) %>%
+    select(POS, name, freq) %>%
+    pivot_wider(names_from = name, values_from = freq)
   
+  quality_filtered_positions <- founder_wide %>%
+    filter(
+      if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+    ) %>%
+    pull(POS)
+  
+  # Filter to quality positions and include sample data
+  df3 <- df2 %>%
+    filter(POS %in% quality_filtered_positions, name %in% c(founders, names_in_bam))
+  
+  cat("✓ Quality-filtered positions:", length(quality_filtered_positions), "\n")
   cat("✓ Using", length(unique(df3$POS)), "positions for haplotype estimation\n")
   
   # Run haplotype estimation - ONE WINDOW per chromosome (all SNPs in subset)
@@ -181,6 +194,19 @@ for (chr in chromosomes) {
   
   # Add chromosome results to main results
   all_results <- bind_rows(all_results, chr_results)
+  
+  # Show summary table for this chromosome
+  if (nrow(chr_results) > 0) {
+    cat("\n--- SUMMARY FOR", chr, "---\n")
+    summary_table <- chr_results %>%
+      mutate(across(Haps, ~ map_chr(.x, ~ paste(sprintf("%02d", round(.x * 100)), collapse = " ")))) %>%
+      select(sample, Haps) %>%
+      separate(Haps, into = founders, sep = " ") %>%
+      as.data.frame()
+    
+    print(summary_table)
+    cat("\n")
+  }
   
   # Clear memory
   rm(df, df_subset, df2, df3)
