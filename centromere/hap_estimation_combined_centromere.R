@@ -16,24 +16,21 @@ source("estimate_haplotypes_centromere.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2 || length(args) > 4) {
-  cat("Usage: Rscript hap_estimation_combined_centromere.R <param_file> <input_dir> [debug] [debug2]\n")
+if (length(args) < 2 || length(args) > 3) {
+  cat("Usage: Rscript hap_estimation_combined_centromere.R <param_file> <input_dir> [debug]\n")
   cat("Example: Rscript hap_estimation_combined_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2\n")
   cat("Debug mode: Rscript hap_estimation_combined_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug\n")
-  cat("Debug2 mode: Rscript hap_estimation_combined_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2 debug debug2\n")
   quit(status = 1)
 }
 
 param_file <- args[1]
 input_dir <- args[2]
-debug_mode <- if (length(args) >= 3 && args[3] == "debug") TRUE else FALSE
-debug2_mode <- if (length(args) == 4 && args[4] == "debug2") TRUE else FALSE
+debug_mode <- if (length(args) == 3 && args[3] == "debug") TRUE else FALSE
 
 cat("=== COMBINED CENTROMERE HAPLOTYPE ESTIMATION ===\n")
 cat("Input directory:", input_dir, "\n")
 cat("Parameter file:", param_file, "\n")
 cat("Debug mode:", if (debug_mode) "ON (first sample only)" else "OFF (all samples)", "\n")
-cat("Debug2 mode:", if (debug2_mode) "ON (1500 proximal 2L SNPs)" else "OFF (all 2L SNPs)", "\n")
 
 # Load centromere positions
 cat("\nLoading centromere positions from sasha_good.rds...\n")
@@ -67,10 +64,10 @@ for (chr in c("chr2L", "chr2R", "chr3L", "chr3R")) {
     next
   }
   
-  # Apply debug2 mode (1500 proximal SNPs) to chr2L
-  if (debug2_mode && chr == "chr2L" && length(chr_positions) > 1500) {
+  # Apply debug mode (1500 proximal SNPs) to chr2L
+  if (debug_mode && chr == "chr2L" && length(chr_positions) > 1500) {
     chr_positions <- sort(chr_positions, decreasing = TRUE)[1:1500]
-    cat("DEBUG2 MODE: Limited chr2L to 1500 most proximal SNPs\n")
+    cat("DEBUG MODE: Limited chr2L to 1500 most proximal SNPs\n")
   }
   
   cat("Sasha positions for", chr, ":", length(chr_positions), "\n")
