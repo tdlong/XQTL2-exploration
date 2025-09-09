@@ -111,3 +111,85 @@ Wald_wrapper = function(df3){
     return(Wald_log10p)
 }
 
+# Centromere-specific wrapper that works with the centromere data structure
+Wald_wrapper_centromere = function(df3){
+	# Extract haplotype frequencies for each treatment group
+	p1 = df3 %>% filter(TRT=="W") %>% pull(Haps) %>% map_dfr(~as_tibble(t(.x))) %>% as.matrix()
+	p2 = df3 %>% filter(TRT=="Z") %>% pull(Haps) %>% map_dfr(~as_tibble(t(.x))) %>% as.matrix()
+	
+	# Extract error covariance matrices
+	covar1 = df3 %>% filter(TRT=="W") %>% pull(Err) %>% abind::abind(along = 3)
+	covar2 = df3 %>% filter(TRT=="Z") %>% pull(Err) %>% abind::abind(along = 3)
+	
+	# Sample sizes (assuming equal for now - you may need to adjust this)
+	nrepl = df3 %>% filter(TRT=="W") %>% nrow()
+	nrepl == df3 %>% filter(TRT=="Z") %>% nrow()
+	
+	# For centromere data, we don't have Num column, so use a default or calculate from data
+	# You may need to adjust this based on your actual sample sizes
+	N1 = rep(1, nrepl)  # Default sample size - adjust as needed
+	N2 = rep(1, nrepl)  # Default sample size - adjust as needed
+
+	wt = wald.test3(p1, p2, covar1, covar2, nrepl, N1, N2)
+	Wald_log10p = -log10(wt$p.value)
+    return(Wald_log10p)
+}
+
+# Calculate average haplotype frequency difference between treatments
+calculate_haplotype_difference <- function(data) {
+  # Calculate average haplotype frequencies for each treatment
+  avg_C <- data %>% 
+    filter(TRT == "C") %>% 
+    pull(Haps) %>% 
+    map_dfr(~as_tibble(t(.x))) %>% 
+    summarise_all(mean) %>% 
+    as.numeric()
+  
+  avg_Z <- data %>% 
+    filter(TRT == "Z") %>% 
+    pull(Haps) %>% 
+    map_dfr(~as_tibble(t(.x))) %>% 
+    summarise_all(mean) %>% 
+    as.numeric()
+  
+  # Calculate difference (Z - C)
+  Dhap <- avg_Z - avg_C
+  return(Dhap)
+}
+
+# Complete centromere analysis function
+run_centromere_analysis <- function(results_file = "combined_centromere_all_results.RDS", 
+                                   info_file = "info.ZINC2.txt",
+                                   output_file = "Centromere_Wald_testing.RDS") {
+  
+  cat("=== CENTROMERE WALD TESTING ANALYSIS ===\n")
+  cat("Loading data...\n")
+  
+  # Read the info file
+  info_data <- read_tsv(info_file)
+  cat("✓ Loaded info file:", info_file, "\n")
+  
+  # Run the complete analysis
+  cat("Running analysis...\n")
+  out <- readRDS(results_file) %>%
+    separate(sample, into = c("rep", "TRT", "sex"), sep = "_", remove = FALSE) %>%
+    left_join(info_data, by = c("sample" = "bam")) %>%
+    mutate(TRT = ifelse(TRT == "W", "C", TRT)) %>%
+    group_by(CHROM, pos, sex) %>%
+    nest() %>%
+    mutate(
+      wald_results = map(data, Wald_wrapper),
+      Dhap = map(data, calculate_haplotype_difference)
+    )
+  
+  cat("✓ Analysis complete\n")
+  cat("Results summary:\n")
+  print(out)
+  
+  # Save results
+  saveRDS(out, output_file)
+  cat("✓ Results saved to:", output_file, "\n")
+  
+  return(out)
+}
+
