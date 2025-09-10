@@ -231,6 +231,15 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
           final_result <- result
           final_n_groups <- n_groups
           
+          if (verbose >= 2) {
+            cat(sprintf("    Stored LSEI result with %d groups\n", n_groups))
+            if ("cov" %in% names(result)) {
+              cat("    Covariance matrix available in this result\n")
+            } else {
+              cat("    No covariance matrix in this result\n")
+            }
+          }
+          
           # Check if all founders are separated
           if (n_groups == length(founders)) {
             if (verbose >= 2) {
@@ -286,12 +295,39 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     
     # Return appropriate error matrix
     if (!is.null(final_result)) {
-      error_matrix <- final_result$cov
+      # Check what fields are available in the LSEI result
+      if (verbose >= 2) {
+        cat("LSEI result fields:", names(final_result), "\n")
+        if ("cov" %in% names(final_result)) {
+          cat("Covariance matrix available\n")
+        } else {
+          cat("No covariance matrix in LSEI result\n")
+        }
+      }
+      
+      if ("cov" %in% names(final_result) && !is.null(final_result$cov)) {
+        error_matrix <- final_result$cov
+        if (verbose >= 2) {
+          cat("Using LSEI covariance matrix\n")
+        }
+      } else {
+        # LSEI didn't provide covariance - create NA matrix
+        error_matrix <- matrix(NA, length(founders), length(founders))
+        rownames(error_matrix) <- founders
+        colnames(error_matrix) <- founders
+        if (verbose >= 2) {
+          cat("LSEI result fields:", paste(names(final_result), collapse=", "), "\n")
+          cat("No covariance matrix in LSEI result - using NA matrix\n")
+        }
+      }
     } else {
       # Create NA matrix when no result
       error_matrix <- matrix(NA, length(founders), length(founders))
       rownames(error_matrix) <- founders
       colnames(error_matrix) <- founders
+      if (verbose >= 2) {
+        cat("No LSEI result - using NA matrix\n")
+      }
     }
     
     return(list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders))
