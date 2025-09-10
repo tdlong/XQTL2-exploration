@@ -20,8 +20,11 @@ library(limSolve)
 #' @param chr Chromosome name (for output)
 #' @param verbose Verbosity level (0=silent, 1=basic, 2=detailed, 3=full debug)
 #' 
-#' @return List with chr, pos, sample, method, final_window_size, n_snps, 
-#'         estimate_OK, and individual founder frequencies
+#' @return List with:
+#'   - Groups: vector of group assignments from clustering (length = number of founders)
+#'   - Haps: vector of founder haplotype frequencies (length = number of founders, sums to 1.0)
+#'   - Err: error covariance matrix from lsei (n_founders x n_founders)
+#'   - Names: vector of founder names (length = number of founders)
 estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
                                method = "adaptive",
                                window_size_bp = NULL,

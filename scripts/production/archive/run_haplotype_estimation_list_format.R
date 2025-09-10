@@ -22,8 +22,8 @@
 
 library(tidyverse)
 
-# Source the working functions from production
-source("scripts/production/haplotype_estimation_functions.R")
+# Source the modified working copy that returns list format
+source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)

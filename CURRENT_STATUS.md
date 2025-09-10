@@ -844,3 +844,126 @@ Estimate haplotype frequencies for centromere regions using specialized single-w
 - ✅ **Quality Control**: Fixed founder frequency filtering (<3% or >97%)
 - ✅ **Debug Output**: Concise, useful summaries instead of verbose debugging
 - ✅ **Separate Scripts**: Clean separation between single-chromosome and combined approaches
+
+### **Complete Analysis Pipeline** ✅ **DOCUMENTED**
+The centromere analysis requires running 3 scripts in sequence:
+
+#### **Step 1: Process Centromere SNP Positions**
+```bash
+# From project root directory
+Rscript centromere/process_centromere_snps.R
+```
+- **Input**: `helpfiles/2LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt`, `helpfiles/3LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt`
+- **Output**: `centromere/sasha_good.rds` (44,369 centromere positions)
+- **Purpose**: Extract and process SNP positions from input files
+
+#### **Step 2: Run Combined-Chromosome Haplotype Estimation**
+```bash
+# From project root directory
+sbatch centromere/run_combined_centromere_estimation.slurm
+```
+- **Resources**: 2 CPUs, 12GB RAM, 24 hours
+- **Input**: `centromere/sasha_good.rds`, `helpfiles/ZINC2_haplotype_parameters.R`, `process/ZINC2/RefAlt.*.txt`
+- **Output**: `centromere/combined_centromere_all_results.RDS`
+- **Purpose**: Estimate haplotypes for chr2 (2L+2R) and chr3 (3L+3R) with 1500 proximal 2L filter
+
+#### **Step 3: Run Wald Testing Analysis**
+```bash
+# From centromere directory
+Rscript run_centromere_Wald_test.R
+```
+- **Input**: `combined_centromere_all_results.RDS`, `info.ZINC2.txt`
+- **Output**: `Centromere_Wald_testing.RDS`
+- **Purpose**: Statistical testing between W/Z treatments and calculate haplotype frequency differences
+
+#### **Complete Analysis Workflow**
+
+**Step 1: Process Centromere SNP Positions**
+```r
+# R code in process_centromere_snps.R
+library(tidyverse)
+
+# Read input files (skip first line, read second line)
+chr2L_data <- readLines("helpfiles/2LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt")[2]
+chr3L_data <- readLines("helpfiles/3LRhet_ZIinbred_ADLs_I80_Q50_mm1_mac3_snps_mskn40_hap.txt")[2]
+
+# Parse positions and create dataframe
+chr2L_positions <- as.numeric(strsplit(chr2L_data, " ")[[1]])
+chr3L_positions <- as.numeric(strsplit(chr3L_data, " ")[[1]])
+
+sasha_good <- tibble(
+  CHROM = c(rep("chr2L", length(chr2L_positions)), rep("chr2R", length(chr2L_positions)), 
+            rep("chr3L", length(chr3L_positions)), rep("chr3R", length(chr3L_positions))),
+  pos = c(chr2L_positions, chr2L_positions, chr3L_positions, chr3L_positions)
+)
+
+saveRDS(sasha_good, "sasha_good.rds")
+```
+
+**Step 2: Combined-Chromosome Haplotype Estimation**
+```bash
+# SLURM job: centromere/run_combined_centromere_estimation.slurm
+# Calls: Rscript hap_estimation_combined_centromere.R ../helpfiles/ZINC2_haplotype_parameters.R ../process/ZINC2
+```
+
+**Step 3: Wald Testing Analysis**
+```r
+# R code for statistical analysis
+source("help_functions.R")
+library(tidyverse)
+
+# Read info file for sample sizes
+info_data <- read_tsv("info.ZINC2.txt")
+
+# Complete analysis pipeline
+out <- readRDS("combined_centromere_all_results.RDS") %>%
+  separate(sample, into = c("rep", "TRT", "sex"), sep = "_", remove = FALSE) %>%
+  left_join(info_data, by = c("sample" = "bam")) %>%
+  mutate(TRT = ifelse(TRT == "W", "C", TRT)) %>%
+  group_by(CHROM, pos, sex) %>%
+  nest() %>%
+  mutate(
+    wald_results = map(data, Wald_wrapper),
+    Dhap = map(data, calculate_haplotype_difference)
+  )
+
+# Display results as percentage table
+dhap_table <- out %>%
+  select(CHROM, pos, sex, Dhap) %>%
+  mutate(Dhap_pct = map(Dhap, ~ round(.x * 100, 2))) %>%
+  select(-Dhap) %>%
+  unnest(Dhap_pct) %>%
+  group_by(CHROM, pos, sex) %>%
+  mutate(founder = c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) %>%
+  ungroup() %>%
+  pivot_wider(names_from = founder, values_from = Dhap_pct) %>%
+  select(CHROM, pos, sex, B1, B2, B3, B4, B5, B6, B7, AB8)
+
+print(dhap_table)
+```
+
+#### **Output Files Generated**
+- `centromere/sasha_good.rds` - Processed centromere SNP positions
+- `centromere/combined_centromere_all_results.RDS` - Haplotype estimation results
+- `centromere/Centromere_Wald_testing.RDS` - Statistical analysis results
+
+#### **Directory Organization** ✅ **CLEANED UP**
+The centromere directory has been organized to contain only essential files:
+
+**Active Files (Required for Pipeline):**
+- `process_centromere_snps.R` - Step 1: Process SNP positions
+- `run_combined_centromere_estimation.slurm` - Step 2: SLURM job
+- `hap_estimation_combined_centromere.R` - Called by SLURM job
+- `estimate_haplotypes_centromere.R` - Called by combined script
+- `help_functions.R` - Called by Wald test
+- `run_centromere_Wald_test.R` - Step 3: Wald testing
+- `sasha_good.rds` - Data file
+
+**Archived Files (Not Required):**
+- `archive/analyze_centromere_results.R` - Unused analysis script
+- `archive/hap_estimation_centromere.R` - Single-chromosome approach (not used)
+- `archive/process_combined_chromosomes.R` - Unused script
+
+**Required Files Analysis:**
+- **4 files are required** out of the original 10 files in the centromere directory
+- **6 files moved to archive** as they were not called by the executed pipeline

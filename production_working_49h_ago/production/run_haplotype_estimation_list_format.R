@@ -1,0 +1,374 @@
+#!/usr/bin/env Rscript
+
+# COPY OF WORKING HAPLOTYPE ESTIMATION WRAPPER - MODIFIED FOR SINGLE POSITION TESTING
+# 
+# This is a copy of scripts/production/run_haplotype_estimation.R
+# MODIFIED to process only a single position for testing purposes
+#
+# ORIGINAL: Runs chromosome-wide haplotype estimation for a specific method and parameter combination
+# MODIFIED: Runs haplotype estimation for a single position only
+#
+# TO RESTORE ORIGINAL BEHAVIOR:
+# 1. Change line 139 from: scan_positions <- test_position
+#    To: scan_positions <- seq(scan_start, scan_end, by = step)
+# 2. Change line 16 from: if (length(args) != 6)
+#    To: if (length(args) != 5)
+# 3. Remove test_position <- as.numeric(args[6]) and use scan_positions <- seq(...) instead
+#
+# Usage: Rscript run_haplotype_estimation_single_position.R <chr> <method> <parameter> <output_dir> <param_file> [position]
+# Example (single position): Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file> 5400000
+# Example (all positions): Rscript run_haplotype_estimation_single_position.R chr2R adaptive 4 <output_dir> <param_file>
+# Note: If position is omitted, processes all positions on the chromosome
+
+library(tidyverse)
+
+# Source the modified working copy that returns list format
+source("scripts/debug/haplotype_estimation_functions_working_copy.R")
+
+# Get command line arguments
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 5 || length(args) > 7) {
+  cat("Usage: Rscript run_haplotype_estimation_list_format.R <chr> <method> <parameter> <output_dir> <param_file> [position] [verbose]\n")
+  cat("Examples:\n")
+  cat("  Single position: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file> 5400000\n")
+  cat("  All positions: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file>\n")
+  cat("  With verbose: Rscript run_haplotype_estimation_list_format.R chr2R adaptive 4 <output_dir> <param_file> 5400000 1\n")
+  quit(status = 1)
+}
+
+chr <- args[1]
+method <- args[2] 
+parameter <- as.numeric(args[3])
+output_dir <- args[4]
+param_file <- args[5]
+test_position <- if (length(args) >= 6 && args[6] != "") as.numeric(args[6]) else NULL
+verbose <- if (length(args) >= 7) as.numeric(args[7]) else 0
+
+cat("=== PRODUCTION HAPLOTYPE ESTIMATION ===\n")
+cat("Chromosome:", chr, "\n")
+cat("Method:", method, "\n")
+cat("Parameter:", parameter, "\n")
+cat("Output directory:", output_dir, "\n")
+cat("Parameter file:", param_file, "\n\n")
+
+# Validate inputs
+if (!method %in% c("fixed", "adaptive")) {
+  cat("Error: Method must be 'fixed' or 'adaptive'\n")
+  quit(status = 1)
+}
+
+if (!chr %in% c("chr2L", "chr2R", "chr3L", "chr3R", "chrX")) {
+  cat("Error: Chromosome must be one of: chr2L, chr2R, chr3L, chr3R, chrX\n")
+  quit(status = 1)
+}
+
+# Hardcoded euchromatin boundaries (stolen from Slurm script)
+euchromatin_boundaries <- list(
+  chr2L = c(82455, 22011009),
+  chr2R = c(5398184, 24684540),
+  chr3L = c(158639, 22962476),
+  chr3R = c(4552934, 31845060),
+  chrX = c(277911, 22628490)
+)
+
+euchrom_start <- euchromatin_boundaries[[chr]][1]
+euchrom_end <- euchromatin_boundaries[[chr]][2]
+
+cat("Euchromatin boundaries:", euchrom_start, "to", euchrom_end, "bp\n\n")
+
+# 1. Load parameters (same as test wrapper)
+cat("1. Loading parameters...\n")
+
+if (!file.exists(param_file)) {
+  cat("Error: Parameter file not found:", param_file, "\n")
+  quit(status = 1)
+}
+
+source(param_file)
+cat("✓ Parameter file:", param_file, "\n")
+cat("✓ Loaded parameters: founders (", length(founders), "), step (", step, "), samples (", length(names_in_bam), ")\n")
+cat("✓ Founders:", paste(founders, collapse=", "), "\n")
+
+# 2. Load and transform data (same as test wrapper)
+cat("\n2. Loading and transforming data...\n")
+filein <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+
+if (!file.exists(filein)) {
+  cat("Error: REFALT file not found:", filein, "\n")
+  quit(status = 1)
+}
+
+cat("\nMemory before data load:\n")
+print(gc())
+df <- read.table(filein, header = TRUE)
+cat("\nMemory after data load:\n")
+print(gc())
+
+cat("\nMemory before data transform:\n")
+print(gc())
+df2 <- df %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  mutate(
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
+  ) %>%
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    N = REF + ALT
+  ) %>%
+  select(-c("REF", "ALT")) %>%
+  as_tibble()
+
+# Transform to wide format and apply quality filter ONCE (same as test wrapper)
+founder_wide <- df2 %>%
+  filter(name %in% founders) %>%
+  select(POS, name, freq) %>%
+  pivot_wider(names_from = name, values_from = freq)
+
+# Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
+quality_filtered_positions <- founder_wide %>%
+  filter(
+    if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+  ) %>%
+  pull(POS)
+
+# Filter to quality positions and include sample data
+df3 <- df2 %>%
+  filter(POS %in% quality_filtered_positions)
+
+cat("Quality-filtered positions:", length(quality_filtered_positions), "\n")
+cat("✓ Data ready:", nrow(df3), "rows\n")
+cat("\nMemory after data preparation:\n")
+print(gc())
+
+# Clear intermediate objects
+rm(df2, founder_wide, quality_filtered_positions)
+gc()
+
+# 3. Define scan positions (chromosome-wide grid)
+cat("\n3. Defining scan positions...\n")
+
+# Calculate proper grid-based scan positions (same as original working script)
+scan_start <- ceiling(euchrom_start / step) * step
+scan_end <- floor(euchrom_end / step) * step
+
+# Determine scan positions based on whether test_position is provided
+if (is.null(test_position)) {
+  # All positions mode - process entire chromosome
+  scan_positions <- seq(scan_start, scan_end, by = step)
+  cat("✓ ALL POSITIONS MODE: Processing entire chromosome\n")
+} else {
+  # Single position mode - only process test position
+  scan_positions <- test_position
+  cat("✓ SINGLE POSITION MODE: Testing position", test_position, "\n")
+}
+
+cat("✓ Scan grid:", scan_start, "to", scan_end, "by", step, "\n")
+cat("✓ Scan positions:", length(scan_positions), "\n")
+if (!is.null(test_position)) {
+  cat("✓ TEST POSITION:", test_position, "\n")
+}
+
+# 4. Run haplotype estimation (same pattern as test wrapper)
+cat("\n4. Running haplotype estimation...\n")
+
+# Set up method-specific parameters
+if (method == "fixed") {
+  window_size_bp <- parameter * 1000  # Convert kb to bp
+  h_cutoff_used <- h_cutoff  # Use default from parameter file
+  cat("Fixed window size:", parameter, "kb (", window_size_bp, "bp)\n")
+} else {
+  window_size_bp <- NULL  # Not used for adaptive
+  h_cutoff_used <- parameter
+  cat("Adaptive h_cutoff:", parameter, "\n")
+}
+
+# Use expand_grid + purrr::pmap_dfr (same as test wrapper)
+cat("Processing", length(scan_positions), "positions ×", length(names_in_bam), "samples...\n")
+cat("\nMemory before processing positions:\n")
+print(gc())
+
+# Create natural 4-row dataframe (one row per sample)
+results_df <- expand_grid(
+  pos = scan_positions,
+  sample_name = names_in_bam
+) %>%
+  purrr::pmap_dfr(~ {
+    cat("Processing pos:", ..1, "sample:", ..2, "method:", method, "\n")
+    result <- estimate_haplotypes_list_format(
+      pos = ..1,
+      sample_name = ..2,
+      df3 = df3,
+      founders = founders,
+      h_cutoff = h_cutoff_used,
+      method = method,
+      window_size_bp = window_size_bp,
+      chr = chr,
+      verbose = 1  # Show adaptive algorithm progress
+    )
+    cat("Result for", ..2, "at", ..1, ":", ifelse(is.null(result$Haps), "FAILED", "SUCCESS"), "\n")
+    
+    # Debug: Print the raw result from your function (only if verbose)
+    if (verbose >= 1) {
+      cat("DEBUG: Raw result from estimate_haplotypes:\n")
+      print(result)
+      cat("DEBUG: result$Groups:", result$Groups, "\n")
+      cat("DEBUG: result$Haps:", result$Haps, "\n")
+      cat("DEBUG: result$Err:", result$Err, "\n")
+      cat("DEBUG: result$Names:", result$Names, "\n")
+    }
+    
+    # Create natural row format (your function returns Groups, Haps, Err, Names directly)
+    return(tibble(
+      CHROM = chr,
+      pos = ..1,
+      sample = ..2,
+      Groups = list(result$Groups),
+      Haps = list(result$Haps),
+      Err = list(result$Err),
+      Names = list(result$Names)
+    ))
+  })
+
+# 5. Save the natural 4-row dataframe first
+cat("\n5. Saving natural 4-row dataframe...\n")
+
+# Generate intelligent output filename
+if (is.null(test_position)) {
+  # All positions mode - use production naming
+  if (method == "fixed") {
+    output_filename <- paste0("fixed_window_", parameter, "kb_results_", chr, ".RDS")
+  } else {
+    output_filename <- paste0("adaptive_window_h", parameter, "_results_", chr, ".RDS")
+  }
+} else {
+  # Single position mode - use test naming
+  if (method == "fixed") {
+    output_filename <- paste0("fixed_window_", parameter, "kb_single_position_", test_position, "_results_", chr, ".RDS")
+  } else {
+    output_filename <- paste0("adaptive_window_h", parameter, "_single_position_", test_position, "_results_", chr, ".RDS")
+  }
+}
+
+# Create appropriate results directory
+if (is.null(test_position)) {
+  # All positions mode - use production directory with list format suffix
+  results_dir <- file.path(output_dir, "haplotype_results_list_format")
+} else {
+  # Single position mode - use test directory
+  results_dir <- file.path(output_dir, "test_results")
+}
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+
+output_file <- file.path(results_dir, output_filename)
+
+if (nrow(results_df) > 0) {
+  cat("✓ Results:", nrow(results_df), "rows\n")
+  cat("✓ Positions:", length(unique(results_df$pos)), "unique positions\n")
+  cat("✓ Samples:", length(unique(results_df$sample)), "unique samples\n")
+  
+  # Summary statistics
+  success_rate <- mean(results_df$estimate_OK == 1, na.rm = TRUE) * 100
+  na_rate <- mean(is.na(results_df$estimate_OK)) * 100
+  
+  cat("✓ Success rate:", sprintf("%.1f%%", success_rate), "\n")
+  cat("✓ NA rate:", sprintf("%.1f%%", na_rate), "\n")
+  
+  # Show detailed results for single position testing
+  cat("\n=== DETAILED RESULTS FOR TEST POSITION", test_position, "===\n")
+  cat("CURRENT FORMAT (what working function outputs):\n")
+  for (i in 1:nrow(results_df)) {
+    cat("Sample:", results_df$sample[i], "\n")
+    cat("  Estimate OK:", results_df$estimate_OK[i], "\n")
+    cat("  Window size:", results_df$final_window_size[i], "bp\n")
+    cat("  SNPs:", results_df$n_snps[i], "\n")
+    cat("  Method:", results_df$method[i], "\n")
+    cat("  H cutoff:", results_df$h_cutoff[i], "\n")
+    
+    # Show haplotype frequencies in a nice format
+    cat("  Haplotype frequencies:\n")
+    founder_cols <- c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")
+    hap_freqs <- numeric(length(founder_cols))
+    names(hap_freqs) <- founder_cols
+    
+    for (j in seq_along(founder_cols)) {
+      founder <- founder_cols[j]
+      if (founder %in% names(results_df)) {
+        hap_freqs[j] <- results_df[[founder]][i]
+      }
+    }
+    
+    # Show frequencies in a nice table format
+    cat("    ")
+    for (founder in founder_cols) {
+      cat(sprintf("%-4s", founder))
+    }
+    cat("\n    ")
+    for (founder in founder_cols) {
+      cat(sprintf("%-4.3f", hap_freqs[founder]))
+    }
+    cat("\n")
+    
+    # Show sum (should be close to 1.0)
+    total_freq <- sum(hap_freqs, na.rm = TRUE)
+    cat("    Sum:", sprintf("%.6f", total_freq), "\n")
+    
+    # Show which founders are most/least frequent
+    max_founder <- names(which.max(hap_freqs))
+    min_founder <- names(which.min(hap_freqs))
+    cat("    Most frequent:", max_founder, "(", sprintf("%.3f", max(hap_freqs)), ")\n")
+    cat("    Least frequent:", min_founder, "(", sprintf("%.3f", min(hap_freqs)), ")\n")
+    cat("\n")
+  }
+  
+  
+  # Show the natural 4-row dataframe (only if verbose)
+  if (verbose >= 1) {
+    cat("\n=== NATURAL 4-ROW DATAFRAME ===\n")
+    print(results_df)
+  }
+  
+  # Save the natural 4-row dataframe
+  saveRDS(results_df, output_file)
+  if (verbose >= 1) {
+    cat("\n✓ Natural 4-row dataframe saved:", output_file, "\n")
+  }
+  
+  # 6. Convert to final 1-row format
+  if (verbose >= 1) {
+    cat("\n6. Converting to final 1-row format...\n")
+  }
+  
+  # Create final 1-row tibble by collapsing samples
+  final_tibble <- tibble(
+    CHROM = chr,
+    pos = test_position,
+    sample = list(results_df$sample),
+    Groups = list(results_df$Groups),
+    Haps = list(results_df$Haps),
+    Err = list(results_df$Err),
+    Names = list(results_df$Names)
+  )
+  
+  # Show the final format (only if verbose)
+  if (verbose >= 1) {
+    cat("\n=== FINAL 1-ROW FORMAT ===\n")
+    print(final_tibble)
+  }
+  
+  # Save the final format too
+  final_output_file <- gsub(".RDS", "_final.RDS", output_file)
+  saveRDS(final_tibble, final_output_file)
+  if (verbose >= 1) {
+    cat("\n✓ Final 1-row format saved:", final_output_file, "\n")
+  }
+  
+} else {
+  cat("✗ No results generated\n")
+  quit(status = 1)
+}
+
+cat("\n=== PRODUCTION HAPLOTYPE ESTIMATION COMPLETE ===\n")
+

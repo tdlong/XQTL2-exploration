@@ -193,3 +193,20 @@ run_centromere_analysis <- function(results_file = "combined_centromere_all_resu
   return(out)
 }
 
+# Display Dhap results as percentage table
+display_dhap_table <- function(results, founder_names = c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "AB8")) {
+  # Extract Dhap data and convert to percentages
+  dhap_table <- results %>%
+    select(CHROM, pos, sex, Dhap) %>%
+    mutate(
+      Dhap_pct = map(Dhap, ~ round(.x * 100, 2))
+    ) %>%
+    select(-Dhap) %>%
+    unnest(Dhap_pct) %>%
+    mutate(founder = rep(founder_names, nrow(results))) %>%
+    pivot_wider(names_from = founder, values_from = Dhap_pct) %>%
+    select(CHROM, pos, sex, all_of(founder_names))
+  
+  return(dhap_table)
+}
+

@@ -8,6 +8,9 @@
 
 # Combined-Chromosome Centromere Haplotype Estimation
 # Combines 2L+2R → chr2 and 3L+3R → chr3
+# 
+# USAGE: Run from project root directory
+# sbatch centromere/run_combined_centromere_estimation.slurm
 
 echo "=== COMBINED-CHROMOSOME CENTROMERE ESTIMATION ==="
 echo "Job ID: $SLURM_JOB_ID"
