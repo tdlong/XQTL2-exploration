@@ -51,9 +51,8 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   # No redundant position processing output - already shown by wrapper
     # ADAPTIVE WINDOW METHOD
     if (verbose >= 2) {
-      cat(sprintf("=== ADAPTIVE WINDOW METHOD: h_cutoff = %g ===\n", h_cutoff))
-      cat(sprintf("Position: %s\n", format(pos, big.mark=",")))
-      cat(sprintf("Sample: %s\n", sample_name))
+      cat(sprintf("=== ADAPTIVE WINDOW: h_cutoff=%g, pos=%s, sample=%s ===\n", 
+                  h_cutoff, format(pos, big.mark=","), sample_name))
     }
     
     window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
@@ -77,8 +76,8 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       window_end <- pos + window_size/2
       
       if (verbose >= 2) {
-        cat(sprintf("\n--- Window %d: %s ---\n", window_idx, 
-                    ifelse(window_size >= 1000, paste0(window_size/1000, " kb"), paste0(window_size, " bp"))))
+        cat(sprintf("  Window %d: %s", window_idx, 
+                    ifelse(window_size >= 1000, paste0(window_size/1000, "kb"), paste0(window_size, "bp"))))
       }
       
       # Get SNPs in window
@@ -117,26 +116,12 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       n_groups <- length(unique(groups))
       
       if (verbose >= 2) {
-        cat(sprintf("SNPs in window: %d positions\n", nrow(founder_matrix_clean)))
-        cat(sprintf("Clustering results: %d groups\n", n_groups))
-        
-        if (verbose >= 3 && n_groups <= 6) {
-          # Show group assignments
-          unique_clusters <- unique(groups)
-          for (cluster_id in unique_clusters) {
-            cluster_founders <- founders[groups == cluster_id]
-            if (length(cluster_founders) == 1) {
-              cat(sprintf("  Group %d: %s (individual)\n", cluster_id, cluster_founders))
-            } else {
-              cat(sprintf("  Group %d: %s\n", cluster_id, paste(cluster_founders, collapse=", ")))
-            }
-          }
-        }
+        cat(sprintf(" - %d SNPs, %d groups", nrow(founder_matrix_clean), n_groups))
       }
       
       # Check if clustering improved
       if (window_idx > 1 && n_groups <= previous_n_groups) {
-        if (verbose >= 2) cat("✗ No improvement from previous window, trying larger window\n")
+        if (verbose >= 2) cat(" - ✗ No improvement\n")
         next  # No improvement, try larger window
       }
       
@@ -172,7 +157,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
           current_constraint_values <- NULL
           
           if (verbose >= 2) {
-            cat(sprintf("    Building constraints from %d founder groups...\n", n_groups))
+            cat(sprintf(" - ✓ LSEI success, %d groups", n_groups))
           }
           
           unique_clusters <- unique(groups)
@@ -189,11 +174,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
               current_constraints <- rbind(current_constraints, constraint_row)
               current_constraint_values <- c(current_constraint_values, group_freq)
               
-              if (verbose >= 2) {
-                group_names <- founders[cluster_founders]
-                cat(sprintf("      Group %d: %s = %.4f\n", 
-                           cluster_id, paste(group_names, collapse="+"), group_freq))
-              }
+              # Constraint building details removed for cleaner output
             } else {
               # Single founder: lock their exact frequency
               founder_freq <- result$X[cluster_founders]
@@ -205,10 +186,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
               current_constraints <- rbind(current_constraints, constraint_row)
               current_constraint_values <- c(current_constraint_values, founder_freq)
               
-              if (verbose >= 2) {
-                cat(sprintf("      Group %d: %s = %.4f (locked)\n", 
-                           cluster_id, founders[cluster_founders], founder_freq))
-              }
+              # Constraint building details removed for cleaner output
             }
           }
           
@@ -217,16 +195,11 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
             accumulated_constraints <- current_constraints
             accumulated_constraint_values <- current_constraint_values
             if (verbose >= 2) {
-              cat(sprintf("    ✓ Accumulated %d constraints for next window (groups: %s)\n", 
-                         nrow(current_constraints),
-                         paste(unique(groups), collapse=",")))
+              cat(sprintf(" - %d constraints", nrow(current_constraints)))
             }
           } else {
             accumulated_constraints <- NULL
             accumulated_constraint_values <- NULL
-            if (verbose >= 2) {
-              cat("    • No constraints to accumulate (all founders in 1 group)\n")
-            }
           }
           
           # Store the result (will be overwritten as we expand)
@@ -245,7 +218,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
           # Check if all founders are separated
           if (n_groups == length(founders)) {
             if (verbose >= 2) {
-              cat("✅ SUCCESS: All founders distinguished - stopping window expansion\n")
+              cat(" - ✅ SUCCESS: All founders distinguished\n")
             }
             break  # Success! Stop expanding
           }
@@ -311,6 +284,11 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
         error_matrix <- final_result$covar
         if (verbose >= 2) {
           cat("Using LSEI covariance matrix (covar field)\n")
+        }
+        if (verbose >= 2) {
+          cat("\nError matrix (×100, rounded to 2 decimals):\n")
+          print(round(error_matrix * 100, 2))
+          cat("Condition number:", round(kappa(error_matrix), 2), "\n")
         }
       } else {
         # LSEI didn't provide covariance - create NA matrix

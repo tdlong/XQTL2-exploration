@@ -63,11 +63,12 @@ cat("This will call the consolidated workflow script.\n\n")
 
 # Call the complete workflow script
 # Always run in debug mode (limited positions/samples) for testing
-# Use explicit debug level 2 for LSEI debugging
+# Use debug level 0 for clean output, level 2 only if verbose requested
 debug_flag <- if (debug) "" else "--nonverbose"
+debug_level <- if (debug) "--debug-level-2" else "--debug-level-0"
 system(paste(
   "Rscript scripts/production/complete_haplotype_workflow.R",
-  chr, method, parameter, output_dir, param_file, debug_flag, "--debug", "--debug-level-2"
+  chr, method, parameter, output_dir, param_file, debug_flag, "--debug", debug_level
 ))
 
 cat("\n=== TEST COMPLETE ===\n")
