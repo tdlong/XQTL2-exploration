@@ -527,7 +527,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
           method = method,
           window_size_bp = NULL,
           chr = chr,
-          verbose = ifelse(verbose, 1, 0)
+          verbose = ifelse(verbose, 2, 0)  # Use level 2 for LSEI debugging
         )
         
         return(tibble(
@@ -572,7 +572,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
           method = method,
           window_size_bp = NULL,
           chr = chr,
-          verbose = 0  # Always non-verbose for large datasets
+          verbose = ifelse(verbose, 2, 0)  # Use level 2 for LSEI debugging when verbose
         )
         
         return(tibble(
