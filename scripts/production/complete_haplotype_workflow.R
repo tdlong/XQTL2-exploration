@@ -235,8 +235,8 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
           
           if (verbose >= 2) {
             cat(sprintf("    Stored LSEI result with %d groups\n", n_groups))
-            if ("cov" %in% names(result)) {
-              cat("    Covariance matrix available in this result\n")
+            if ("covar" %in% names(result)) {
+              cat("    Covariance matrix available in this result (covar field)\n")
             } else {
               cat("    No covariance matrix in this result\n")
             }
@@ -300,17 +300,17 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       # Check what fields are available in the LSEI result
       if (verbose >= 2) {
         cat("LSEI result fields:", names(final_result), "\n")
-        if ("cov" %in% names(final_result)) {
-          cat("Covariance matrix available\n")
+        if ("covar" %in% names(final_result)) {
+          cat("Covariance matrix available (covar field)\n")
         } else {
           cat("No covariance matrix in LSEI result\n")
         }
       }
       
-      if ("cov" %in% names(final_result) && !is.null(final_result$cov)) {
-        error_matrix <- final_result$cov
+      if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
+        error_matrix <- final_result$covar
         if (verbose >= 2) {
-          cat("Using LSEI covariance matrix\n")
+          cat("Using LSEI covariance matrix (covar field)\n")
         }
       } else {
         # LSEI didn't provide covariance - create NA matrix
