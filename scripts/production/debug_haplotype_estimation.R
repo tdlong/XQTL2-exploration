@@ -1,19 +1,17 @@
 #!/usr/bin/env Rscript
 
 # Debug wrapper for haplotype estimation
-# Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples]
-# Example: Rscript debug_haplotype_estimation.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 100 5
+# Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples] [version]
+# Example: Rscript debug_haplotype_estimation.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 100 5 slow
+# Example: Rscript debug_haplotype_estimation.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R 100 5 fast
 
 library(tidyverse)
-
-# Source the main pipeline
-source("scripts/production/haplotype_estimation_pipeline.R")
 
 # Parse arguments
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) < 5) {
-  cat("Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples]\n")
+  cat("Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples] [version]\n")
   cat("  chr: chromosome (e.g., chr2R)\n")
   cat("  method: estimation method (adaptive)\n")
   cat("  parameter: method parameter (e.g., 4 for h_cutoff)\n")
@@ -21,6 +19,7 @@ if (length(args) < 5) {
   cat("  param_file: parameter file\n")
   cat("  n_positions: (optional) number of positions to test (default: 100)\n")
   cat("  n_samples: (optional) number of samples to test (default: 5)\n")
+  cat("  version: (optional) 'slow' or 'fast' (default: slow)\n")
   quit(status = 1)
 }
 
@@ -31,6 +30,7 @@ output_dir <- args[4]
 param_file <- args[5]
 n_positions <- if (length(args) >= 6) as.numeric(args[6]) else 100
 n_samples <- if (length(args) >= 7) as.numeric(args[7]) else 5
+version <- if (length(args) >= 8) args[8] else "slow"
 
 cat("=== DEBUG HAPLOTYPE ESTIMATION ===\n")
 cat("Chromosome:", chr, "\n")
@@ -40,7 +40,17 @@ cat("Output directory:", output_dir, "\n")
 cat("Parameter file:", param_file, "\n")
 cat("Testing positions:", n_positions, "\n")
 cat("Testing samples:", n_samples, "\n")
+cat("Version:", version, "\n")
 cat("================================\n\n")
+
+# Source the appropriate pipeline
+if (version == "fast") {
+  cat("Loading FAST (vectorized) pipeline...\n")
+  source("scripts/production/haplotype_estimation_pipeline_fast.R")
+} else {
+  cat("Loading SLOW (original) pipeline...\n")
+  source("scripts/production/haplotype_estimation_pipeline.R")
+}
 
 # Load parameters
 source(param_file)
@@ -159,7 +169,7 @@ run_haplotype_estimation_debug <- function(chr, method, parameter, output_dir, p
     })
   
   # Save results
-  output_file <- file.path(output_dir, paste0("debug_", chr, "_", method, "_", parameter, ".RDS"))
+  output_file <- file.path(output_dir, paste0("debug_", version, "_", chr, "_", method, "_", parameter, ".RDS"))
   cat("Saving debug results to:", output_file, "\n")
   saveRDS(results, output_file)
   
@@ -171,5 +181,5 @@ run_haplotype_estimation_debug <- function(chr, method, parameter, output_dir, p
 results <- run_haplotype_estimation_debug(chr, method, parameter, output_dir, param_file)
 
 cat("\n=== DEBUG COMPLETE ===\n")
-cat("Results saved to:", file.path(output_dir, paste0("debug_", chr, "_", method, "_", parameter, ".RDS")), "\n")
+cat("Results saved to:", file.path(output_dir, paste0("debug_", version, "_", chr, "_", method, "_", parameter, ".RDS")), "\n")
 cat("Total combinations processed:", nrow(results), "\n")
