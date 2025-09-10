@@ -440,7 +440,7 @@ average_err <- function(err_list, founders) {
 # MAIN WORKFLOW FUNCTIONS
 # =============================================================================
 
-run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_file, debug = FALSE, verbose = TRUE) {
+run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_file, debug = FALSE, verbose = TRUE, debug_level = 0) {
   # Step 1: Adaptive haplotype estimation - EXACT from working code
   #
   # CRITICAL: The output data frame structure is HARDWIRED and CANNOT be changed
@@ -521,7 +521,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
           method = method,
           window_size_bp = NULL,
           chr = chr,
-          verbose = ifelse(verbose, 2, 0)  # Use level 2 for LSEI debugging
+          verbose = debug_level  # Use explicit debug level from command line
         )
         
         return(tibble(
@@ -566,7 +566,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
           method = method,
           window_size_bp = NULL,
           chr = chr,
-          verbose = ifelse(verbose, 2, 0)  # Use level 2 for LSEI debugging when verbose
+          verbose = debug_level  # Use explicit debug level from command line
         )
         
         return(tibble(
@@ -773,7 +773,7 @@ if (!interactive()) {
   # Parse command line arguments
   args <- commandArgs(trailingOnly = TRUE)
   if (length(args) < 5) {
-    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose]")
+    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose] [--debug-level-1] [--debug-level-2] [--debug-level-3]")
   }
   
   chr <- args[1]
@@ -783,6 +783,12 @@ if (!interactive()) {
   param_file <- args[5]
   debug <- "--debug" %in% args
   verbose <- !("--nonverbose" %in% args)
+  
+  # Parse debug level from command line
+  debug_level <- 0
+  if ("--debug-level-1" %in% args) debug_level <- 1
+  if ("--debug-level-2" %in% args) debug_level <- 2
+  if ("--debug-level-3" %in% args) debug_level <- 3
   
   # Run the complete workflow
   if (debug) {
@@ -794,13 +800,14 @@ if (!interactive()) {
   }
   
   if (verbose) {
-    cat("Verbose output enabled\n\n")
+    cat("Verbose output enabled\n")
   } else {
-    cat("Minimal output mode\n\n")
+    cat("Minimal output mode\n")
   }
+  cat("Debug level:", debug_level, "\n\n")
   
   # Step 1: Adaptive estimation
-  adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug, verbose)
+  adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug, verbose, debug_level)
   
   # Step 2: Smoothing
   smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
