@@ -45,12 +45,25 @@ suppressPackageStartupMessages({
 estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
                                            window_size_bp = NULL, method = NULL, chr = NULL, debug = FALSE) {
   
-  # Filter data for this position and sample
-  pos_data <- df3 %>%
-    filter(POS == pos) %>%
-    filter(lab == sample_name)
+  # Get the quality-filtered data for this position
+  # Recreate the quality filtering logic here
+  founder_wide <- df3 %>%
+    select(-N) %>%
+    pivot_wider(names_from = sample, values_from = freq) %>%
+    select(-CHROM, -POS)
   
-  if (nrow(pos_data) == 0) {
+  # Ensure column order matches founders order
+  founder_wide <- founder_wide[, c("POS", founders)]
+  
+  # Quality filter: keep only positions where all founders are "fixed" (<3% or >97%)
+  quality_filter <- apply(founder_wide[, founders], 1, function(row) {
+    all(row < 0.03 | row > 0.97)
+  })
+  
+  founder_matrix_clean <- founder_wide[quality_filter, ]
+  
+  # Check if this position passed quality filter
+  if (!pos %in% founder_matrix_clean$POS) {
     return(list(
       Groups = rep(NA, length(founders)),
       Haps = rep(NA, length(founders)),
@@ -59,9 +72,8 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     ))
   }
   
-  # Extract founder frequencies for this position
-  founder_freqs <- pos_data %>%
-    select(all_of(founders)) %>%
+  # Get founder frequencies for this position
+  founder_freqs <- founder_matrix_clean[founder_matrix_clean$POS == pos, founders] %>%
     as.numeric()
   
   # Check if we have valid data
@@ -79,7 +91,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   
   # Create design matrix X (n_positions x n_founders)
   # Each row is a position, each column is a founder
-  X <- df3 %>%
+  X <- founder_matrix_clean %>%
     filter(POS == pos) %>%
     select(all_of(founders)) %>%
     as.matrix()
@@ -87,6 +99,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   # Create response vector y (n_positions)
   y <- df3 %>%
     filter(POS == pos) %>%
+    filter(sample == sample_name) %>%
     pull(freq)
   
   # Remove any rows with missing data
