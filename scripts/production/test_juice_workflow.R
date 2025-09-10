@@ -59,13 +59,13 @@ if (!file.exists(file.path(output_dir, paste0("RefAlt.", chr, ".txt")))) {
 
 # Run the complete workflow
 cat("Running complete workflow...\n")
-cat("This will call the SINGLE FILE that contains ALL functions.\n")
-cat("ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE.\n\n")
+cat("This will call the consolidated workflow script.\n\n")
 
 # Call the complete workflow script
+debug_flag <- if (debug) "" else "--nonverbose"
 system(paste(
   "Rscript scripts/production/complete_haplotype_workflow.R",
-  chr, method, parameter, output_dir, param_file, debug
+  chr, method, parameter, output_dir, param_file, debug_flag
 ))
 
 cat("\n=== TEST COMPLETE ===\n")
@@ -73,5 +73,3 @@ cat("✓ Successfully demonstrated the complete workflow works\n")
 cat("✓ Used JUICE data with 1 sample and first 100 positions\n")
 cat("✓ All functions are in a single file (complete_haplotype_workflow.R)\n")
 cat("✓ No scattered bits and bobs - everything is consolidated\n")
-cat("✓ ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE\n")
-cat("✓ NO MODIFICATIONS, NO FIXES, NO BASTARDIZATION\n")

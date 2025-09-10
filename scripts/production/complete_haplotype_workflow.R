@@ -36,8 +36,10 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
                                chr = "chr2R",
                                verbose = 0) {
   
-  # DEBUG: Confirm this modified function is being called
-  cat("DEBUG: Using MODIFIED estimate_haplotypes function from working_copy.R\n")
+  # Debug output only in verbose mode
+  if (verbose >= 1) {
+    cat("DEBUG: Using estimate_haplotypes_list_format function\n")
+  }
   
   method <- match.arg(method)
   
@@ -642,10 +644,7 @@ if (!interactive()) {
   # Run the complete workflow
   if (debug) {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
-    cat("This is the SINGLE FILE that contains ALL functions needed\n")
-    cat("to reproduce the complete workflow that the SLURM script runs.\n")
-    cat("ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE.\n")
-    cat("DEBUG MODE: Verbose output enabled\n\n")
+    cat("Verbose output enabled\n\n")
   } else {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
     cat("Running in production mode (minimal output)\n\n")
@@ -660,5 +659,4 @@ if (!interactive()) {
   cat("\n=== WORKFLOW COMPLETE ===\n")
   cat("✓ Both adaptive estimation and smoothing completed successfully\n")
   cat("✓ All output files created in the same format as production\n")
-  cat("✓ NO MODIFICATIONS - EXACT COPY OF 49H AGO WORKING CODE\n")
 }
