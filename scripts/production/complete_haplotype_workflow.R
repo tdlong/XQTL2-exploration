@@ -36,6 +36,14 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
                                chr = "chr2R",
                                verbose = 0) {
   
+  # CRITICAL: This function's return format is HARDWIRED and CANNOT be changed
+  # The downstream pipeline expects exactly this structure:
+  # - Groups: integer vector of cluster assignments
+  # - Haps: named numeric vector of founder frequencies  
+  # - Err: matrix of error/covariance estimates
+  # - Names: character vector of founder names
+  # Any changes to this format will break the entire pipeline
+  
   # Debug output only in verbose mode
   if (verbose >= 1) {
     cat("DEBUG: Using estimate_haplotypes_list_format function\n")
@@ -440,6 +448,14 @@ average_err <- function(err_list, founders) {
 
 run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_file, debug = FALSE, verbose = TRUE) {
   # Step 1: Adaptive haplotype estimation - EXACT from working code
+  #
+  # CRITICAL: The output data frame structure is HARDWIRED and CANNOT be changed
+  # Required columns: CHROM, pos, sample, Groups, Haps, Err, Names
+  # - Groups: list of integer vectors (cluster assignments)
+  # - Haps: list of named numeric vectors (founder frequencies)
+  # - Err: list of matrices (error/covariance estimates)  
+  # - Names: list of character vectors (founder names)
+  # Any changes to this structure will break downstream analysis
   
   cat("=== RUNNING ADAPTIVE HAPLOTYPE ESTIMATION ===\n")
   cat("Chromosome:", chr, "\n")
@@ -590,6 +606,14 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
 
 run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
   # Step 2: Apply 21-position sliding window smoothing - EXACT from working code
+  #
+  # CRITICAL: The output data frame structure is HARDWIRED and CANNOT be changed
+  # Required columns: CHROM, pos, sample, Groups, Haps, Err, Names
+  # - Groups: list of integer vectors (cluster assignments)
+  # - Haps: list of named numeric vectors (founder frequencies)
+  # - Err: list of matrices (error/covariance estimates)
+  # - Names: list of character vectors (founder names)
+  # Any changes to this structure will break downstream analysis
   
   cat("\n=== RUNNING SMOOTHING ===\n")
   
@@ -715,6 +739,13 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
     )
   
   # Save results
+  # CRITICAL: Output file formats and locations are HARDWIRED and CANNOT be changed
+  # The downstream pipeline expects these exact file names and structures:
+  # - adaptive_window_h4_results_<chr>.RDS (original format)
+  # - smooth_h4_results_<chr>.RDS (original format)  
+  # - smooth_h4/R.haps.<chr>.out.rds (reshaped format)
+  # - adapt_h4/R.haps.<chr>.out.rds (reshaped format)
+  # Any changes to file names or structures will break the pipeline
   list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
   smooth_dir <- file.path(list_results_dir, "smooth_h4")
   adapt_dir  <- file.path(list_results_dir, "adapt_h4")
