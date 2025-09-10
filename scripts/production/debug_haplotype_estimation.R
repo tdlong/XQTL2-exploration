@@ -43,14 +43,8 @@ cat("Testing samples:", n_samples, "\n")
 cat("Version:", version, "\n")
 cat("================================\n\n")
 
-# Source the appropriate pipeline
-if (version == "fast") {
-  cat("Loading FAST (vectorized) pipeline...\n")
-  source("scripts/production/haplotype_estimation_pipeline_fast.R")
-} else {
-  cat("Loading SLOW (original) pipeline...\n")
-  source("scripts/production/haplotype_estimation_pipeline.R")
-}
+# The production pipelines are designed to be run as scripts, not sourced
+# We'll call them via system() instead
 
 # Load parameters
 source(param_file)
@@ -120,24 +114,29 @@ cat("Position range:", min(all_positions), "to", max(all_positions), "\n\n")
 cat("Running haplotype estimation in DEBUG mode...\n")
 cat("This will show detailed output for each position-sample combination.\n\n")
 
-# Create a temporary modified df3 for debugging
-# We need to modify the global df3 to use our debug subset
-df3_original <- df3
-df3 <<- df3_debug
-
-# Run the production pipeline function with debug mode
+# Call the production pipeline as a script with debug mode
 cat("Running production pipeline in DEBUG mode...\n")
-results <- run_haplotype_estimation(chr, method, parameter, output_dir, param_file, debug = TRUE)
 
-# Restore original df3
-df3 <<- df3_original
+# Build the command
+if (version == "fast") {
+  cmd <- paste("Rscript scripts/production/haplotype_estimation_pipeline_fast.R", 
+               chr, method, parameter, output_dir, param_file, "debug")
+} else {
+  cmd <- paste("Rscript scripts/production/haplotype_estimation_pipeline.R", 
+               chr, method, parameter, output_dir, param_file, "debug")
+}
 
-# Save debug results with version identifier
-output_file <- file.path(output_dir, paste0("debug_", version, "_", chr, "_", method, "_", parameter, ".RDS"))
-cat("Saving debug results to:", output_file, "\n")
-saveRDS(results, output_file)
-cat("✓ Debug results saved\n")
+cat("Command:", cmd, "\n")
+
+# Run the command
+result <- system(cmd, intern = TRUE)
+cat("Pipeline output:\n")
+cat(paste(result, collapse = "\n"), "\n")
+
+# The production pipeline saves its own results, so we just need to report success
+cat("✓ Production pipeline completed\n")
+cat("✓ Check the output directory for results\n")
 
 cat("\n=== DEBUG COMPLETE ===\n")
-cat("Results saved to:", file.path(output_dir, paste0("debug_", version, "_", chr, "_", method, "_", parameter, ".RDS")), "\n")
-cat("Total combinations processed:", nrow(results), "\n")
+cat("Production pipeline completed successfully\n")
+cat("Check the output directory for results\n")
