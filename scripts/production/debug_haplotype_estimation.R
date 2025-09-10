@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+ways#!/usr/bin/env Rscript
 
 # Debug wrapper for haplotype estimation
 # Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples] [version]
@@ -49,23 +49,47 @@ if (version == "fast") {
   source("scripts/production/haplotype_estimation_pipeline_fast.R")
 } else {
   cat("Loading SLOW (original) pipeline...\n")
-  source("scripts/production/haplotype_estimation_pipeline.R")
+  # Use the working function from debug directory
+  source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 }
 
 # Load parameters
 source(param_file)
 
-# Load RefAlt data
-refalt_file <- file.path(output_dir, paste0("RefAlt_", chr, ".RDS"))
+# Load RefAlt data (same format as production pipeline)
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 if (!file.exists(refalt_file)) {
   stop("RefAlt file not found: ", refalt_file)
 }
 
 cat("Loading RefAlt data from:", refalt_file, "\n")
-df3 <- readRDS(refalt_file)
+df <- read.table(refalt_file, header = TRUE)
+cat("Loaded", nrow(df), "positions from RefAlt file\n")
 
-# Get sample names
-names_in_bam <- unique(df3$lab)
+# Process data (same as production pipeline)
+cat("Processing data...\n")
+df3 <- df %>%
+  mutate(CHROM = chr) %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+  mutate(
+    RefAlt = str_sub(lab, 1, 3),
+    name = str_sub(lab, 5)
+  ) %>%
+  select(-lab) %>%
+  pivot_wider(names_from = RefAlt, values_from = count) %>%
+  mutate(
+    freq = REF / (REF + ALT),
+    N = REF + ALT
+  ) %>%
+  select(-REF, -ALT) %>%
+  pivot_wider(names_from = name, values_from = c(freq, N), names_sep = "_") %>%
+  pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "value") %>%
+  separate(lab, into = c("type", "sample"), sep = "_") %>%
+  pivot_wider(names_from = type, values_from = value) %>%
+  filter(!is.na(freq)) %>%
+  select(POS, name = sample, freq = freq)
+
+# Get sample names from parameter file
 cat("Total samples available:", length(names_in_bam), "\n")
 
 # Limit to first n_samples for debugging
@@ -86,7 +110,7 @@ if (length(all_positions) > n_positions) {
 
 # Filter data for debugging
 df3_debug <- df3 %>%
-  filter(lab %in% names_in_bam) %>%
+  filter(sample %in% names_in_bam) %>%
   filter(POS %in% all_positions)
 
 cat("Debug dataset size:", nrow(df3_debug), "rows\n")
@@ -105,19 +129,20 @@ run_haplotype_estimation_debug <- function(chr, method, parameter, output_dir, p
   # Use our debug dataset instead of loading from file
   df3 <- df3_debug
   
-  # Get founders from the data
-  founders <- unique(df3$founder)
-  founders <- founders[!is.na(founders)]
+  # Get founders from parameter file
+  founders <- names_in_bam
   
   cat("Founders:", paste(founders, collapse = ", "), "\n")
   cat("Number of founders:", length(founders), "\n\n")
   
-  # Quality filter
+  # Quality filter (same as production pipeline)
   founder_wide <- df3 %>%
-    select(POS, founder, lab, freq) %>%
-    pivot_wider(names_from = founder, values_from = freq, values_fill = 0) %>%
-    filter(lab %in% names_in_bam)
+    pivot_wider(names_from = name, values_from = freq)
   
+  # CRITICAL: Ensure column order matches founders order (pivot_wider can reorder lexically)
+  founder_wide <- founder_wide[, c("POS", founders)]
+  
+  # Quality filter: keep only positions where all founders are "fixed" (<3% or >97%)
   quality_filter <- apply(founder_wide[, founders], 1, function(row) {
     all(row < 0.03 | row > 0.97)
   })
@@ -148,10 +173,9 @@ run_haplotype_estimation_debug <- function(chr, method, parameter, output_dir, p
         df3 = df3,
         founders = founders,
         h_cutoff = parameter,
-        window_size_bp = NULL,
         method = method,
         chr = chr,
-        debug = TRUE  # Enable debug mode
+        verbose = 2  # Enable debug mode
       )
       
       cat("Result: Groups =", paste(result$Groups, collapse = " "), "\n")
