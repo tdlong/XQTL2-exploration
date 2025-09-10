@@ -22,12 +22,9 @@ mkdir -p logs
 echo "[INFO] $(date) starting ${CHR}"
 module load R/4.4.2
 
-# 1) Adaptive list-format estimation (fresh run)
-Rscript scripts/production/run_haplotype_estimation_list_format.R \
-  "${CHR}" adaptive 4 "${OUTPUT_DIR}" "${PARAM_FILE}"
-
-# 2) Smooth h4 from that adaptive list-format (writes both adapt/smooth reshaped files)
-Rscript scripts/production/create_smooth_haplotype_estimator_list_format.R \
-  "${CHR}" "${PARAM_FILE}" "${OUTPUT_DIR}"
+# Run complete workflow (adaptive estimation + smoothing) in one call
+# Using non-verbose mode for production
+Rscript scripts/production/complete_haplotype_workflow.R \
+  "${CHR}" adaptive 4 "${OUTPUT_DIR}" "${PARAM_FILE}" --nonverbose
 
 echo "[INFO] $(date) done ${CHR}"

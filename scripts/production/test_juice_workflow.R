@@ -11,8 +11,16 @@
 # to limit to 100 positions and 1 sample.
 #
 # USAGE:
-# Rscript scripts/production/test_juice_workflow.R
+# Rscript scripts/production/test_juice_workflow.R [--nonverbose]
+# 
+# Examples:
+# Rscript scripts/production/test_juice_workflow.R           # Verbose debug mode (default)
+# Rscript scripts/production/test_juice_workflow.R --nonverbose  # Minimal output mode
 # =============================================================================
+
+# Parse command line arguments
+args <- commandArgs(trailingOnly = TRUE)
+debug <- !("--nonverbose" %in% args)
 
 cat("=== TESTING JUICE WORKFLOW ===\n")
 cat("This demonstrates the complete workflow works by running:\n")
@@ -20,6 +28,7 @@ cat("- Dataset: JUICE\n")
 cat("- Sample: 1 sample only\n")
 cat("- Positions: First 100 steps (10kb testing positions)\n")
 cat("- Chromosome: chr2R\n")
+cat("- Debug mode:", debug, "\n")
 cat("==========================================\n\n")
 
 # Parameters for JUICE test
@@ -28,7 +37,6 @@ method <- "adaptive"
 parameter <- 4
 output_dir <- "process/JUICE"
 param_file <- "helpfiles/JUICE_haplotype_parameters.R"
-debug <- TRUE
 
 cat("Parameters:\n")
 cat("  Chromosome:", chr, "\n")

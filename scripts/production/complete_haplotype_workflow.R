@@ -13,10 +13,11 @@
 # NO MODIFICATIONS, NO FIXES, NO BASTARDIZATION
 #
 # USAGE:
-# Rscript scripts/production/complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [debug]
+# Rscript scripts/production/complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose]
 #
-# EXAMPLE:
+# EXAMPLES:
 # Rscript scripts/production/complete_haplotype_workflow.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R
+# Rscript scripts/production/complete_haplotype_workflow.R chr2R adaptive 4 process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R --nonverbose
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -628,7 +629,7 @@ if (!interactive()) {
   # Parse command line arguments
   args <- commandArgs(trailingOnly = TRUE)
   if (length(args) < 5) {
-    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [debug]")
+    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose]")
   }
   
   chr <- args[1]
@@ -636,13 +637,19 @@ if (!interactive()) {
   parameter <- as.numeric(args[3])
   output_dir <- args[4]
   param_file <- args[5]
-  debug <- if (length(args) > 5) as.logical(args[6]) else FALSE
+  debug <- !("--nonverbose" %in% args)
   
   # Run the complete workflow
-  cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
-  cat("This is the SINGLE FILE that contains ALL functions needed\n")
-  cat("to reproduce the complete workflow that the SLURM script runs.\n")
-  cat("ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE.\n\n")
+  if (debug) {
+    cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
+    cat("This is the SINGLE FILE that contains ALL functions needed\n")
+    cat("to reproduce the complete workflow that the SLURM script runs.\n")
+    cat("ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE.\n")
+    cat("DEBUG MODE: Verbose output enabled\n\n")
+  } else {
+    cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
+    cat("Running in production mode (minimal output)\n\n")
+  }
   
   # Step 1: Adaptive estimation
   adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug)
