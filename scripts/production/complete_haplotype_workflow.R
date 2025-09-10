@@ -436,38 +436,98 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
     names_in_bam <- head(names_in_bam, 1)      # Limit to 1 sample for debugging
   }
   
+  total_operations <- length(all_positions) * length(names_in_bam)
   cat("Processing", length(all_positions), "positions ×", length(names_in_bam), "samples\n")
+  cat("Total operations:", total_operations, "\n")
   
-  # Run adaptive estimation - EXACT from working code
-  adaptive_results <- expand_grid(
-    pos = all_positions,
-    sample_name = names_in_bam
-  ) %>%
-    purrr::pmap_dfr(~ {
-      if (debug) cat("Processing pos:", ..1, "sample:", ..2, "\n")
-      
-      result <- estimate_haplotypes_list_format(
-        pos = ..1,
-        sample_name = ..2,
-        df3 = df3,
-        founders = founders,
-        h_cutoff = parameter,
-        method = method,
-        window_size_bp = NULL,
-        chr = chr,
-        verbose = ifelse(verbose, 1, 0)
-      )
-      
-      return(tibble(
-        CHROM = chr,
-        pos = ..1,
-        sample = ..2,
-        Groups = list(result$Groups),
-        Haps = list(result$Haps),
-        Err = list(result$Err),
-        Names = list(result$Names)
-      ))
-    })
+  if (!debug && total_operations > 100) {
+    cat("This may take several hours to days. Progress will be shown every 100 operations.\n")
+    cat("Estimated time per operation: 2-5 seconds (varies by data complexity)\n")
+    cat("Estimated total time:", round(total_operations * 3.5 / 3600, 1), "hours\n\n")
+  }
+  
+  # Run adaptive estimation with progress tracking
+  if (debug || total_operations <= 100) {
+    # Small dataset - no progress tracking needed
+    adaptive_results <- expand_grid(
+      pos = all_positions,
+      sample_name = names_in_bam
+    ) %>%
+      purrr::pmap_dfr(~ {
+        if (debug) cat("Processing pos:", ..1, "sample:", ..2, "\n")
+        
+        result <- estimate_haplotypes_list_format(
+          pos = ..1,
+          sample_name = ..2,
+          df3 = df3,
+          founders = founders,
+          h_cutoff = parameter,
+          method = method,
+          window_size_bp = NULL,
+          chr = chr,
+          verbose = ifelse(verbose, 1, 0)
+        )
+        
+        return(tibble(
+          CHROM = chr,
+          pos = ..1,
+          sample = ..2,
+          Groups = list(result$Groups),
+          Haps = list(result$Haps),
+          Err = list(result$Err),
+          Names = list(result$Names)
+        ))
+      })
+  } else {
+    # Large dataset - show progress
+    start_time <- Sys.time()
+    operation_count <- 0
+    
+    adaptive_results <- expand_grid(
+      pos = all_positions,
+      sample_name = names_in_bam
+    ) %>%
+      purrr::pmap_dfr(~ {
+        operation_count <<- operation_count + 1
+        
+        # Show progress every 100 operations
+        if (operation_count %% 100 == 0 || operation_count == total_operations) {
+          elapsed <- as.numeric(Sys.time() - start_time, units = "secs")
+          rate <- operation_count / elapsed
+          remaining <- (total_operations - operation_count) / rate
+          percent_done <- round(100 * operation_count / total_operations, 1)
+          
+          cat(sprintf("Progress: %d/%d (%.1f%%) | Rate: %.1f ops/sec | Elapsed: %.1f min | Remaining: %.1f min\n",
+                     operation_count, total_operations, percent_done, rate, elapsed/60, remaining/60))
+        }
+        
+        result <- estimate_haplotypes_list_format(
+          pos = ..1,
+          sample_name = ..2,
+          df3 = df3,
+          founders = founders,
+          h_cutoff = parameter,
+          method = method,
+          window_size_bp = NULL,
+          chr = chr,
+          verbose = 0  # Always non-verbose for large datasets
+        )
+        
+        return(tibble(
+          CHROM = chr,
+          pos = ..1,
+          sample = ..2,
+          Groups = list(result$Groups),
+          Haps = list(result$Haps),
+          Err = list(result$Err),
+          Names = list(result$Names)
+        ))
+      })
+    
+    total_time <- as.numeric(Sys.time() - start_time, units = "secs")
+    cat(sprintf("\n✓ Adaptive estimation completed in %.1f minutes (%.1f ops/sec)\n", 
+                total_time/60, total_operations/total_time))
+  }
   
   # Save adaptive results
   list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
@@ -496,8 +556,18 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
   
   # Process smoothing for each sample
   unique_samples <- unique(adaptive_results$sample)
-  smooth_results <- map_dfr(unique_samples, function(sample_name) {
-    if (length(unique_samples) > 1) cat("Smoothing sample:", sample_name, "\n")
+  total_samples <- length(unique_samples)
+  
+  if (total_samples > 1 && verbose) {
+    cat("Smoothing", total_samples, "samples...\n")
+  }
+  
+  smooth_results <- map_dfr(seq_along(unique_samples), function(sample_idx) {
+    sample_name <- unique_samples[sample_idx]
+    
+    if (total_samples > 1 && verbose) {
+      cat(sprintf("Smoothing sample %d/%d: %s\n", sample_idx, total_samples, sample_name))
+    }
     
     sample_data <- adaptive_results %>% 
       filter(sample == sample_name) %>%
