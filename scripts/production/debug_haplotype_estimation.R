@@ -1,4 +1,4 @@
-ways#!/usr/bin/env Rscriptroduy
+#!/usr/bin/env Rscript
 
 # Debug wrapper for haplotype estimation
 # Usage: Rscript debug_haplotype_estimation.R <chr> <method> <parameter> <output_dir> <param_file> [n_positions] [n_samples] [version]
