@@ -392,7 +392,7 @@ average_err <- function(err_list, founders) {
 # MAIN WORKFLOW FUNCTIONS
 # =============================================================================
 
-run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_file, debug = FALSE) {
+run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_file, debug = FALSE, verbose = TRUE) {
   # Step 1: Adaptive haplotype estimation - EXACT from working code
   
   cat("=== RUNNING ADAPTIVE HAPLOTYPE ESTIMATION ===\n")
@@ -401,7 +401,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   cat("Parameter:", parameter, "\n")
   cat("Output directory:", output_dir, "\n")
   cat("Parameter file:", param_file, "\n")
-  cat("Debug mode:", debug, "\n\n")
+  cat("Debug mode:", debug, "\n")
+  cat("Verbose mode:", verbose, "\n\n")
   
   # Load parameters
   source(param_file)
@@ -454,7 +455,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
         method = method,
         window_size_bp = NULL,
         chr = chr,
-        verbose = ifelse(debug, 1, 0)
+        verbose = ifelse(verbose, 1, 0)
       )
       
       return(tibble(
@@ -481,7 +482,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   return(adaptive_results)
 }
 
-run_smoothing <- function(chr, param_file, output_dir, adaptive_results) {
+run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
   # Step 2: Apply 21-position sliding window smoothing - EXACT from working code
   
   cat("\n=== RUNNING SMOOTHING ===\n")
@@ -639,22 +640,29 @@ if (!interactive()) {
   parameter <- as.numeric(args[3])
   output_dir <- args[4]
   param_file <- args[5]
-  debug <- !("--nonverbose" %in% args)
+  debug <- "--debug" %in% args
+  verbose <- !("--nonverbose" %in% args)
   
   # Run the complete workflow
   if (debug) {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
-    cat("Verbose output enabled\n\n")
+    cat("Limited to 100 positions × 1 sample for testing\n")
   } else {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
-    cat("Running in production mode (minimal output)\n\n")
+    cat("Processing all positions and samples\n")
+  }
+  
+  if (verbose) {
+    cat("Verbose output enabled\n\n")
+  } else {
+    cat("Minimal output mode\n\n")
   }
   
   # Step 1: Adaptive estimation
-  adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug)
+  adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug, verbose)
   
   # Step 2: Smoothing
-  smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results)
+  smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
   
   cat("\n=== WORKFLOW COMPLETE ===\n")
   cat("✓ Both adaptive estimation and smoothing completed successfully\n")

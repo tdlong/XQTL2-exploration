@@ -62,10 +62,12 @@ cat("Running complete workflow...\n")
 cat("This will call the consolidated workflow script.\n\n")
 
 # Call the complete workflow script
+# Always run in debug mode (limited positions/samples) for testing
+# But pass through the verbose setting
 debug_flag <- if (debug) "" else "--nonverbose"
 system(paste(
   "Rscript scripts/production/complete_haplotype_workflow.R",
-  chr, method, parameter, output_dir, param_file, debug_flag
+  chr, method, parameter, output_dir, param_file, debug_flag, "--debug"
 ))
 
 cat("\n=== TEST COMPLETE ===\n")
