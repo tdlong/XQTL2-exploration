@@ -284,7 +284,17 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
       cat(sprintf("  n_snps: %d\n", ifelse(is.null(final_result), 0, nrow(final_wide_data))))
     }
     
-    return(list(Groups=groups, Haps=founder_frequencies, Err=result$cov, Names=founders))
+    # Return appropriate error matrix
+    if (!is.null(final_result)) {
+      error_matrix <- final_result$cov
+    } else {
+      # Create NA matrix when no result
+      error_matrix <- matrix(NA, length(founders), length(founders))
+      rownames(error_matrix) <- founders
+      colnames(error_matrix) <- founders
+    }
+    
+    return(list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders))
 }
 
 # =============================================================================
