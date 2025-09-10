@@ -44,17 +44,11 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   # - Names: character vector of founder names
   # Any changes to this format will break the entire pipeline
   
-  # Debug output only in verbose mode
-  if (verbose >= 1) {
-    cat("DEBUG: Using estimate_haplotypes_list_format function\n")
-  }
+  # No redundant debug output - function is called for every position
   
   method <- match.arg(method)
   
-  if (verbose >= 1) {
-    cat(sprintf("Processing pos: %s, sample: %s, method: %s\n", 
-                format(pos, big.mark=","), sample_name, method))
-  }
+  # No redundant position processing output - already shown by wrapper
     # ADAPTIVE WINDOW METHOD
     if (verbose >= 2) {
       cat(sprintf("=== ADAPTIVE WINDOW METHOD: h_cutoff = %g ===\n", h_cutoff))
