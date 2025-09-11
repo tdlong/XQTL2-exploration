@@ -758,34 +758,54 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     # mark newly resolved founders
     for (ii in seq_along(pool_members)){
       mem <- pool_members[[ii]]
-      if (length(mem) == 1L) {
-        resolved[mem] <- TRUE
-        V[mem, mem] <- cov_pool[ii, ii]
-      } else {
-        # pooled group: store pending covariances
-        pending[[length(pending) + 1]] <- list(
-          members = mem, cov = cov_pool[ii, ii], window = window_size
-        )
-      }
+      if (length(mem)==1L) resolved[founders[mem]] <- TRUE
     }
-
-    # Backfill pending covariances when groups split
-    if (length(pending) > 0) {
-      for (i in seq_along(pending)) {
-        p <- pending[[i]]
-        if (all(resolved[p$members])) {
-          # All members now resolved - backfill their covariances
-          for (j in p$members) {
-            for (k in p$members) {
-              if (j != k) {
-                V[j, k] <- V[k, j] <- cov_pool[which(pool_members == p$members), which(pool_members == p$members)]
-              }
-            }
-          }
-          pending[[i]] <- NULL
+    # write cov for resolved-resolved; store pending for det-vs-pool and pool-vs-pool
+    for (i_idx in seq_along(pool_members)){
+      mi <- pool_members[[i_idx]]
+      for (j_idx in seq_along(pool_members)){
+        mj <- pool_members[[j_idx]]
+        if (length(mi)==1L && length(mj)==1L){
+          fi <- founders[mi]; fj <- founders[mj]
+          if (is.na(V[fi,fj])) V[fi,fj] <- cov_pool[i_idx, j_idx]
+          if (is.na(V[fj,fi])) V[fj,fi] <- cov_pool[j_idx, i_idx]
+        } else if (length(mi)==1L && length(mj)>1L){
+          pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+        } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
+          pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
         }
       }
     }
+
+    # If all resolved now, distribute pending covariances using current weights
+    if (all(resolved)){
+      w_now <- setNames(rep(NA_real_, length(founders)), founders)
+      # Approximate weights from current (last) res if same dimensionality, else use group_values map
+      if (length(final_result$X) == length(founders)){
+        w_now <- setNames(as.numeric(final_result$X), founders)
+      }
+      for (rec in pending){
+        if (rec$type == "det_vs_pool"){
+          den <- sum(w_now[rec$mem]); if (!is.finite(den) || den<=0) next
+          for (f in rec$mem){
+            val <- rec$cov * (w_now[f]/den)
+            if (is.na(V[rec$det, f])) V[rec$det, f] <- val
+            if (is.na(V[f, rec$det])) V[f, rec$det] <- val
+          }
+        } else if (rec$type == "pool_vs_pool"){
+          den_a <- sum(w_now[rec$mem_a]); den_b <- sum(w_now[rec$mem_b]); if (den_a<=0 || den_b<=0) next
+          for (fa in rec$mem_a){
+            for (fb in rec$mem_b){
+              val <- rec$cov * (w_now[fa]/den_a) * (w_now[fb]/den_b)
+              if (is.na(V[fa, fb])) V[fa, fb] <- val
+              if (is.na(V[fb, fa])) V[fb, fa] <- val
+            }
+          }
+        }
+      }
+      pending <- list()
+    }
+
 
     if (verbose >= 2) {
       cat("V matrix:\n")
