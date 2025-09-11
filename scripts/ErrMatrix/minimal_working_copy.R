@@ -883,8 +883,23 @@ if (!interactive()) {
   }
   cat("Debug level:", debug_level, "\n\n")
   
-  # Step 1: Adaptive estimation ONLY (no smoothing)
+  # Step 1: Adaptive estimation ONLY (no smoothing) - WITH TIMING
+  cat("Starting adaptive estimation timing...\n")
+  start_time <- Sys.time()
+  
   adaptive_results <- run_adaptive_estimation(chr, method, parameter, output_dir, param_file, debug, verbose, debug_level)
+  
+  end_time <- Sys.time()
+  total_time <- end_time - start_time
+  
+  cat("\n=== TIMING RESULTS ===\n")
+  cat("Total time:", round(as.numeric(total_time, units = "secs"), 2), "seconds\n")
+  cat("Total time:", round(as.numeric(total_time, units = "mins"), 2), "minutes\n")
+  if (nrow(adaptive_results) > 0) {
+    cat("Function calls:", nrow(adaptive_results), "\n")
+    cat("Time per call:", round(as.numeric(total_time, units = "secs") / nrow(adaptive_results), 4), "seconds\n")
+  }
+  cat("========================\n\n")
   
   # Step 2: Smoothing - SKIPPED
   # smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
