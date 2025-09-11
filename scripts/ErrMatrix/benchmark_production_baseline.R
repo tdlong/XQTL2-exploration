@@ -7,8 +7,8 @@ library(tidyverse)
 library(limSolve)
 library(MASS)
 
-# Source the production functions
-source("scripts/production/complete_haplotype_workflow.R")
+# Source the production functions (clean version without main execution)
+source("scripts/ErrMatrix/production_functions_only.R")
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
