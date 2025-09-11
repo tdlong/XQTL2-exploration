@@ -697,3 +697,166 @@ run_batch_100_with_summary <- function(h_cutoff = 4) {
   if (inf > 0) cat(sprintf("  Ng among Inf: min=%d max=%d\n", min_ng_inf, max_ng_inf))
 }
 
+# Enhanced batch collector: returns tibble with groups progression as text column
+run_batch_df_enhanced <- function(n_runs = 12, n_snps = 3000L, h_cutoff = 4) {
+  out <- vector("list", n_runs)
+  for (r in seq_len(n_runs)) {
+    set.seed(1000 + r)
+    n_founders <- 8
+    founders <- paste0("F", seq_len(n_founders))
+    sample_name <- "S1"
+    POS <- seq_len(n_snps)
+
+    set.seed(1100 + r)
+    A <- simulate_founders(n_snps, n_founders)
+    colnames(A) <- founders
+
+    set.seed(2000 + r)
+    w <- runif(n_founders); w <- w / sum(w)
+    noise_sd <- ifelse(r %% 3 == 0, 0.03, 0.02)
+    samp <- as.numeric(A %*% w) + rnorm(n_snps, 0, noise_sd)
+    samp[samp < 0] <- 0; samp[samp > 1] <- 1
+
+    df_founders <- tibble::as_tibble(A) %>% dplyr::mutate(POS = POS) %>%
+      tidyr::pivot_longer(cols = dplyr::all_of(founders), names_to = "name", values_to = "freq")
+    df_sample <- tibble::tibble(POS = POS, name = sample_name, freq = samp)
+    df3 <- dplyr::bind_rows(df_founders, df_sample)
+
+    res <- estimate_haplotypes_list_format_sim(
+      pos = -99, sample_name = sample_name, df3 = df3, founders = founders,
+      h_cutoff = h_cutoff, method = "adaptive", verbose = 0
+    )
+
+    hap_err <- max(abs(as.numeric(res$Haps) - w)) * 100
+    ek <- tryCatch(kappa(res$Err), error=function(e) NA_real_)
+    n_groups_final <- length(unique(res$Groups))
+    
+    # Build groups progression string
+    gpf <- attr(res, "groups_fmt_path"); gw <- attr(res, "groups_win_path")
+    groups_progression <- if (!is.null(gw) && length(gw) == length(gpf)) {
+      paste(sprintf("%d:%s", gw, gpf), collapse = " -> ")
+    } else {
+      paste(gpf, collapse = " -> ")
+    }
+    
+    out[[r]] <- tibble::tibble(
+      run = r, 
+      hap_err = hap_err, 
+      kappa = ek, 
+      Ng = n_groups_final,
+      groups_progression = groups_progression
+    )
+  }
+  dplyr::bind_rows(out)
+}
+
+# Summary functions for batch results
+summarize_batch_results <- function(df) {
+  df <- df %>% dplyr::mutate(
+    kappa_inf = !is.finite(kappa),
+    converged = Ng == 8,
+    kappa_log10 = ifelse(kappa_inf, NA_real_, log10(kappa))
+  )
+  
+  # Basic counts
+  n <- nrow(df)
+  inf <- sum(df$kappa_inf)
+  ok <- n - inf
+  converged <- sum(df$converged)
+  not_converged <- n - converged
+  
+  # Validation: Inf only when not converged
+  all_inf_bad <- all(ifelse(df$kappa_inf, !df$converged, TRUE))
+  
+  # Hap error stats
+  hap_stats <- df %>% dplyr::summarise(
+    hap_mean = mean(hap_err, na.rm = TRUE),
+    hap_median = median(hap_err, na.rm = TRUE),
+    hap_sd = sd(hap_err, na.rm = TRUE),
+    hap_min = min(hap_err, na.rm = TRUE),
+    hap_max = max(hap_err, na.rm = TRUE)
+  )
+  
+  # Kappa stats (finite only)
+  kappa_stats <- df %>% 
+    dplyr::filter(!kappa_inf) %>% 
+    dplyr::summarise(
+      kappa_mean = mean(kappa_log10, na.rm = TRUE),
+      kappa_median = median(kappa_log10, na.rm = TRUE),
+      kappa_sd = sd(kappa_log10, na.rm = TRUE),
+      kappa_min = min(kappa_log10, na.rm = TRUE),
+      kappa_max = max(kappa_log10, na.rm = TRUE)
+    )
+  
+  # Groups progression analysis
+  progression_stats <- df %>% 
+    dplyr::mutate(
+      n_transitions = stringr::str_count(groups_progression, " -> "),
+      reaches_8 = stringr::str_detect(groups_progression, "12345678$")
+    ) %>% 
+    dplyr::summarise(
+      mean_transitions = mean(n_transitions, na.rm = TRUE),
+      pct_reach_8 = mean(reaches_8, na.rm = TRUE) * 100
+    )
+  
+  list(
+    counts = list(
+      total = n, 
+      kappa_inf = inf, 
+      kappa_finite = ok,
+      converged = converged,
+      not_converged = not_converged,
+      all_inf_bad = all_inf_bad
+    ),
+    hap_error = hap_stats,
+    kappa_log10 = kappa_stats,
+    progression = progression_stats
+  )
+}
+
+print_batch_summary <- function(df) {
+  s <- summarize_batch_results(df)
+  
+  cat("=== Batch Results Summary ===\n")
+  cat(sprintf("Runs: %d total\n", s$counts$total))
+  cat(sprintf("Convergence: %d converged (Ng=8), %d not converged\n", 
+              s$counts$converged, s$counts$not_converged))
+  cat(sprintf("Kappa: %d finite, %d infinite\n", 
+              s$counts$kappa_finite, s$counts$kappa_inf))
+  cat(sprintf("Inf kappa only when not converged: %s\n", 
+              ifelse(s$counts$all_inf_bad, "TRUE", "FALSE")))
+  
+  cat("\nHap Error (%):\n")
+  cat(sprintf("  mean=%.2f  median=%.2f  sd=%.2f  range=[%.2f,%.2f]\n",
+              s$hap_error$hap_mean, s$hap_error$hap_median, s$hap_error$hap_sd,
+              s$hap_error$hap_min, s$hap_error$hap_max))
+  
+  if (s$counts$kappa_finite > 0) {
+    cat("\nLog10(Kappa) (finite only):\n")
+    cat(sprintf("  mean=%.2f  median=%.2f  sd=%.2f  range=[%.2f,%.2f]\n",
+                s$kappa_log10$kappa_mean, s$kappa_log10$kappa_median, s$kappa_log10$kappa_sd,
+                s$kappa_log10$kappa_min, s$kappa_log10$kappa_max))
+  }
+  
+  cat("\nGroups Progression:\n")
+  cat(sprintf("  mean transitions=%.1f  %% reach 8 groups=%.1f\n",
+              s$progression$mean_transitions, s$progression$pct_reach_8))
+}
+
+# Wrapper: run 100 simulations, show data frame, then summary
+run_100_with_dataframe <- function(h_cutoff = 4) {
+  cat("Running 100 simulations...\n")
+  df <- run_batch_df_enhanced(100, h_cutoff = h_cutoff)
+  
+  cat("\n=== Data Frame (first 20 rows) ===\n")
+  print(df[1:20, ])
+  if (nrow(df) > 20) {
+    cat(sprintf("... and %d more rows\n", nrow(df) - 20))
+  }
+  
+  cat("\n")
+  print_batch_summary(df)
+  
+  invisible(df)
+}
+
