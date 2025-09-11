@@ -645,6 +645,22 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     # Update progressive V using pooled model for this window
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Debug: check what we got
+    if (verbose >= 1) {
+      cat("cov_pool class:", class(cov_pool), "\n")
+      cat("cov_pool dimensions:", dim(cov_pool), "\n")
+      cat("pool_members length:", length(pool_members), "\n")
+      cat("groups:", groups, "\n")
+    }
+    
+    # Safety check: ensure cov_pool is a matrix
+    if (!is.matrix(cov_pool) || any(is.na(cov_pool))) {
+      if (verbose >= 1) {
+        cat("Warning: cov_pool is not a valid matrix, skipping progressive V update\n")
+      }
+      next
+    }
     # mark newly resolved founders
     for (ii in seq_along(pool_members)){
       mem <- pool_members[[ii]]
@@ -763,6 +779,22 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     # Update progressive V using pooled model for this window
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Debug: check what we got
+    if (verbose >= 1) {
+      cat("cov_pool class:", class(cov_pool), "\n")
+      cat("cov_pool dimensions:", dim(cov_pool), "\n")
+      cat("pool_members length:", length(pool_members), "\n")
+      cat("groups:", groups, "\n")
+    }
+    
+    # Safety check: ensure cov_pool is a matrix
+    if (!is.matrix(cov_pool) || any(is.na(cov_pool))) {
+      if (verbose >= 1) {
+        cat("Warning: cov_pool is not a valid matrix, skipping progressive V update\n")
+      }
+      next
+    }
     # mark newly resolved founders
     for (ii in seq_along(pool_members)){
       mem <- pool_members[[ii]]
