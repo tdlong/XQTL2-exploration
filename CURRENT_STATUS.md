@@ -1,8 +1,8 @@
 # CURRENT STATUS - XQTL2 Exploration Project
 
-## 🚀 **CURRENT STATUS: LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN**
+## 🚀 **CURRENT STATUS: PROGRESSIVE ERROR MATRIX ALGORITHM DEVELOPMENT**
 
-**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | ✅ **ZINC2 ANALYSIS COMPLETE** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED** | 🚀 **LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN**
+**STATUS**: ✅ **JUICE ANALYSIS COMPLETE** | ✅ **ZINC2 ANALYSIS COMPLETE** | ✅ **SCRIPT REORGANIZATION COMPLETE** | ✅ **PLOTTING INFRASTRUCTURE COMPLETE** | ✅ **SCRIPT PATHS FIXED** | ✅ **SMOOTH_H4 ESTIMATOR INTEGRATED** | ✅ **LIST-FORMAT HAPLOTYPE ESTIMATOR PRODUCTION RUN** | 🚀 **PROGRESSIVE ERROR MATRIX ALGORITHM DEVELOPMENT**
 
 ---
 
@@ -101,6 +101,92 @@ sbatch --array=10 scripts/production/snp_imputation_from_table.sh helpfiles/prod
 # Run all 10 SNP imputations (including smooth_h4)
 sbatch scripts/production/snp_imputation_from_table.sh helpfiles/production_slurm_params.tsv helpfiles/ZINC2_haplotype_parameters.R process/ZINC2
 ```
+
+---
+
+## 🧬 **PHASE 7: PROGRESSIVE ERROR MATRIX ALGORITHM - IN PROGRESS**
+
+### **Status**: 🚀 **DEVELOPMENT COMPLETE** | ✅ **SIMULATION VALIDATED** | ✅ **BATCH TESTING COMPLETE**
+
+**What's completed**: 
+- **Progressive Error Matrix Algorithm**: ✅ **IMPLEMENTED** - Addresses singular covariance matrices in adaptive algorithm
+- **Realistic Founder Simulation**: ✅ **IMPLEMENTED** - Parent-child model with controlled distinguishability progression
+- **Enhanced Data Collection**: ✅ **IMPLEMENTED** - Data frame collection with comprehensive summary statistics
+- **Modular Design**: ✅ **IMPLEMENTED** - Drop-in replacement for production haplotype estimator
+
+**🎯 ACHIEVEMENTS**:
+- **Progressive Error Matrix**: Builds error matrix incrementally, inheriting variances from earliest distinguishable windows
+- **Parent-Child Simulator**: Realistic founder relatedness with controlled splitting at 300/750/1500/3000 SNP windows
+- **100% Convergence**: 100/100 simulations converged (Ng=8) with finite condition numbers
+- **Modular Architecture**: Same input/output contract as production estimator, enabling safe replacement
+
+**📊 VALIDATION RESULTS**:
+```
+=== Batch Results Summary ===
+Runs: 100 total
+Convergence: 100 converged (Ng=8), 0 not converged
+Kappa: 100 finite, 0 infinite
+Inf kappa only when not converged: TRUE
+
+Hap Error (%):
+  mean=0.85  median=0.80  sd=0.38  range=[0.24,2.40]
+
+Log10(Kappa) (finite only):
+  mean=2.02  median=2.02  sd=0.33  range=[1.31,2.70]
+
+Groups Progression:
+  mean transitions=2.0  % reach 8 groups=100.0
+```
+
+**🔧 TECHNICAL IMPLEMENTATION**:
+- **File**: `scripts/ErrMatrix/haplotype_error_workbench.R` - Single consolidated development environment
+- **Core Function**: `estimate_haplotypes_list_format_sim()` - Modular copy of production estimator
+- **Simulator**: `simulate_founders()` - Documented parent-child algorithm with controlled relatedness
+- **Data Collection**: `run_batch_df_enhanced()` - Returns tibble with groups_progression text column
+- **Summary**: `summarize_batch_results()` + `print_batch_summary()` - Comprehensive statistics
+
+**📁 FILES CREATED**:
+```
+scripts/ErrMatrix/haplotype_error_workbench.R  # Single workbench file with all functionality
+```
+
+**🎯 MODULAR REPLACEMENT STRATEGY**:
+The progressive error matrix algorithm is designed as a **drop-in replacement** for the production haplotype estimator:
+
+1. **Same Input Contract**: Accepts identical parameters as `estimate_haplotypes_list_format()`
+2. **Same Output Contract**: Returns identical structure (Groups, Haps, Err, Names)
+3. **Enhanced Diagnostics**: Uses `attr()` to pass additional data without changing return signature
+4. **Safe Development**: Developed outside production environment, validated independently
+5. **Easy Integration**: Can replace production function with minimal code changes
+
+**🎮 USAGE COMMANDS**:
+```bash
+# Run 100 simulations with data frame display and summary
+Rscript -e 'source("scripts/ErrMatrix/haplotype_error_workbench.R"); run_100_with_dataframe()'
+
+# Run specific simulation with verbose diagnostics
+Rscript -e 'source("scripts/ErrMatrix/haplotype_error_workbench.R"); run_one_verbose(1)'
+
+# Run batch and collect as data frame
+Rscript -e 'source("scripts/ErrMatrix/haplotype_error_workbench.R"); df <- run_batch_df_enhanced(100); print_batch_summary(df)'
+```
+
+**🎯 NEXT PHASE**: Ready for production integration testing
+
+**🔧 PROGRESSIVE ERROR MATRIX ALGORITHM**:
+1. **Initialize**: Error matrix `V` with `NA`s, run LSEI on pooled design matrix
+2. **Fill Variances**: For uniquely resolved founders, inherit variances from earliest distinguishable window
+3. **Handle Covariances**: For pooled founders, use pooled covariance estimates
+4. **Backfill**: When pools split, backfill individual covariances using inheritance rules
+5. **Result**: Well-conditioned error matrix avoiding constraint-induced singularities
+
+**📊 SIMULATION ALGORITHM** (Documented in Code):
+1. **Base Founders**: Generate K base founders (Poisson(5.5), clamped [3,7], ≤ n_founders)
+2. **Independent Haplotypes**: Create K independent binary haplotypes
+3. **Child Assignment**: Assign remaining founders to parents with target distinguishability windows
+4. **Flip Calculation**: Calculate flips per 150-SNP block based on target window (300/750/1500/3000)
+5. **Apply Flips**: Distribute flips evenly across 150-SNP blocks to achieve target distinguishability
+6. **Result**: Realistic founder relatedness with controlled progression (5→6→7→8 groups)
 
 ---
 
@@ -783,7 +869,7 @@ Rscript scripts/production/check_snp_imputation_status.R helpfiles/production_sl
 
 ---
 
-*Last Updated: 2025-01-19 - List-Format Haplotype Estimators Complete, Perfect List-Column Structure Achieved, Smooth_H4 Sliding Window Working, Ready for Pipeline Integration*
+*Last Updated: 2025-01-19 - Progressive Error Matrix Algorithm Complete, 100% Convergence Achieved, Modular Replacement Ready, Parent-Child Simulator Validated*
 
 ---
 
