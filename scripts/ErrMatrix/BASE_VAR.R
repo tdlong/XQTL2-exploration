@@ -419,14 +419,9 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
                                chr = "chr2R",
                                verbose = 0) {
 
-  # Delegate to production when not in simulated mode
-  if (!isTRUE(all.equal(pos, -99))) {
-    return(estimate_haplotypes_list_format_prod(pos, sample_name, df3, founders, h_cutoff,
-                                                method, window_size_bp, chr, verbose))
-  }
-
   if (verbose >= 2) {
-    cat(sprintf("=== SIM MODE (-99): h_cutoff=%g, sample=%s ===\n", h_cutoff, sample_name))
+    cat(sprintf("=== PROGRESSIVE ERROR MATRIX MODE: h_cutoff=%g, sample=%s, pos=%g ===\n", 
+                h_cutoff, sample_name, pos))
   }
 
   window_sizes <- c(150, 300, 750, 1500, 3000)
@@ -505,8 +500,13 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
   df3 <- df3 %>% dplyr::arrange(POS)
   
   for (window_size in window_sizes) {
+    # Convert SNP count to base pairs (approximate: 1 SNP per 100bp)
+    window_size_bp <- window_size * 100
+    window_start <- max(1, pos - window_size_bp/2)
+    window_end <- pos + window_size_bp/2
+    
     window_data <- df3 %>%
-      dplyr::filter(POS >= 1, POS <= window_size, name %in% c(founders, sample_name))
+      dplyr::filter(POS >= window_start, POS <= window_end, name %in% c(founders, sample_name))
     if (nrow(window_data) == 0) next
 
     wide_data <- window_data %>%
