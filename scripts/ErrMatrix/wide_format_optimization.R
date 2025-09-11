@@ -296,53 +296,7 @@ run_adapt_h4_wide <- function(chr, method, parameter, output_dir, param_file, de
 }
 
 # =============================================================================
-# MAIN EXECUTION (FOR TESTING)
+# MAIN EXECUTION (FOR TESTING) - MOVED TO SEPARATE FILE
 # =============================================================================
 
-if (!interactive()) {
-  # Source the wide format haplotype estimator
-  source("scripts/ErrMatrix/est_haps_wide.R")
-  
-  # Parse command line arguments
-  args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) < 5) {
-    stop("Usage: Rscript wide_format_optimization.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose] [--debug-level-1] [--debug-level-2] [--debug-level-3]")
-  }
-  
-  chr <- args[1]
-  method <- args[2]
-  parameter <- as.numeric(args[3])
-  output_dir <- args[4]
-  param_file <- args[5]
-  debug <- "--debug" %in% args
-  verbose <- !("--nonverbose" %in% args)
-  
-  # Parse debug level from command line
-  debug_level <- 0
-  if ("--debug-level-1" %in% args) debug_level <- 1
-  if ("--debug-level-2" %in% args) debug_level <- 2
-  if ("--debug-level-3" %in% args) debug_level <- 3
-  
-  # Run the optimized workflow
-  if (debug) {
-    cat("=== WIDE FORMAT OPTIMIZATION (DEBUG MODE) ===\n")
-    cat("Limited to 100 positions × 1 sample for testing\n")
-  } else {
-    cat("=== WIDE FORMAT OPTIMIZATION ===\n")
-    cat("Processing all positions and samples\n")
-  }
-  
-  if (verbose) {
-    cat("Verbose output enabled\n")
-  } else {
-    cat("Minimal output mode\n")
-  }
-  cat("Debug level:", debug_level, "\n\n")
-  
-  # Run optimized adaptive estimation
-  adaptive_results <- run_adapt_h4_wide(chr, method, parameter, output_dir, param_file, debug, verbose, debug_level)
-  
-  cat("\n=== OPTIMIZATION COMPLETE ===\n")
-  cat("✓ Wide format processing completed successfully\n")
-  cat("✓ Results saved in same format as production\n")
-}
+# Main execution block moved to test_wide_format.R to avoid sourcing issues
