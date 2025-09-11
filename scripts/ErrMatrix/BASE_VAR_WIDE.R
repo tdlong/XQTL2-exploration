@@ -1712,74 +1712,6 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
 }
 
 # =============================================================================
-# MAIN EXECUTION
-# =============================================================================
-
-if (!interactive()) {
-  # Parse command line arguments
-  args <- commandArgs(trailingOnly = TRUE)
-  if (length(args) < 5) {
-    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose] [--debug-level-1] [--debug-level-2] [--debug-level-3]")
-  }
-  
-  chr <- args[1]
-  method <- args[2]
-  parameter <- as.numeric(args[3])
-  output_dir <- args[4]
-  param_file <- args[5]
-  debug <- "--debug" %in% args
-  verbose <- !("--nonverbose" %in% args)
-  
-  # Parse debug level from command line
-  debug_level <- 0
-  if ("--debug-level-1" %in% args) debug_level <- 1
-  if ("--debug-level-2" %in% args) debug_level <- 2
-  if ("--debug-level-3" %in% args) debug_level <- 3
-  
-  # Run the complete workflow
-  if (debug) {
-    cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
-    cat("Limited to 100 positions × 1 sample for testing\n")
-  } else {
-    cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
-    cat("Processing all positions and samples\n")
-  }
-  
-  if (verbose) {
-    cat("Verbose output enabled\n")
-  } else {
-    cat("Minimal output mode\n")
-  }
-  cat("Debug level:", debug_level, "\n\n")
-  
-  # Step 1: Adaptive estimation ONLY (no smoothing) - WITH TIMING
-  cat("Starting adaptive estimation timing...\n")
-  start_time <- Sys.time()
-  
-  adaptive_results <- run_adaptive_estimation_wide(chr, method, parameter, output_dir, param_file, debug, verbose, debug_level)
-  
-  end_time <- Sys.time()
-  total_time <- end_time - start_time
-  
-  cat("\n=== TIMING RESULTS ===\n")
-  cat("Total time:", round(as.numeric(total_time, units = "secs"), 2), "seconds\n")
-  cat("Total time:", round(as.numeric(total_time, units = "mins"), 2), "minutes\n")
-  if (nrow(adaptive_results) > 0) {
-    cat("Function calls:", nrow(adaptive_results), "\n")
-    cat("Time per call:", round(as.numeric(total_time, units = "secs") / nrow(adaptive_results), 4), "seconds\n")
-  }
-  cat("========================\n\n")
-  
-  # Step 2: Smoothing - SKIPPED
-  # smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
-  
-  cat("\n=== WORKFLOW COMPLETE ===\n")
-  cat("✓ Adaptive estimation completed successfully\n")
-  cat("✓ Smoothing skipped (as requested)\n")
-  cat("✓ Output files created in production format\n")
-}
-
-# =============================================================================
 # WIDE FORMAT OPTIMIZED VERSION
 # =============================================================================
 
@@ -1942,4 +1874,72 @@ run_adaptive_estimation_wide <- function(chr, method, parameter, output_dir, par
   cat("Results saved to:", output_file, "\n")
   
   return(results_df)
+}
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
+
+if (!interactive()) {
+  # Parse command line arguments
+  args <- commandArgs(trailingOnly = TRUE)
+  if (length(args) < 5) {
+    stop("Usage: Rscript complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose] [--debug-level-1] [--debug-level-2] [--debug-level-3]")
+  }
+  
+  chr <- args[1]
+  method <- args[2]
+  parameter <- as.numeric(args[3])
+  output_dir <- args[4]
+  param_file <- args[5]
+  debug <- "--debug" %in% args
+  verbose <- !("--nonverbose" %in% args)
+  
+  # Parse debug level from command line
+  debug_level <- 0
+  if ("--debug-level-1" %in% args) debug_level <- 1
+  if ("--debug-level-2" %in% args) debug_level <- 2
+  if ("--debug-level-3" %in% args) debug_level <- 3
+  
+  # Run the complete workflow
+  if (debug) {
+    cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
+    cat("Limited to 100 positions × 1 sample for testing\n")
+  } else {
+    cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
+    cat("Processing all positions and samples\n")
+  }
+  
+  if (verbose) {
+    cat("Verbose output enabled\n")
+  } else {
+    cat("Minimal output mode\n")
+  }
+  cat("Debug level:", debug_level, "\n\n")
+  
+  # Step 1: Adaptive estimation ONLY (no smoothing) - WITH TIMING
+  cat("Starting adaptive estimation timing...\n")
+  start_time <- Sys.time()
+  
+  adaptive_results <- run_adaptive_estimation_wide(chr, method, parameter, output_dir, param_file, debug, verbose, debug_level)
+  
+  end_time <- Sys.time()
+  total_time <- end_time - start_time
+  
+  cat("\n=== TIMING RESULTS ===\n")
+  cat("Total time:", round(as.numeric(total_time, units = "secs"), 2), "seconds\n")
+  cat("Total time:", round(as.numeric(total_time, units = "mins"), 2), "minutes\n")
+  if (nrow(adaptive_results) > 0) {
+    cat("Function calls:", nrow(adaptive_results), "\n")
+    cat("Time per call:", round(as.numeric(total_time, units = "secs") / nrow(adaptive_results), 4), "seconds\n")
+  }
+  cat("========================\n\n")
+  
+  # Step 2: Smoothing - SKIPPED
+  # smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
+  
+  cat("\n=== WORKFLOW COMPLETE ===\n")
+  cat("✓ Adaptive estimation completed successfully\n")
+  cat("✓ Smoothing skipped (as requested)\n")
+  cat("✓ Output files created in production format\n")
 }
