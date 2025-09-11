@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Block commits that touch scripts/production unless explicitly allowed
+CHANGED=$(git diff --cached --name-only -- scripts/production | wc -l | tr -d 
