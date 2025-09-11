@@ -5,11 +5,12 @@ suppressPackageStartupMessages({
   library(limSolve)
 })
 
-# Read-only: source production workflow to access the WORKING function
-source("scripts/production/complete_haplotype_workflow.R")
-
-# Keep a handle to the working function (DO NOT EDIT PRODUCTION)
-estimate_haplotypes_list_format_prod <- estimate_haplotypes_list_format
+# Do NOT source production here to avoid triggering its non-interactive main.
+# Provide a stub alias; this workbench uses simulated prefix mode (pos = -99)
+# and does not require calling production.
+estimate_haplotypes_list_format_prod <- function(...) {
+  stop("Production estimator not available in workbench; use pos = -99 to run simulated prefix mode.")
+}
 
 # Editable copy with the same signature/return contract.
 # Behavior:
@@ -42,16 +43,16 @@ estimate_haplotypes_list_format_sim <- function(pos, sample_name, df3, founders,
   accumulated_constraint_values <- NULL
 
   # Ensure POS-ordered tidy input (POS, name, freq)
-  df3 <- df3 %>% dplyr::arrange(.data$POS)
+  df3 <- df3 %>% dplyr::arrange(POS)
 
   for (window_size in window_sizes) {
     window_data <- df3 %>%
-      dplyr::filter(.data$POS >= 1 & .data$POS <= window_size & .data$name %in% c(founders, sample_name))
+      dplyr::filter(POS >= 1, POS <= window_size, name %in% c(founders, sample_name))
     if (nrow(window_data) == 0) next
 
     wide_data <- window_data %>%
-      dplyr::select(.data$POS, .data$name, .data$freq) %>%
-      tidyr::pivot_wider(names_from = .data$name, values_from = .data$freq)
+      dplyr::select(POS, name, freq) %>%
+      tidyr::pivot_wider(names_from = name, values_from = freq)
 
     if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
 
@@ -68,7 +69,14 @@ estimate_haplotypes_list_format_sim <- function(pos, sample_name, df3, founders,
     hclust_result <- stats::hclust(founder_dist, method = "complete")
     groups <- stats::cutree(hclust_result, h = h_cutoff)
     n_groups <- length(unique(groups))
-    if (verbose >= 2) cat(sprintf("  Prefix %d SNPs → %d groups\n", nrow(founder_matrix_clean), n_groups))
+    if (verbose >= 2) {
+      comp <- split(founders, groups)
+      ordered_gids <- sort(as.integer(names(comp)))
+      group_strings <- vapply(ordered_gids, function(gid){
+        paste(comp[[as.character(gid)]], collapse="+")
+      }, character(1))
+      carried_ct <- if (!is.null(accumulated_constraints)) nrow(accumulated_constraints) else 0
+    }
 
     if (!is.null(final_result) && n_groups <= previous_n_groups) {
       if (verbose >= 2) cat("    No improvement; continue\n")
@@ -83,7 +91,7 @@ estimate_haplotypes_list_format_sim <- function(pos, sample_name, df3, founders,
     if (!is.null(accumulated_constraints)) {
       E <- rbind(E, accumulated_constraints)
       F <- c(F, accumulated_constraint_values)
-      if (verbose >= 2) cat(sprintf("    Added %d accumulated constraints\n", nrow(accumulated_constraints)))
+      if (verbose >= 2) cat(sprintf("    Carried over %d constraints\n", nrow(accumulated_constraints)))
     }
 
     res <- tryCatch(
@@ -108,14 +116,49 @@ estimate_haplotypes_list_format_sim <- function(pos, sample_name, df3, founders,
     if (!is.null(current_constraints)) {
       accumulated_constraints <- current_constraints
       accumulated_constraint_values <- current_constraint_values
+      if (verbose >= 2) {
+        built_ct <- nrow(current_constraints)
+        # Map values to ordered group ids
+        ordered_gids <- sort(unique(groups))
+        group_values <- vapply(ordered_gids, function(gid){
+          sum(res$X[which(groups == gid)])
+        }, numeric(1))
+      }
     } else {
       accumulated_constraints <- NULL
       accumulated_constraint_values <- NULL
+      if (verbose >= 2) {
+        built_ct <- 0
+        group_values <- numeric(0)
+      }
     }
 
     final_result <- res
     final_n_groups <- n_groups
-    if (verbose >= 2) cat("    Stored result\n")
+    if (verbose >= 2) {
+      # Print compact, aligned 3-line block (monospace-friendly)
+      cat(sprintf("window_snp=%-5d  n_snps=%-5d  n_groups=%-2d  carried=%-2d  built=%-2d\n",
+                  window_size, nrow(founder_matrix_clean), n_groups, carried_ct, built_ct))
+      if (length(group_strings)) {
+        # Column widths match label lengths exactly for alignment
+        col_w <- nchar(group_strings)
+        # Render group labels with padding
+        grp_fmt <- vapply(seq_along(group_strings), function(i){
+          sprintf("%-*s", col_w[i], group_strings[i])
+        }, character(1))
+        cat(paste(grp_fmt, collapse=" | "), "\n", sep="")
+      }
+      if (length(group_values)) {
+        # Convert to percent, 0 decimals
+        vals_pct <- round(group_values * 100, 0)
+        # Match widths of labels exactly
+        if (!exists("col_w")) col_w <- rep(1, length(vals_pct))
+        val_fmt <- vapply(seq_along(vals_pct), function(i){
+          sprintf("%*d", col_w[i], as.integer(vals_pct[i]))
+        }, character(1))
+        cat(paste(val_fmt, collapse=" | "), "\n", sep="")
+      }
+    }
     if (n_groups == length(founders)) { if (verbose >= 2) cat("    All founders distinguished; stop\n"); break }
   }
 
