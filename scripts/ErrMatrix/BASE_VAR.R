@@ -657,12 +657,20 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
         mj <- pool_members[[j_idx]]
         if (length(mi)==1L && length(mj)==1L){
           fi <- founders[mi]; fj <- founders[mj]
-          if (is.na(V[fi,fj])) V[fi,fj] <- cov_pool[i_idx, j_idx]
-          if (is.na(V[fj,fi])) V[fj,fi] <- cov_pool[j_idx, i_idx]
+          if (is.na(V[fi,fj]) && i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            V[fi,fj] <- cov_pool[i_idx, j_idx]
+          }
+          if (is.na(V[fj,fi]) && j_idx <= nrow(cov_pool) && i_idx <= ncol(cov_pool)) {
+            V[fj,fi] <- cov_pool[j_idx, i_idx]
+          }
         } else if (length(mi)==1L && length(mj)>1L){
-          pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          }
         } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
-          pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          }
         }
       }
     }
@@ -767,12 +775,20 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
         mj <- pool_members[[j_idx]]
         if (length(mi)==1L && length(mj)==1L){
           fi <- founders[mi]; fj <- founders[mj]
-          if (is.na(V[fi,fj])) V[fi,fj] <- cov_pool[i_idx, j_idx]
-          if (is.na(V[fj,fi])) V[fj,fi] <- cov_pool[j_idx, i_idx]
+          if (is.na(V[fi,fj]) && i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            V[fi,fj] <- cov_pool[i_idx, j_idx]
+          }
+          if (is.na(V[fj,fi]) && j_idx <= nrow(cov_pool) && i_idx <= ncol(cov_pool)) {
+            V[fj,fi] <- cov_pool[j_idx, i_idx]
+          }
         } else if (length(mi)==1L && length(mj)>1L){
-          pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          }
         } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
-          pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          }
         }
       }
     }
