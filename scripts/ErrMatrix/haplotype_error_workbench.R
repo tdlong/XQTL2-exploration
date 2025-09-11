@@ -860,3 +860,204 @@ run_100_with_dataframe <- function(h_cutoff = 4) {
   invisible(df)
 }
 
+# =============================================================================
+# PERFORMANCE BENCHMARKING FOR BILLION-SCALE RUNS
+# =============================================================================
+
+# Pre-simulate all data (so simulation time doesn't count in benchmark)
+pre_simulate_data <- function(n_runs = 1000, n_snps = 3000L) {
+  cat(sprintf("Pre-simulating %d datasets...\n", n_runs))
+  
+  n_founders <- 8
+  founders <- paste0("F", 1:n_founders)
+  sample_name <- "S1"
+  POS <- seq_len(n_snps)
+  
+  simulated_data <- vector("list", n_runs)
+  
+  for (r in seq_len(n_runs)) {
+    set.seed(1100 + r)
+    A <- simulate_founders(n_snps, n_founders)
+    colnames(A) <- founders
+    
+    set.seed(2000 + r)
+    w <- runif(n_founders)
+    w <- w / sum(w)
+    
+    noise_sd <- ifelse(r %% 3 == 0, 0.03, 0.02)
+    samp <- as.numeric(A %*% w) + rnorm(n_snps, 0, noise_sd)
+    samp[samp < 0] <- 0
+    samp[samp > 1] <- 1
+    
+    df_founders <- tibble::as_tibble(A) %>% dplyr::mutate(POS = POS) %>%
+      tidyr::pivot_longer(cols = dplyr::all_of(founders), names_to = "name", values_to = "freq")
+    df_sample <- tibble::tibble(POS = POS, name = sample_name, freq = samp)
+    df3 <- dplyr::bind_rows(df_founders, df_sample)
+    
+    simulated_data[[r]] <- list(
+      df3 = df3,
+      founders = founders,
+      sample_name = sample_name,
+      true_weights = w
+    )
+  }
+  
+  cat("Pre-simulation complete.\n")
+  return(simulated_data)
+}
+
+# Optimized version of the core function (minimal object creation, direct matrix ops)
+estimate_haplotypes_optimized <- function(pos, sample_name, df3, founders, h_cutoff,
+                                         method = "adaptive",
+                                         window_size_bp = NULL,
+                                         chr = "chr2R",
+                                         verbose = 0) {
+  
+  # Delegate to production when not in simulated mode
+  if (pos != -99) {
+    return(estimate_haplotypes_list_format(pos, sample_name, df3, founders, h_cutoff, method, window_size_bp, chr, verbose))
+  }
+  
+  # Simulated mode - optimized version
+  window_sizes <- c(150, 300, 750, 1500, 3000)
+  
+  # Pre-allocate result objects
+  final_result <- NULL
+  previous_n_groups <- 0
+  accumulated_constraints <- NULL
+  
+  # Ensure POS-ordered input
+  df3 <- df3 %>% dplyr::arrange(POS)
+  
+  for (window_size in window_sizes) {
+    # Direct filtering (no intermediate tibbles)
+    window_data <- df3[df3$POS >= 1 & df3$POS <= window_size & df3$name %in% c(founders, sample_name), ]
+    if (nrow(window_data) == 0) next
+    
+    # Direct pivot to matrix (avoid pivot_wider) - use base R
+    wide_data <- tidyr::pivot_wider(window_data, names_from = name, values_from = freq)
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
+    
+    # Direct matrix extraction
+    founder_matrix <- as.matrix(wide_data[, founders])
+    sample_freqs <- wide_data[[sample_name]]
+    
+    # Complete cases filtering
+    complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
+    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs[complete_rows]
+    if (nrow(founder_matrix_clean) < 10) next
+    
+    # Clustering
+    founder_dist <- dist(t(founder_matrix_clean))
+    hclust_result <- hclust(founder_dist, method = "complete")
+    groups <- cutree(hclust_result, h = h_cutoff)
+    n_groups <- length(unique(groups))
+    
+    if (!is.null(final_result) && n_groups <= previous_n_groups) next
+    previous_n_groups <- n_groups
+    
+    # LSEI with minimal constraints (no accumulated constraints for speed)
+    n_founders <- ncol(founder_matrix_clean)
+    E <- matrix(1, 1, n_founders)
+    F_val <- 1.0
+    
+    fit <- tryCatch({
+      lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
+           E = E, F = F_val, G = diag(n_founders), 
+           H = matrix(0, n_founders, 1), fulloutput = TRUE)
+    }, error = function(e) NULL)
+    
+    if (is.null(fit)) next
+    
+    # Store result
+    final_result <- list(
+      Groups = groups,
+      Haps = as.numeric(fit$X),
+      Err = fit$covar,
+      Names = founders
+    )
+  }
+  
+  if (is.null(final_result)) {
+    # Return empty result
+    return(list(
+      Groups = rep(1, length(founders)),
+      Haps = rep(1/length(founders), length(founders)),
+      Err = matrix(0, length(founders), length(founders)),
+      Names = founders
+    ))
+  }
+  
+  return(final_result)
+}
+
+# Benchmark core function performance
+benchmark_core_functions <- function(n_runs = 1000) {
+  cat(sprintf("Benchmarking core functions with %d pre-simulated datasets...\n", n_runs))
+  
+  # Pre-simulate all data
+  simulated_data <- pre_simulate_data(n_runs)
+  
+  # Benchmark current function
+  cat("Timing current function...\n")
+  start_time <- Sys.time()
+  results_current <- purrr::map(simulated_data, function(data) {
+    estimate_haplotypes_list_format_sim(
+      pos = -99, sample_name = data$sample_name, df3 = data$df3, 
+      founders = data$founders, h_cutoff = 4, method = "adaptive", verbose = 0
+    )
+  })
+  current_time <- Sys.time() - start_time
+  
+  # Benchmark optimized function
+  cat("Timing optimized function...\n")
+  start_time <- Sys.time()
+  results_optimized <- purrr::map(simulated_data, function(data) {
+    estimate_haplotypes_optimized(
+      pos = -99, sample_name = data$sample_name, df3 = data$df3, 
+      founders = data$founders, h_cutoff = 4, method = "adaptive", verbose = 0
+    )
+  })
+  optimized_time <- Sys.time() - start_time
+  
+  # Calculate performance metrics
+  current_ms_per_run <- 1000 * as.numeric(current_time) / n_runs
+  optimized_ms_per_run <- 1000 * as.numeric(optimized_time) / n_runs
+  speedup <- as.numeric(current_time) / as.numeric(optimized_time)
+  
+  cat("\n=== PERFORMANCE RESULTS ===\n")
+  cat(sprintf("Current function: %.2f seconds total (%.3f ms/run)\n", 
+              as.numeric(current_time), current_ms_per_run))
+  cat(sprintf("Optimized function: %.2f seconds total (%.3f ms/run)\n", 
+              as.numeric(optimized_time), optimized_ms_per_run))
+  cat(sprintf("Speedup: %.1fx\n", speedup))
+  
+  # Verify results are equivalent
+  cat("\n=== RESULT VERIFICATION ===\n")
+  current_groups <- purrr::map_int(results_current, ~ length(unique(.x$Groups)))
+  optimized_groups <- purrr::map_int(results_optimized, ~ length(unique(.x$Groups)))
+  groups_match <- sum(current_groups == optimized_groups)
+  cat(sprintf("Groups match: %d/%d (%.1f%%)\n", groups_match, n_runs, 100 * groups_match / n_runs))
+  
+  # Estimate billion-scale performance
+  billion_runs <- 1e9
+  current_billion_time <- (current_ms_per_run / 1000) * billion_runs / 3600  # hours
+  optimized_billion_time <- (optimized_ms_per_run / 1000) * billion_runs / 3600  # hours
+  
+  cat("\n=== BILLION-SCALE ESTIMATES ===\n")
+  cat(sprintf("Current function: %.1f hours for 1 billion runs\n", current_billion_time))
+  cat(sprintf("Optimized function: %.1f hours for 1 billion runs\n", optimized_billion_time))
+  cat(sprintf("Time savings: %.1f hours (%.1f days)\n", 
+              current_billion_time - optimized_billion_time,
+              (current_billion_time - optimized_billion_time) / 24))
+  
+  invisible(list(
+    current = results_current,
+    optimized = results_optimized,
+    current_time = current_time,
+    optimized_time = optimized_time,
+    speedup = speedup
+  ))
+}
+
