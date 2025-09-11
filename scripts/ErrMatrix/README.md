@@ -24,7 +24,7 @@ Rscript scripts/ErrMatrix/BASE.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_
 
 ### BASE_VAR.R
 **Purpose**: Production code with progressive error matrix function swapped in  
-**Performance**: 0.5398 seconds per function call (100 calls = 53.98 seconds)  
+**Performance**: 0.6217 seconds per function call (100 calls = 62.17 seconds)  
 **Description**: Same as BASE but uses the progressive error matrix algorithm for correct var/covariance estimation  
 **Usage**: 
 ```bash
@@ -32,7 +32,7 @@ Rscript scripts/ErrMatrix/BASE_VAR.R chr2R adaptive 4 process/JUICE helpfiles/JU
 ```
 
 **Key Functions**:
-- `estimate_haplotypes_list_format()`: Progressive error matrix version (delegates to production for real data)
+- `estimate_haplotypes_list_format()`: Progressive error matrix version for real genomic data
 - `estimate_haplotypes_list_format_prod()`: Production function for delegation
 - `process_refalt_data()`: Load and process RefAlt.txt files
 - `run_adaptive_estimation()`: Orchestrate adaptive estimation workflow
@@ -41,13 +41,15 @@ Rscript scripts/ErrMatrix/BASE_VAR.R chr2R adaptive 4 process/JUICE helpfiles/JU
 - `adaptive_window_h4_results_chr2R.RDS`: Results in production format
 - Timing information printed to console
 - **Improved error matrix estimation** with progressive var/covariance handling
+- **Working on real genomic data** with proper windowing (pos ± 15kb, pos ± 30kb, etc.)
 
 ### Optimization Goal
 Target: 5-10x speedup by eliminating expensive `pivot_wider` and `arrange` operations in the core haplotype estimation function.
 
 **Current Status**: 
 - ✅ Baseline established: 0.5562 seconds per call (BASE.R)
-- ✅ Progressive error matrix implemented: 0.5398 seconds per call (BASE_VAR.R)
+- ✅ Progressive error matrix implemented: 0.6217 seconds per call (BASE_VAR.R)
+- ✅ **Working on real genomic data** with proper windowing logic
 - 🔄 Next: Create optimized version with pre-conditioned wide-format data
 - 🔄 Next: Benchmark optimized vs baseline
 
