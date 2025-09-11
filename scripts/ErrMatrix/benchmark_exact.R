@@ -60,8 +60,11 @@ cat("Testing", length(test_positions), "positions\n")
 cat("First position:", test_positions[1], "\n")
 cat("Last position:", test_positions[length(test_positions)], "\n\n")
 
-# Time the EXACT production function
+# Time ONLY the adaptive h4 estimation (no smoothing)
 start_time <- Sys.time()
+
+cat("=== RUNNING ADAPTIVE H4 ESTIMATION ONLY ===\n")
+cat("(No smoothing - just the core haplotype estimation)\n\n")
 
 results <- map_dfr(test_positions, function(test_pos) {
   cat("Processing position:", test_pos, "\n")
