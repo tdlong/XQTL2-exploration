@@ -171,6 +171,15 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
   pooled_cov <- function(A_full, y_full, groups_vec){
     gid <- sort(unique(groups_vec))
     k <- length(gid)
+    
+    # Handle edge case where k=0 or k=1
+    if (k == 0) {
+      return(list(cov=matrix(NA, 0, 0), members=list(), w=numeric(0)))
+    }
+    if (k == 1) {
+      return(list(cov=matrix(1, 1, 1), members=list(1), w=1))
+    }
+    
     A_pool <- matrix(0, nrow(A_full), k)
     members <- vector("list", k)
     for (ii in seq_along(gid)){
@@ -178,16 +187,28 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
       members[[ii]] <- mem
       A_pool[, ii] <- if (length(mem) == 1L) A_full[, mem] else rowMeans(A_full[, mem, drop=FALSE])
     }
+    
     E <- matrix(1, 1, k); F <- 1
     fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
-    if (!is.null(fit) && !is.null(fit$covar)) {
+    if (!is.null(fit) && !is.null(fit$covar) && is.matrix(fit$covar) && nrow(fit$covar) == k && ncol(fit$covar) == k) {
       return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
     }
+    
+    # Fallback: compute covariance manually
     XtX <- crossprod(A_pool)
-    xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
+    xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) MASS::ginv(XtX) %*% crossprod(A_pool, y_full))
     r <- y_full - as.numeric(A_pool %*% xhat)
     sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
-    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+    
+    cov_matrix <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+    
+    # Ensure we return a proper k×k matrix
+    if (!is.matrix(cov_matrix) || nrow(cov_matrix) != k || ncol(cov_matrix) != k) {
+      # Fallback: return identity matrix
+      cov_matrix <- diag(k)
+    }
+    
+    list(cov = sigma2 * cov_matrix, members=members, w=as.numeric(xhat))
   }
 
   fmt_cell_signed <- function(x, diag_cell){
@@ -219,8 +240,7 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
 
   # Ensure POS-ordered wide input (POS, founder1, founder2, ..., sample1, sample2, ...)
   # df3 is now in WIDE format: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
-  df3 <- df3 %>% dplyr::arrange(POS)
-
+ 
   for (window_size in window_sizes) {
     # Calculate window boundaries based on genomic distance (like EHLF)
     window_start <- max(1, testing_position - window_size/2)
@@ -365,6 +385,24 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
     # Update progressive V using pooled model for this window
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Debug: Check if cov_pool is a proper matrix
+    if (!is.matrix(cov_pool)) {
+      if (verbose >= 2) {
+        cat("    Warning: cov_pool is not a matrix, skipping V matrix update\n")
+        cat("    cov_pool class:", class(cov_pool), "\n")
+        cat("    cov_pool length:", length(cov_pool), "\n")
+      }
+      next  # Skip this window if covariance is not computable
+    }
+    
+    if (nrow(cov_pool) != length(pool_members) || ncol(cov_pool) != length(pool_members)) {
+      if (verbose >= 2) {
+        cat("    Warning: cov_pool dimensions don't match pool_members, skipping V matrix update\n")
+        cat("    cov_pool dim:", dim(cov_pool), "pool_members length:", length(pool_members), "\n")
+      }
+      next  # Skip this window if dimensions don't match
+    }
     # mark newly resolved founders
     for (ii in seq_along(pool_members)){
       mem <- pool_members[[ii]]
