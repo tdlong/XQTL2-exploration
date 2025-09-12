@@ -2,7 +2,14 @@
 
 ## Current Status (Updated)
 
-**BASE ESTIMATOR TIMING COMPLETED**: Results available
+**BASE_VAR ESTIMATOR TIMING IN PROGRESS** 🔄
+- **Script**: `BASE_VAR.R` 
+- **Command**: `Rscript scripts/ErrMatrix/BASE_VAR.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
+- **Status**: Currently running on cluster
+- **Expected**: Advanced variance/covariance estimation with genomic distance-based windowing
+- **Comparison**: Will benchmark against BASE.R results
+
+**BASE ESTIMATOR TIMING COMPLETED** ✅
 - Using `BASE.R` with command: `Rscript scripts/ErrMatrix/BASE.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
 - Testing the BASE estimator performance with full adaptive window algorithm
 - Using existing working code (no rewrites) - principle: don't rewrite working code for benchmarking
@@ -105,7 +112,11 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 - **test_wide_format.R**: Runs wide format version in debug mode (100 positions × 1 sample)  
 - **benchmark_wide_vs_production.R**: Runs both versions on same data and compares performance
 - **BASE.R**: Existing working code for BASE estimator timing (completed: 0.3448 sec/call)
-- **BASE_VAR.R**: Clean duplicate of BASE.R for variance/covariance estimation work
+- **BASE_VAR.R**: Clean duplicate of BASE.R for variance/covariance estimation work (currently benchmarking)
+- **BASE_VAR_WIDE.R**: Copy of BASE_VAR.R for speed optimization experiments
+  - **WIDE FORMAT OPTIMIZATION**: Eliminates long↔wide pivoting overhead
+  - **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
+  - **Performance**: Direct column access instead of pivot_longer/pivot_wider
 - **haplotype_error_workbench.R**: Validated haplotype estimator with proper var/cov estimation (tested locally)
   - **`est_haps_var`**: Advanced haplotype estimation with genomic distance-based windowing and progressive variance/covariance estimation
 
@@ -121,3 +132,40 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 - Verification that results are similar between versions
 - **BASE estimator performance metrics (COMPLETED)**: 0.3448 seconds per call for 3000 function calls
 - Haplotype estimator validation results (100% convergence, proper var/cov estimation)
+
+## Recent Accomplishments
+
+### 1. Function Development & Integration
+- ✅ **Created `est_haps_var`**: Advanced haplotype estimator with genomic distance-based windowing
+- ✅ **Integrated into BASE_VAR.R**: Replaced original `estimate_haplotypes_list_format` with `est_haps_var`
+- ✅ **Maintained compatibility**: Same input/output interface as original function
+- ✅ **Removed delegation logic**: Always runs advanced estimation (no fallback to production)
+
+### 2. Code Architecture Improvements
+- ✅ **Genomic distance-based windowing**: Uses `testing_position ± window_size/2` like EHLF
+- ✅ **EHLF window sizes**: 10kb, 20kb, 50kb, 100kb, 200kb, 500kb
+- ✅ **Advanced variance/covariance**: Progressive V matrix construction and pooled covariance
+- ✅ **Constraint accumulation**: Builds constraints across window sizes for better estimation
+
+### 3. Speed Optimization (In Progress)
+- 🔄 **Wide Format Optimization**: Created `BASE_VAR_WIDE.R` to eliminate pivoting overhead
+- 🔄 **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
+- 🔄 **Direct Access**: No more `pivot_longer`/`pivot_wider` - direct column access
+- 🔄 **Expected Speedup**: Significant reduction in data transformation time
+
+### 4. Testing & Validation
+- ✅ **Local validation**: `run_100_with_dataframe` with 100% convergence and proper var/cov estimation
+- ✅ **BASE.R benchmarking**: Completed (0.3448 seconds per call for 3000 function calls)
+- 🔄 **BASE_VAR.R benchmarking**: Currently running on cluster
+
+## Next Steps
+
+### Immediate (After BASE_VAR.R completes)
+1. **Compare performance**: BASE.R vs BASE_VAR.R timing results
+2. **Analyze accuracy**: Compare variance/covariance estimation quality
+3. **Document results**: Update README with performance comparison
+
+### Future Development
+1. **Optimization**: If BASE_VAR.R is slower, identify bottlenecks
+2. **Integration**: Consider integrating best features into production pipeline
+3. **Validation**: Test with different datasets and parameters
