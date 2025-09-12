@@ -976,7 +976,29 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
                 h_cutoff, sample_name, pos))
   }
 
-  window_sizes <- c(150, 300, 750, 1500, 3000)
+  # Work directly with wide format matrices - this is the key optimization!
+  # We avoid the expensive pivot_longer/pivot_wider operations entirely
+  positions <- wide_data$refalt$POS
+  freq_matrix <- wide_data$freq_matrix
+  
+  # Call the working haplotype estimation function but pass the wide data
+  # The function will need to be modified to accept wide format data
+  return(estimate_haplotypes_list_format_wide_input(pos, sample_name, freq_matrix, positions, founders, h_cutoff, method, window_size_bp, chr, verbose))
+}
+
+# Wide format input version of the haplotype estimation function
+estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_matrix, positions, founders, h_cutoff,
+                                   method = "adaptive",
+                                   window_size_bp = NULL,
+                                   chr = "chr2R",
+                                   verbose = 0) {
+
+  if (verbose >= 2) {
+    cat(sprintf("=== PROGRESSIVE ERROR MATRIX MODE: h_cutoff=%g, sample=%s, pos=%g ===\n",
+                h_cutoff, sample_name, pos))
+  }
+
+  window_sizes <- c(150, 300, 750, 1500, 3000) # These are SNP counts, converted to BP
   final_result <- NULL
   final_n_groups <- 0
   previous_n_groups <- 0
@@ -1031,7 +1053,7 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
     ax <- abs(x)
     expo <- floor(log10(ax))
     mant <- ax / (10^expo)
-    m2 <- as.integer(round(mant * 10))  # two-digit mantissa (approx)
+    m2 <- as.integer(round(mant * 10))
     if (expo < -9) expo <- -9
     if (expo > 9) expo <- 9
     paste0(signc, sprintf("%02d%+1d", m2, as.integer(expo)))
@@ -1048,33 +1070,27 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
     }
   }
 
-  # Extract positions and frequencies from wide data
-  positions <- wide_data$refalt$POS
-  freq_matrix <- wide_data$freq_matrix
-  
-  for (window_size in window_sizes) {
+  # Work directly with wide format matrices - no pivot operations needed!
+  for (window_size_snp_count in window_sizes) {
     # Convert SNP count to base pairs (approximate: 1 SNP per 100bp)
-    window_size_bp <- window_size * 100
-    window_start <- max(1, pos - window_size_bp/2)
-    window_end <- pos + window_size_bp/2
-    
+    window_size_bp_actual <- window_size_snp_count * 100
+    window_start <- max(1, pos - window_size_bp_actual/2)
+    window_end <- pos + window_size_bp_actual/2
+
     # Find positions in window
     window_positions <- positions >= window_start & positions <= window_end
     if (sum(window_positions) == 0) next
     
-    # Extract window data
+    # Extract window data directly from matrices
     window_freq_matrix <- freq_matrix[window_positions, , drop = FALSE]
-    window_positions_vec <- positions[window_positions]
     
-    # Check if we have enough data and all required samples
     if (nrow(window_freq_matrix) < 10) next
     if (!all(c(founders, sample_name) %in% colnames(window_freq_matrix))) next
-    
-    # Extract founder matrix and sample frequencies
+
+    # Extract founder matrix and sample frequencies directly
     founder_matrix <- window_freq_matrix[, founders, drop = FALSE]
     sample_freqs <- window_freq_matrix[, sample_name]
-    
-    # Remove rows with missing data
+
     complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
     founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
     sample_freqs_clean <- sample_freqs[complete_rows]
@@ -1152,7 +1168,7 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
     # Update progressive V using pooled model for this window
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
-    
+
     # Debug: check what we got
     if (verbose >= 1) {
       cat("cov_pool class:", class(cov_pool), "\n")
@@ -1160,7 +1176,7 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
       cat("pool_members length:", length(pool_members), "\n")
       cat("groups:", groups, "\n")
     }
-    
+
     # Safety check: ensure cov_pool is a matrix
     if (!is.matrix(cov_pool) || any(is.na(cov_pool))) {
       if (verbose >= 1) {
@@ -1168,7 +1184,7 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
       }
       next
     }
-    
+
     # mark newly resolved founders
     for (ii in seq_along(pool_members)){
       mem <- pool_members[[ii]]
@@ -1228,10 +1244,11 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
       pending <- list()
     }
 
-    if (verbose >= 2){
+    if (verbose >= 2) {
+      cat("V matrix:\n")
       print_V_compact(V)
     }
-    
+
     if (n_groups == length(founders)) {
       # Save unpooled design at the final successful window
       last_A <- founder_matrix_clean
@@ -1258,11 +1275,11 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
       paste(parts, collapse = "")
     }
     groups_fmt_path <- c(groups_fmt_path, fmt)
-    groups_win_path <- c(groups_win_path, window_size)
+    groups_win_path <- c(groups_win_path, window_size_snp_count) # Use original window_size for path
     if (verbose >= 2) {
       # Print compact, aligned 3-line block (monospace-friendly)
       cat(sprintf("window_snp=%-5d  n_snps=%-5d  n_groups=%-2d  carried=%-2d  built=%-2d\n",
-                  window_size, nrow(founder_matrix_clean), n_groups, carried_ct, built_ct))
+                  window_size_snp_count, nrow(founder_matrix_clean), n_groups, carried_ct, built_ct))
       if (length(group_strings)) {
         # Column widths match label lengths exactly for alignment
         col_w <- nchar(group_strings)
@@ -1285,36 +1302,46 @@ estimate_haplotypes_wide <- function(pos, sample_name, wide_data, founders, h_cu
     }
   }
 
-  # Return EXACT same structure as production
-  if (!is.null(final_result)) {
-    founder_frequencies <- final_result$X; names(founder_frequencies) <- founders
-    # Compute "true" covariance using largest window residual sigma^2 and unpooled design
-    Cov_true <- NULL
-    if (!is.null(last_A) && !is.null(last_y)) {
-      XtX <- crossprod(last_A)
-      Xinv <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
-      r <- last_y - as.numeric(last_A %*% founder_frequencies)
-      p <- ncol(last_A); n <- nrow(last_A)
-      sigma2_hat <- sum(r^2) / max(1, n - p)
-      Cov_true <- sigma2_hat * Xinv
-    }
-    
-    # Prefer progressive V if sufficiently filled; otherwise fallback
-    if (sum(is.na(V)) < length(V)) {
-      for (d in seq_len(nrow(V))) if (is.na(V[d, d])) V[d, d] <- 1e-8
-      error_matrix <- V
-    } else if (!is.null(Cov_true)) {
-      error_matrix <- Cov_true
-    } else if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
-      error_matrix <- final_result$covar
-    } else {
-      error_matrix <- matrix(NA, length(founders), length(founders))
-      rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
-    }
+  # Return results
+  if (is.null(final_result)) {
+    return(NULL)
+  }
+
+  # Calculate founder frequencies and error matrix
+  founder_frequencies <- final_result$X
+  names(founder_frequencies) <- founders
+
+  # Compute "true" covariance using largest window residual sigma^2 and unpooled design
+  Cov_true <- NULL
+  if (!is.null(last_A) && !is.null(last_y)) {
+    XtX <- crossprod(last_A)
+    Xinv <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+    r <- last_y - as.numeric(last_A %*% founder_frequencies)
+    p <- ncol(last_A); n <- nrow(last_A)
+    sigma2_hat <- sum(r^2) / max(1, n - p)
+    Cov_true <- sigma2_hat * Xinv
+  }
+
+  # Prefer progressive V if sufficiently filled; otherwise fallback
+  if (sum(is.na(V)) < length(V)) {
+    for (d in seq_len(nrow(V))) if (is.na(V[d, d])) V[d, d] <- 1e-8
+    error_matrix <- V
+  } else if (!is.null(Cov_true)) {
+    error_matrix <- Cov_true
+  } else if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
+    error_matrix <- final_result$covar
   } else {
-    founder_frequencies <- rep(NA_real_, length(founders)); names(founder_frequencies) <- founders
     error_matrix <- matrix(NA, length(founders), length(founders))
     rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
+  }
+
+  # Check for singular matrix
+  kappa_val <- kappa(error_matrix)
+  if (is.infinite(kappa_val) || kappa_val > 1e12) {
+    if (verbose >= 1) {
+      cat("Warning: Singular error matrix (kappa =", kappa_val, "), using pseudoinverse\n")
+    }
+    error_matrix <- ginv(error_matrix)
   }
 
   res_out <- list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders)
