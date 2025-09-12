@@ -126,10 +126,11 @@ suppressPackageStartupMessages({
 })
 
 # =============================================================================
-# EXACT WORKING FUNCTION FROM 49H AGO - NO MODIFICATIONS
+# PROGRESSIVE ERROR MATRIX VERSION - SWAPPED IN
 # =============================================================================
 
-estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
+# Production function for delegation
+estimate_haplotypes_list_format_prod <- function(pos, sample_name, df3, founders, h_cutoff,
                                method = "adaptive",
                                window_size_bp = NULL,
                                chr = "chr2R",
@@ -412,6 +413,514 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     return(list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders))
 }
 
+estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
+                               method = "adaptive",
+                               window_size_bp = NULL,
+                               chr = "chr2R",
+                               verbose = 0) {
+
+  if (verbose >= 2) {
+    cat(sprintf("=== PROGRESSIVE ERROR MATRIX MODE: h_cutoff=%g, sample=%s, pos=%g ===\n", 
+                h_cutoff, sample_name, pos))
+  }
+
+  window_sizes <- c(150, 300, 750, 1500, 3000)
+  final_result <- NULL
+  final_n_groups <- 0
+  previous_n_groups <- 0
+  groups <- rep(1, length(founders))
+  groups_path <- integer(0)
+  groups_fmt_path <- character(0)
+  groups_win_path <- integer(0)
+
+  accumulated_constraints <- NULL
+  accumulated_constraint_values <- NULL
+
+  # Progressive V matrix (8x8), pending covariances, and resolved tracker
+  V <- matrix(NA_real_, length(founders), length(founders))
+  rownames(V) <- founders; colnames(V) <- founders
+  pending <- list()
+  resolved <- setNames(rep(FALSE, length(founders)), founders)
+
+  # Track last (largest successful) unpooled design for true-cov computation
+  last_A <- NULL
+  last_y <- NULL
+
+  # Helpers to compute pooled covariance at a window and to print V compactly
+  pooled_cov <- function(A_full, y_full, groups_vec){
+    gid <- sort(unique(groups_vec))
+    k <- length(gid)
+    A_pool <- matrix(0, nrow(A_full), k)
+    members <- vector("list", k)
+    for (ii in seq_along(gid)){
+      mem <- which(groups_vec == gid[ii])
+      members[[ii]] <- mem
+      A_pool[, ii] <- if (length(mem) == 1L) A_full[, mem] else rowMeans(A_full[, mem, drop=FALSE])
+    }
+    E <- matrix(1, 1, k); F <- 1
+    fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
+    if (!is.null(fit) && !is.null(fit$covar)) {
+      return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
+    }
+    XtX <- crossprod(A_pool)
+    xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
+    r <- y_full - as.numeric(A_pool %*% xhat)
+    sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
+    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+  }
+
+  fmt_cell_signed <- function(x, diag_cell){
+    if (is.na(x)) return("  NA ")
+    if (x == 0) {
+      signc <- if (diag_cell) " " else "+"
+      return(paste0(signc, "  0 "))
+    }
+    signc <- if (diag_cell) " " else if (x < 0) "-" else "+"
+    ax <- abs(x)
+    expo <- floor(log10(ax))
+    mant <- ax / (10^expo)
+    m2 <- as.integer(round(mant * 10))  # two-digit mantissa (approx)
+    if (expo < -9) expo <- -9
+    if (expo > 9) expo <- 9
+    paste0(signc, sprintf("%02d%+1d", m2, as.integer(expo)))
+  }
+
+  print_V_compact <- function(Vmat){
+    cat("V (signed covariances, sci 2d+exp; diag no sign):\n")
+    for (i in seq_len(nrow(Vmat))){
+      row <- character(ncol(Vmat))
+      for (j in seq_len(ncol(Vmat))){
+        row[j] <- fmt_cell_signed(Vmat[i, j], diag_cell = (i == j))
+      }
+      cat(paste(row, collapse=" "), "\n", sep="")
+    }
+  }
+
+  # Helpers to compute pooled covariance at a window and to print V compactly
+  pooled_cov <- function(A_full, y_full, groups_vec){
+    gid <- sort(unique(groups_vec))
+    k <- length(gid)
+    A_pool <- matrix(0, nrow(A_full), k)
+    members <- vector("list", k)
+    for (ii in seq_along(gid)){
+      mem <- which(groups_vec == gid[ii])
+      members[[ii]] <- mem
+      A_pool[, ii] <- if (length(mem) == 1L) A_full[, mem] else rowMeans(A_full[, mem, drop=FALSE])
+    }
+    E <- matrix(1, 1, k); F <- 1
+    fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
+    if (!is.null(fit) && !is.null(fit$covar)) {
+      return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
+    }
+    XtX <- crossprod(A_pool)
+    xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
+    r <- y_full - as.numeric(A_pool %*% xhat)
+    sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
+    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+  }
+
+  fmt_cell_signed <- function(x, diag_cell){
+    if (is.na(x)) return("  NA ")
+    if (x == 0) {
+      signc <- if (diag_cell) " " else "+"
+      return(paste0(signc, "  0 "))
+    }
+    signc <- if (diag_cell) " " else if (x < 0) "-" else "+"
+    ax <- abs(x)
+    expo <- floor(log10(ax))
+    mant <- ax / (10^expo)
+    m2 <- as.integer(round(mant * 10))  # two-digit mantissa (approx)
+    if (expo < -9) expo <- -9
+    if (expo > 9) expo <- 9
+    paste0(signc, sprintf("%02d%+1d", m2, as.integer(expo)))
+  }
+
+  print_V_compact <- function(Vmat){
+    cat("V (signed covariances, sci 2d+exp; diag no sign):\n")
+    for (i in seq_len(nrow(Vmat))){
+      row <- character(ncol(Vmat))
+      for (j in seq_len(ncol(Vmat))){
+        row[j] <- fmt_cell_signed(Vmat[i, j], diag_cell = (i == j))
+      }
+      cat(paste(row, collapse=" "), "\n", sep="")
+    }
+  }
+
+  # Ensure POS-ordered tidy input (POS, name, freq)
+  df3 <- df3 %>% dplyr::arrange(POS)
+  
+  for (window_size in window_sizes) {
+    # Convert SNP count to base pairs (approximate: 1 SNP per 100bp)
+    window_size_bp <- window_size * 100
+    window_start <- max(1, pos - window_size_bp/2)
+    window_end <- pos + window_size_bp/2
+    
+    window_data <- df3 %>%
+      dplyr::filter(POS >= window_start, POS <= window_end, name %in% c(founders, sample_name))
+    
+    # #tempdebug - Count positions for first estimation, first window
+    if (pos == 5400000 && sample_name == "AJ_1_1" && window_size == 150) {
+      cat("=== BASE_VAR WINDOW DEBUG ===\n")
+      cat("Window size:", window_size, "SNPs\n")
+      cat("Window start:", window_start, "end:", window_end, "\n")
+      cat("Window data rows:", nrow(window_data), "\n")
+      cat("Window data POS range:", range(window_data$POS), "\n")
+      cat("Window data names:", paste(unique(window_data$name), collapse=", "), "\n")
+    }
+    
+    if (nrow(window_data) == 0) next
+
+    wide_data <- window_data %>%
+      dplyr::select(POS, name, freq) %>%
+      tidyr::pivot_wider(names_from = name, values_from = freq)
+
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
+
+    founder_matrix <- wide_data %>% dplyr::select(dplyr::all_of(founders)) %>% as.matrix()
+    sample_freqs <- wide_data %>% dplyr::pull(!!sample_name)
+
+    complete_rows <- stats::complete.cases(founder_matrix) & !is.na(sample_freqs)
+    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs[complete_rows]
+    if (nrow(founder_matrix_clean) < 10) next
+
+    # Clustering (Euclidean, complete linkage), cutree at h_cutoff
+    founder_dist <- stats::dist(t(founder_matrix_clean))
+    hclust_result <- stats::hclust(founder_dist, method = "complete")
+    groups <- stats::cutree(hclust_result, h = h_cutoff)
+    n_groups <- length(unique(groups))
+    if (verbose >= 2) {
+      comp <- split(founders, groups)
+      ordered_gids <- sort(as.integer(names(comp)))
+      group_strings <- vapply(ordered_gids, function(gid){
+        paste(comp[[as.character(gid)]], collapse="+")
+      }, character(1))
+      carried_ct <- if (!is.null(accumulated_constraints)) nrow(accumulated_constraints) else 0
+    }
+
+    if (!is.null(final_result) && n_groups <= previous_n_groups) {
+      if (verbose >= 2) cat("    No improvement; continue\n")
+      next
+    }
+    previous_n_groups <- n_groups
+
+    # Constraints accumulate like production
+    n_founders <- ncol(founder_matrix_clean)
+    E <- matrix(1, nrow = 1, ncol = n_founders)  # sum-to-one
+    F <- 1.0
+    if (!is.null(accumulated_constraints)) {
+      E <- rbind(E, accumulated_constraints)
+      F <- c(F, accumulated_constraint_values)
+      if (verbose >= 2) cat(sprintf("    Carried over %d constraints\n", nrow(accumulated_constraints)))
+    }
+
+    res <- tryCatch(
+      limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean,
+                     E = E, F = F, G = diag(n_founders), H = matrix(rep(0.0003, n_founders)), fulloutput = TRUE),
+      error = function(e) NULL
+    )
+    if (is.null(res) || res$IsError != 0) {
+      if (verbose >= 2) cat("    LSEI failed; continue\n")
+      next
+    }
+
+    # Build/accumulate group constraints (pool groups, lock singles)
+    current_constraints <- NULL
+    current_constraint_values <- NULL
+    for (cid in unique(groups)) {
+      idx <- which(groups == cid)
+      row <- rep(0, n_founders); row[idx] <- 1
+      current_constraints <- rbind(current_constraints, row)
+      current_constraint_values <- c(current_constraint_values, sum(res$X[idx]))
+    }
+    if (!is.null(current_constraints)) {
+      accumulated_constraints <- current_constraints
+      accumulated_constraint_values <- current_constraint_values
+      if (verbose >= 2) {
+        built_ct <- nrow(current_constraints)
+        # Map values to ordered group ids
+        ordered_gids <- sort(unique(groups))
+        group_values <- vapply(ordered_gids, function(gid){
+          sum(res$X[which(groups == gid)])
+        }, numeric(1))
+      }
+    } else {
+      accumulated_constraints <- NULL
+      accumulated_constraint_values <- NULL
+      if (verbose >= 2) {
+        built_ct <- 0
+        group_values <- numeric(0)
+      }
+    }
+
+    # Update progressive V using pooled model for this window
+    pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
+    cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Debug: check what we got
+    if (verbose >= 1) {
+      cat("cov_pool class:", class(cov_pool), "\n")
+      cat("cov_pool dimensions:", dim(cov_pool), "\n")
+      cat("pool_members length:", length(pool_members), "\n")
+      cat("groups:", groups, "\n")
+    }
+    
+    # Safety check: ensure cov_pool is a matrix
+    if (!is.matrix(cov_pool) || any(is.na(cov_pool))) {
+      if (verbose >= 1) {
+        cat("Warning: cov_pool is not a valid matrix, skipping progressive V update\n")
+      }
+      next
+    }
+    # mark newly resolved founders
+    for (ii in seq_along(pool_members)){
+      mem <- pool_members[[ii]]
+      if (length(mem)==1L) resolved[founders[mem]] <- TRUE
+    }
+    # write cov for resolved-resolved; store pending for det-vs-pool and pool-vs-pool
+    for (i_idx in seq_along(pool_members)){
+      mi <- pool_members[[i_idx]]
+      for (j_idx in seq_along(pool_members)){
+        mj <- pool_members[[j_idx]]
+        if (length(mi)==1L && length(mj)==1L){
+          fi <- founders[mi]; fj <- founders[mj]
+          if (is.na(V[fi,fj]) && i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            V[fi,fj] <- cov_pool[i_idx, j_idx]
+          }
+          if (is.na(V[fj,fi]) && j_idx <= nrow(cov_pool) && i_idx <= ncol(cov_pool)) {
+            V[fj,fi] <- cov_pool[j_idx, i_idx]
+          }
+        } else if (length(mi)==1L && length(mj)>1L){
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          }
+        } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          }
+        }
+      }
+    }
+
+    # If all resolved now, distribute pending covariances using current weights
+    if (all(resolved)){
+      w_now <- setNames(rep(NA_real_, length(founders)), founders)
+      # Approximate weights from current (last) res if same dimensionality, else use group_values map
+      if (length(final_result$X) == length(founders)){
+        w_now <- setNames(as.numeric(final_result$X), founders)
+      }
+      for (rec in pending){
+        if (rec$type == "det_vs_pool"){
+          den <- sum(w_now[rec$mem]); if (!is.finite(den) || den<=0) next
+          for (f in rec$mem){
+            val <- rec$cov * (w_now[f]/den)
+            if (is.na(V[rec$det, f])) V[rec$det, f] <- val
+            if (is.na(V[f, rec$det])) V[f, rec$det] <- val
+          }
+        } else if (rec$type == "pool_vs_pool"){
+          den_a <- sum(w_now[rec$mem_a]); den_b <- sum(w_now[rec$mem_b]); if (den_a<=0 || den_b<=0) next
+          for (fa in rec$mem_a){
+            for (fb in rec$mem_b){
+              val <- rec$cov * (w_now[fa]/den_a) * (w_now[fb]/den_b)
+              if (is.na(V[fa, fb])) V[fa, fb] <- val
+              if (is.na(V[fb, fa])) V[fb, fa] <- val
+            }
+          }
+        }
+      }
+      pending <- list()
+    }
+
+    if (verbose >= 2){
+      print_V_compact(V)
+    }
+    
+    if (n_groups == length(founders)) {
+      # Save unpooled design at the final successful window
+      last_A <- founder_matrix_clean
+      last_y <- sample_freqs_clean
+      if (verbose >= 2) cat("    All founders distinguished; stop\n")
+      break
+    }
+
+    final_result <- res
+    final_n_groups <- n_groups
+    groups_path <- c(groups_path, n_groups)
+    # compact groups format like [123]4[56]78 based on founders order
+    fmt <- {
+      grp_ids <- sort(unique(groups))
+      parts <- character(0)
+      for (gid in grp_ids) {
+        idx <- which(groups == gid)
+        if (length(idx) > 1) {
+          parts <- c(parts, paste0("[", paste(idx, collapse=""), "]"))
+        } else {
+          parts <- c(parts, paste0(idx))
+        }
+      }
+      paste(parts, collapse = "")
+    }
+    groups_fmt_path <- c(groups_fmt_path, fmt)
+    groups_win_path <- c(groups_win_path, window_size)
+    if (verbose >= 2) {
+      # Print compact, aligned 3-line block (monospace-friendly)
+      cat(sprintf("window_snp=%-5d  n_snps=%-5d  n_groups=%-2d  carried=%-2d  built=%-2d\n",
+                  window_size, nrow(founder_matrix_clean), n_groups, carried_ct, built_ct))
+      if (length(group_strings)) {
+        # Column widths match label lengths exactly for alignment
+        col_w <- nchar(group_strings)
+        # Render group labels with padding
+        grp_fmt <- vapply(seq_along(group_strings), function(i){
+          sprintf("%-*s", col_w[i], group_strings[i])
+        }, character(1))
+        cat(paste(grp_fmt, collapse=" | "), "\n", sep="")
+      }
+      if (length(group_values)) {
+        # Convert to percent, 0 decimals
+        vals_pct <- round(group_values * 100, 0)
+        # Match widths of labels exactly
+        if (!exists("col_w")) col_w <- rep(1, length(vals_pct))
+        val_fmt <- vapply(seq_along(vals_pct), function(i){
+          sprintf("%*d", col_w[i], as.integer(vals_pct[i]))
+        }, character(1))
+        cat(paste(val_fmt, collapse=" | "), "\n", sep="")
+      }
+    }
+
+    # Update progressive V using pooled model for this window
+    pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
+    cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Debug: check what we got
+    if (verbose >= 1) {
+      cat("cov_pool class:", class(cov_pool), "\n")
+      cat("cov_pool dimensions:", dim(cov_pool), "\n")
+      cat("pool_members length:", length(pool_members), "\n")
+      cat("groups:", groups, "\n")
+    }
+    
+    # Safety check: ensure cov_pool is a matrix
+    if (!is.matrix(cov_pool) || any(is.na(cov_pool))) {
+      if (verbose >= 1) {
+        cat("Warning: cov_pool is not a valid matrix, skipping progressive V update\n")
+      }
+      next
+    }
+    # mark newly resolved founders
+    for (ii in seq_along(pool_members)){
+      mem <- pool_members[[ii]]
+      if (length(mem)==1L) resolved[founders[mem]] <- TRUE
+    }
+    # write cov for resolved-resolved; store pending for det-vs-pool and pool-vs-pool
+    for (i_idx in seq_along(pool_members)){
+      mi <- pool_members[[i_idx]]
+      for (j_idx in seq_along(pool_members)){
+        mj <- pool_members[[j_idx]]
+        if (length(mi)==1L && length(mj)==1L){
+          fi <- founders[mi]; fj <- founders[mj]
+          if (is.na(V[fi,fj]) && i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            V[fi,fj] <- cov_pool[i_idx, j_idx]
+          }
+          if (is.na(V[fj,fi]) && j_idx <= nrow(cov_pool) && i_idx <= ncol(cov_pool)) {
+            V[fj,fi] <- cov_pool[j_idx, i_idx]
+          }
+        } else if (length(mi)==1L && length(mj)>1L){
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+          }
+        } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
+          if (i_idx <= nrow(cov_pool) && j_idx <= ncol(cov_pool)) {
+            pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+          }
+        }
+      }
+    }
+
+    # If all resolved now, distribute pending covariances using current weights
+    if (all(resolved)){
+      w_now <- setNames(rep(NA_real_, length(founders)), founders)
+      # Approximate weights from current (last) res if same dimensionality, else use group_values map
+      if (length(final_result$X) == length(founders)){
+        w_now <- setNames(as.numeric(final_result$X), founders)
+      }
+      for (rec in pending){
+        if (rec$type == "det_vs_pool"){
+          den <- sum(w_now[rec$mem]); if (!is.finite(den) || den<=0) next
+          for (f in rec$mem){
+            val <- rec$cov * (w_now[f]/den)
+            if (is.na(V[rec$det, f])) V[rec$det, f] <- val
+            if (is.na(V[f, rec$det])) V[f, rec$det] <- val
+          }
+        } else if (rec$type == "pool_vs_pool"){
+          den_a <- sum(w_now[rec$mem_a]); den_b <- sum(w_now[rec$mem_b]); if (den_a<=0 || den_b<=0) next
+          for (fa in rec$mem_a){
+            for (fb in rec$mem_b){
+              val <- rec$cov * (w_now[fa]/den_a) * (w_now[fb]/den_b)
+              if (is.na(V[fa, fb])) V[fa, fb] <- val
+              if (is.na(V[fb, fa])) V[fb, fa] <- val
+            }
+          }
+        }
+      }
+      pending <- list()
+    }
+
+
+    if (verbose >= 2) {
+      cat("V matrix:\n")
+      print_V_compact(V)
+    }
+
+    # Check if all founders are resolved
+    if (all(resolved)) {
+      if (verbose >= 2) cat("    All founders resolved - stopping\n")
+      break
+    }
+  }
+
+  # Return results
+  if (is.null(final_result)) {
+    return(NULL)
+  }
+  
+  # Calculate founder frequencies and error matrix
+  founder_frequencies <- final_result$X
+  names(founder_frequencies) <- founders
+  
+  # Compute "true" covariance using largest window residual sigma^2 and unpooled design
+  Cov_true <- NULL
+  if (!is.null(last_A) && !is.null(last_y)) {
+    XtX <- crossprod(last_A)
+    Xinv <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+    r <- last_y - as.numeric(last_A %*% founder_frequencies)
+    p <- ncol(last_A); n <- nrow(last_A)
+    sigma2_hat <- sum(r^2) / max(1, n - p)
+    Cov_true <- sigma2_hat * Xinv
+  }
+  
+  # Prefer progressive V if sufficiently filled; otherwise fallback
+  if (sum(is.na(V)) < length(V)) {
+    for (d in seq_len(nrow(V))) if (is.na(V[d, d])) V[d, d] <- 1e-8
+    error_matrix <- V
+  } else if (!is.null(Cov_true)) {
+    error_matrix <- Cov_true
+  } else if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
+    error_matrix <- final_result$covar
+  } else {
+    error_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
+  }
+  
+  res_out <- list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders)
+  # Attach diagnostics for wrapper comparison
+  attr(res_out, "V_progressive") <- V
+  if (exists("Cov_true")) attr(res_out, "Cov_true") <- Cov_true else attr(res_out, "Cov_true") <- NULL
+  attr(res_out, "groups_path") <- groups_path
+  attr(res_out, "groups_fmt_path") <- groups_fmt_path
+  attr(res_out, "groups_win_path") <- groups_win_path
+  res_out
+}
+
 # =============================================================================
 # DATA PROCESSING FUNCTIONS (EXACT FROM 49H AGO)
 # =============================================================================
@@ -588,6 +1097,15 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
     ) %>%
       purrr::pmap_dfr(~ {
         if (debug) cat("Processing pos:", ..1, "sample:", ..2, "\n")
+        
+        # #tempdebug - Count positions for first estimation
+        if (..1 == all_positions[1] && ..2 == names_in_bam[1]) {
+          cat("=== BASE_VAR DEBUG: First estimation ===\n")
+          cat("Total df3 rows:", nrow(df3), "\n")
+          cat("df3 columns:", paste(names(df3), collapse=", "), "\n")
+          cat("df3 POS range:", range(df3$POS), "\n")
+          cat("Sample:", ..2, "Founders:", paste(founders, collapse=", "), "\n")
+        }
         
         result <- estimate_haplotypes_list_format(
           pos = ..1,

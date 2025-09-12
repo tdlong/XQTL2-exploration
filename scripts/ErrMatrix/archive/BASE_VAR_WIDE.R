@@ -949,6 +949,7 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
 process_refalt_data_wide <- function(refalt_file, founders) {
   cat("Loading RefAlt data in WIDE format from:", refalt_file, "\n")
   refalt_data <- read.table(refalt_file, header = TRUE, stringsAsFactors = FALSE)
+  cat("Raw RefAlt data rows:", nrow(refalt_data), "\n")
   
   # Keep data in wide format - no pivot_longer!
   # Extract sample names and create frequency matrices
@@ -969,13 +970,14 @@ process_refalt_data_wide <- function(refalt_file, founders) {
   colnames(freq_matrix) <- sample_names
   colnames(n_matrix) <- sample_names
   
-  # Quality filtering: EXACT same as BASE_VAR.R - positions where ALL founders are "fixed"
+  # Quality filtering: EXACT same as BASE_VAR.R - keep positions where ALL founders are "fixed"
   founder_freqs <- freq_matrix[, founders, drop = FALSE]
   valid_positions <- apply(founder_freqs, 1, function(row) {
     all(is.na(row) | row < 0.03 | row > 0.97)
   })
   
   # Filter to valid positions
+  cat("Valid positions after filtering:", sum(valid_positions), "out of", length(valid_positions), "\n")
   refalt_wide <- refalt_data[valid_positions, ]
   freq_matrix <- freq_matrix[valid_positions, ]
   n_matrix <- n_matrix[valid_positions, ]

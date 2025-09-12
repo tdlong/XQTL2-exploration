@@ -174,7 +174,7 @@ process_refalt_data <- function(refalt_file, founders) {
       freq = REF / (REF + ALT),
       N = REF + ALT
     ) %>%
-    select(-all_of(c("REF", "ALT"))) %>%
+    select(-REF, -ALT) %>%
     as_tibble()
   
   # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)

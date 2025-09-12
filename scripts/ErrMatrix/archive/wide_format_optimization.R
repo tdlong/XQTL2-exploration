@@ -28,62 +28,46 @@ suppressPackageStartupMessages({
 # =============================================================================
 
 read_RefAlt_wide <- function(refalt_file, founders) {
-  # Load RefAlt data and process into WIDE format for optimization
-  # INPUT:  - refalt_file: path to RefAlt.txt file
-  #         - founders: vector of founder names
-  # OUTPUT: List with:
-  #         - df3_wide: wide format data (POS, F1, F2, ..., sample1, sample2, ...)
-  #         - founders: founder names
-  #         - samples: sample names
-  #         - quality_positions: positions that passed QC
-  
+  # EXACT COPY of production process_refalt_data function
+  # Load RefAlt data and process into df3 format - EXACT from working code
   cat("Loading RefAlt data from:", refalt_file, "\n")
   
   refalt_data <- read.table(refalt_file, header = TRUE, stringsAsFactors = FALSE)
   
-  # Process into wide format directly (no pivot_longer needed)
-  # Convert REF/ALT counts to frequencies
-  founder_cols <- paste0(founders, "_REF")
-  alt_cols <- paste0(founders, "_ALT")
-  
-  # Calculate frequencies for founders
-  founder_freqs <- refalt_data[founder_cols] / (refalt_data[founder_cols] + refalt_data[alt_cols])
-  names(founder_freqs) <- founders
-  
-  # Get sample columns (everything that's not CHROM, POS, or founder REF/ALT)
-  all_cols <- names(refalt_data)
-  sample_cols <- all_cols[!all_cols %in% c("CHROM", "POS", founder_cols, alt_cols)]
-  
-  # Calculate frequencies for samples
-  sample_freqs <- refalt_data[sample_cols] / (refalt_data[sample_cols] + refalt_data[gsub("_REF", "_ALT", sample_cols)])
-  
-  # Create wide format dataframe
-  df3_wide <- data.frame(
-    CHROM = refalt_data$CHROM,
-    POS = refalt_data$POS,
-    founder_freqs,
-    sample_freqs
-  )
+  # Process into df3 format (one row per sample per position) - EXACT from working code
+  df3 <- refalt_data %>%
+    pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
+    mutate(
+      RefAlt = str_sub(lab, 1, 3),
+      name = str_sub(lab, 5)
+    ) %>%
+    select(-lab) %>%
+    pivot_wider(names_from = RefAlt, values_from = count) %>%
+    mutate(
+      freq = REF / (REF + ALT),
+      N = REF + ALT
+    ) %>%
+    select(-c("REF", "ALT")) %>%
+    as_tibble()
   
   # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
-  quality_mask <- apply(founder_freqs, 1, function(row) {
-    all(is.na(row) | row < 0.03 | row > 0.97)
-  })
+  founder_wide <- df3 %>%
+    filter(name %in% founders) %>%
+    select(POS, name, freq) %>%
+    pivot_wider(names_from = name, values_from = freq)
   
-  # Filter to quality positions
-  df3_wide <- df3_wide[quality_mask, ]
+  quality_filtered_positions <- founder_wide %>%
+    filter(
+      if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
+    ) %>%
+    pull(POS)
   
-  # Extract sample names (remove _REF suffix)
-  sample_names <- gsub("_REF", "", sample_cols)
+  # Filter to quality positions and include sample data
+  df3 <- df3 %>%
+    filter(POS %in% quality_filtered_positions)
   
-  cat("✓ Processed", nrow(df3_wide), "positions for", length(founders), "founders and", length(sample_names), "samples\n")
-  cat("✓ Quality filter kept", nrow(df3_wide), "positions\n")
-  
-  return(list(
-    df3_wide = df3_wide,
-    founders = founders,
-    samples = sample_names
-  ))
+  cat("✓ Processed", nrow(df3), "rows for", length(unique(df3$name)), "samples\n")
+  return(df3)
 }
 
 # =============================================================================
