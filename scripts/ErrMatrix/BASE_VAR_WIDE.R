@@ -474,7 +474,12 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
     r <- y_full - as.numeric(A_pool %*% xhat)
     sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
-    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+    cov_matrix <- sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX))
+    # Ensure cov is always a matrix, even for single group
+    if (!is.matrix(cov_matrix)) {
+      cov_matrix <- matrix(cov_matrix, nrow=k, ncol=k)
+    }
+    list(cov = cov_matrix, members=members, w=as.numeric(xhat))
   }
 
   fmt_cell_signed <- function(x, diag_cell){
@@ -524,7 +529,12 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
     r <- y_full - as.numeric(A_pool %*% xhat)
     sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
-    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+    cov_matrix <- sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX))
+    # Ensure cov is always a matrix, even for single group
+    if (!is.matrix(cov_matrix)) {
+      cov_matrix <- matrix(cov_matrix, nrow=k, ncol=k)
+    }
+    list(cov = cov_matrix, members=members, w=as.numeric(xhat))
   }
 
   fmt_cell_signed <- function(x, diag_cell){
@@ -1040,7 +1050,12 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
     xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
     r <- y_full - as.numeric(A_pool %*% xhat)
     sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
-    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+    cov_matrix <- sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX))
+    # Ensure cov is always a matrix, even for single group
+    if (!is.matrix(cov_matrix)) {
+      cov_matrix <- matrix(cov_matrix, nrow=k, ncol=k)
+    }
+    list(cov = cov_matrix, members=members, w=as.numeric(xhat))
   }
 
   fmt_cell_signed <- function(x, diag_cell){
