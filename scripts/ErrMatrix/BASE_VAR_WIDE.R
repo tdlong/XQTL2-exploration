@@ -965,6 +965,10 @@ process_refalt_data_wide <- function(refalt_file, founders) {
   freq_matrix <- ref_matrix / (ref_matrix + alt_matrix)
   n_matrix <- ref_matrix + alt_matrix
   
+  # Set column names to sample names
+  colnames(freq_matrix) <- sample_names
+  colnames(n_matrix) <- sample_names
+  
   # Quality filtering: EXACT same as BASE_VAR.R - positions where ALL founders are "fixed"
   founder_freqs <- freq_matrix[, founders, drop = FALSE]
   valid_positions <- apply(founder_freqs, 1, function(row) {
