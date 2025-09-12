@@ -565,8 +565,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   all_positions <- seq(scan_start, scan_end, by = step)
   
   if (debug) {
-    all_positions <- head(all_positions, 100)  # Limit to 100 positions for debugging
-    names_in_bam <- head(names_in_bam, 1)      # Limit to 1 sample for debugging
+    all_positions <- head(all_positions, 500)  # Limit to 500 positions for benchmarking
+    # names_in_bam <- head(names_in_bam, 1)      # Run all 4 samples for benchmarking
   }
   
   total_operations <- length(all_positions) * length(names_in_bam)
@@ -870,7 +870,7 @@ if (!interactive()) {
   # Run the complete workflow
   if (debug) {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
-    cat("Limited to 100 positions × 1 sample for testing\n")
+    cat("Limited to 500 positions × 4 samples for benchmarking\n")
   } else {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
     cat("Processing all positions and samples\n")
