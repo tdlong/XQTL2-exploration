@@ -468,6 +468,13 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     E <- matrix(1, 1, k); F <- 1
     fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
     if (!is.null(fit) && !is.null(fit$covar)) {
+      # #tempdebug - Check what lsei returned
+      cat("  lsei returned covar class:", class(fit$covar), "\n")
+      cat("  lsei returned covar dimensions:", dim(fit$covar), "\n")
+      if (!is.matrix(fit$covar)) {
+        cat("  Converting lsei covar to matrix\n")
+        fit$covar <- matrix(fit$covar, nrow=k, ncol=k)
+      }
       return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
     }
     XtX <- crossprod(A_pool)
@@ -523,6 +530,13 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     E <- matrix(1, 1, k); F <- 1
     fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
     if (!is.null(fit) && !is.null(fit$covar)) {
+      # #tempdebug - Check what lsei returned
+      cat("  lsei returned covar class:", class(fit$covar), "\n")
+      cat("  lsei returned covar dimensions:", dim(fit$covar), "\n")
+      if (!is.matrix(fit$covar)) {
+        cat("  Converting lsei covar to matrix\n")
+        fit$covar <- matrix(fit$covar, nrow=k, ncol=k)
+      }
       return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
     }
     XtX <- crossprod(A_pool)
@@ -951,9 +965,11 @@ process_refalt_data_wide <- function(refalt_file, founders) {
   freq_matrix <- ref_matrix / (ref_matrix + alt_matrix)
   n_matrix <- ref_matrix + alt_matrix
   
-  # Quality filtering: remove positions with too few reads or extreme frequencies
-  valid_positions <- rowSums(n_matrix >= 10) == ncol(n_matrix) &  # All samples have >= 10 reads
-                    rowSums(freq_matrix >= 0.03 & freq_matrix <= 0.97, na.rm = TRUE) == ncol(freq_matrix)  # All samples have reasonable frequencies
+  # Quality filtering: EXACT same as BASE_VAR.R - positions where ALL founders are "fixed"
+  founder_freqs <- freq_matrix[, founders, drop = FALSE]
+  valid_positions <- apply(founder_freqs, 1, function(row) {
+    all(is.na(row) | row < 0.03 | row > 0.97)
+  })
   
   # Filter to valid positions
   refalt_wide <- refalt_data[valid_positions, ]
@@ -1044,6 +1060,13 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
     E <- matrix(1, 1, k); F <- 1
     fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
     if (!is.null(fit) && !is.null(fit$covar)) {
+      # #tempdebug - Check what lsei returned
+      cat("  lsei returned covar class:", class(fit$covar), "\n")
+      cat("  lsei returned covar dimensions:", dim(fit$covar), "\n")
+      if (!is.matrix(fit$covar)) {
+        cat("  Converting lsei covar to matrix\n")
+        fit$covar <- matrix(fit$covar, nrow=k, ncol=k)
+      }
       return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
     }
     XtX <- crossprod(A_pool)
@@ -1097,6 +1120,15 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
   cat("First few rows of freq_matrix:\n")
   print(head(freq_matrix, 3))
   cat("========================\n")
+  
+  # #tempdebug - Count positions for first estimation
+  if (pos == 5400000 && sample_name == "AJ_1_1") {
+    cat("=== BASE_VAR_WIDE DEBUG: First estimation ===\n")
+    cat("Total freq_matrix rows:", nrow(freq_matrix), "\n")
+    cat("freq_matrix columns:", paste(colnames(freq_matrix), collapse=", "), "\n")
+    cat("positions range:", range(positions), "\n")
+    cat("Sample:", sample_name, "Founders:", paste(founders, collapse=", "), "\n")
+  }
 
   # Work directly with wide format matrices - no pivot operations needed!
   for (window_size_snp_count in window_sizes) {
@@ -1117,6 +1149,16 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
                 window_size_snp_count, nrow(window_freq_matrix), window_start, window_end))
     cat("Window freq_matrix dimensions:", dim(window_freq_matrix), "\n")
     cat("Window freq_matrix column names:", paste(colnames(window_freq_matrix), collapse=", "), "\n")
+    
+    # #tempdebug - Count positions for first estimation, first window
+    if (pos == 5400000 && sample_name == "AJ_1_1" && window_size_snp_count == 150) {
+      cat("=== BASE_VAR_WIDE WINDOW DEBUG ===\n")
+      cat("Window size:", window_size_snp_count, "SNPs\n")
+      cat("Window start:", window_start, "end:", window_end, "\n")
+      cat("Window freq_matrix rows:", nrow(window_freq_matrix), "\n")
+      cat("Window positions range:", range(positions[window_positions]), "\n")
+      cat("Window freq_matrix column names:", paste(colnames(window_freq_matrix), collapse=", "), "\n")
+    }
     
     if (nrow(window_freq_matrix) < 10) {
       cat("  -> Skipping: too few positions\n")

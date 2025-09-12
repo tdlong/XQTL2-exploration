@@ -557,6 +557,17 @@ estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_c
     
     window_data <- df3 %>%
       dplyr::filter(POS >= window_start, POS <= window_end, name %in% c(founders, sample_name))
+    
+    # #tempdebug - Count positions for first estimation, first window
+    if (pos == 5400000 && sample_name == "AJ_1_1" && window_size == 150) {
+      cat("=== BASE_VAR WINDOW DEBUG ===\n")
+      cat("Window size:", window_size, "SNPs\n")
+      cat("Window start:", window_start, "end:", window_end, "\n")
+      cat("Window data rows:", nrow(window_data), "\n")
+      cat("Window data POS range:", range(window_data$POS), "\n")
+      cat("Window data names:", paste(unique(window_data$name), collapse=", "), "\n")
+    }
+    
     if (nrow(window_data) == 0) next
 
     wide_data <- window_data %>%
@@ -1086,6 +1097,15 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
     ) %>%
       purrr::pmap_dfr(~ {
         if (debug) cat("Processing pos:", ..1, "sample:", ..2, "\n")
+        
+        # #tempdebug - Count positions for first estimation
+        if (..1 == all_positions[1] && ..2 == names_in_bam[1]) {
+          cat("=== BASE_VAR DEBUG: First estimation ===\n")
+          cat("Total df3 rows:", nrow(df3), "\n")
+          cat("df3 columns:", paste(names(df3), collapse=", "), "\n")
+          cat("df3 POS range:", range(df3$POS), "\n")
+          cat("Sample:", ..2, "Founders:", paste(founders, collapse=", "), "\n")
+        }
         
         result <- estimate_haplotypes_list_format(
           pos = ..1,
