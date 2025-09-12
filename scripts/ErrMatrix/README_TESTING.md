@@ -29,7 +29,14 @@
 
 ## Cluster Deployment Process
 
-**IMPORTANT**: All testing is done on the cluster, not locally.
+**CRITICAL CONSTRAINT**: All testing and execution happens on the cluster, not locally!
+
+**DO NOT** attempt to run R scripts locally using `run_terminal_cmd` - they must be executed on the high-performance cluster.
+
+**Local environment is only for**:
+- Code editing and file management
+- Git operations (add, commit, push)
+- Documentation updates
 
 ### To Deploy Changes:
 1. **Commit and push changes locally**:
