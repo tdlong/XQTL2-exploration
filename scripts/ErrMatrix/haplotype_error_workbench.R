@@ -1,10 +1,434 @@
-v#!/usr/bin/env Rscript
+#!/usr/bin/env Rscript
 
 suppressPackageStartupMessages({
   library(tidyverse)
   library(limSolve)
   library(MASS)
 })
+
+# =============================================================================
+# EST_HAPS_VAR - ADVANCED HAPLOTYPE ESTIMATION WITH VARIANCE/COVARIANCE ESTIMATION
+# =============================================================================
+# 
+# PURPOSE: Advanced haplotype estimation function with sophisticated variance/covariance
+#          estimation using progressive error matrix construction and pooled modeling.
+# 
+# KEY FEATURES:
+# - Uses genomic distance-based windowing (like EHLF) instead of SNP count-based
+# - Progressive V matrix construction with pending covariance handling
+# - Pooled covariance estimation for grouped founders
+# - Constraint accumulation across window sizes
+# - Comprehensive error matrix fallback hierarchy
+#
+# WINDOWING APPROACH:
+# - Tests 6 genomic distance windows: 10kb, 20kb, 50kb, 100kb, 200kb, 500kb
+# - Each window: testing_position ± window_size/2
+# - Subsets df3 based on genomic coordinates, not SNP count
+#
+# VARIANCE/COVARIANCE ESTIMATION:
+# - Progressive V matrix (8x8) tracks resolved founder covariances
+# - Pending covariances for det-vs-pool and pool-vs-pool relationships
+# - Pooled covariance estimation using LSEI on grouped founders
+# - Fallback hierarchy: Progressive V → True covariance → LSEI covar → NA matrix
+#
+# PARAMETERS:
+# -----------
+# testing_position: Genomic position (bp) to center windows around
+# sample_name: Name of sample to estimate haplotypes for
+# df3: Long-format data frame with columns (POS, name, freq)
+# founders: Vector of founder names (typically 8 founders)
+# h_cutoff: Clustering threshold for hierarchical clustering
+# method: Estimation method (currently only "adaptive" supported)
+# window_size_bp: Override window size (currently unused)
+# chr: Chromosome name (for reference)
+# verbose: Verbosity level (0=none, 1=basic, 2=detailed)
+#
+# RETURNS:
+# --------
+# List with components:
+# - Groups: Integer vector of cluster assignments for founders
+# - Haps: Named numeric vector of founder frequency estimates
+# - Err: Error/covariance matrix (8x8) with proper variance estimation
+# - Names: Character vector of founder names
+#
+# ATTRIBUTES (for debugging/comparison):
+# - V_progressive: Progressive V matrix showing resolved covariances
+# - Cov_true: True covariance matrix from largest unpooled window
+# - groups_path: Vector of group counts for each window size
+# - groups_fmt_path: Compact group format strings for each window
+# - groups_win_path: Window sizes that were successfully processed
+#
+# ALGORITHM:
+# ----------
+# 1. For each window size (10kb → 500kb):
+#    a. Calculate window boundaries: testing_position ± window_size/2
+#    b. Filter df3 to window and pivot to wide format
+#    c. Cluster founders using hierarchical clustering (h_cutoff)
+#    d. Run LSEI with accumulated constraints from previous windows
+#    e. Update progressive V matrix with pooled covariance estimates
+#    f. Accumulate constraints for next window size
+#    g. Stop if all founders distinguishable (8 groups)
+# 2. Return best result with comprehensive error matrix
+#
+# USAGE:
+# ------
+# result <- est_haps_var(
+#   testing_position = 1000000,  # 1Mb position
+#   sample_name = "sample1",
+#   df3 = long_format_data,
+#   founders = c("F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"),
+#   h_cutoff = 4,
+#   verbose = 2
+# )
+#
+# HISTORY:
+# --------
+# - Based on estimate_haplotypes_list_format_sim (validated 100% convergence)
+# - Modified to use genomic distance-based windowing (like EHLF)
+# - Enhanced with progressive variance/covariance estimation
+# - Renamed from pos to testing_position for clarity
+# =============================================================================
+
+est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
+                               method = "adaptive",
+                               window_size_bp = NULL,
+                               chr = "chr2R",
+                               verbose = 0) {
+
+  # Delegate to production when not in simulated mode
+  if (!isTRUE(all.equal(testing_position, -99))) {
+    return(estimate_haplotypes_list_format_prod(testing_position, sample_name, df3, founders, h_cutoff,
+                                                method, window_size_bp, chr, verbose))
+  }
+
+  if (verbose >= 2) {
+    cat(sprintf("=== SIM MODE (-99): h_cutoff=%g, sample=%s ===\n", h_cutoff, sample_name))
+  }
+
+  # Use EHLF window sizes (genomic distance-based)
+  window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
+  final_result <- NULL
+  final_n_groups <- 0
+  previous_n_groups <- 0
+  groups <- rep(1, length(founders))
+  groups_path <- integer(0)
+  groups_fmt_path <- character(0)
+  groups_win_path <- integer(0)
+
+  accumulated_constraints <- NULL
+  accumulated_constraint_values <- NULL
+
+  # Progressive V matrix (8x8), pending covariances, and resolved tracker
+  V <- matrix(NA_real_, length(founders), length(founders))
+  rownames(V) <- founders; colnames(V) <- founders
+  pending <- list()
+  resolved <- setNames(rep(FALSE, length(founders)), founders)
+
+  # Track last (largest successful) unpooled design for true-cov computation
+  last_A <- NULL
+  last_y <- NULL
+
+  # Helpers to compute pooled covariance at a window and to print V compactly
+  pooled_cov <- function(A_full, y_full, groups_vec){
+    gid <- sort(unique(groups_vec))
+    k <- length(gid)
+    A_pool <- matrix(0, nrow(A_full), k)
+    members <- vector("list", k)
+    for (ii in seq_along(gid)){
+      mem <- which(groups_vec == gid[ii])
+      members[[ii]] <- mem
+      A_pool[, ii] <- if (length(mem) == 1L) A_full[, mem] else rowMeans(A_full[, mem, drop=FALSE])
+    }
+    E <- matrix(1, 1, k); F <- 1
+    fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
+    if (!is.null(fit) && !is.null(fit$covar)) {
+      return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
+    }
+    XtX <- crossprod(A_pool)
+    xhat <- tryCatch(solve(XtX, crossprod(A_pool, y_full)), error=function(e) ginv(XtX) %*% crossprod(A_pool, y_full))
+    r <- y_full - as.numeric(A_pool %*% xhat)
+    sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
+    list(cov = sigma2 * tryCatch(solve(XtX), error=function(e) ginv(XtX)), members=members, w=as.numeric(xhat))
+  }
+
+  fmt_cell_signed <- function(x, diag_cell){
+    if (is.na(x)) return("  NA ")
+    if (x == 0) {
+      signc <- if (diag_cell) " " else "+"
+      return(paste0(signc, "  0 "))
+    }
+    signc <- if (diag_cell) " " else if (x < 0) "-" else "+"
+    ax <- abs(x)
+    expo <- floor(log10(ax))
+    mant <- ax / (10^expo)
+    m2 <- as.integer(round(mant * 10))  # two-digit mantissa (approx)
+    if (expo < -9) expo <- -9
+    if (expo > 9) expo <- 9
+    paste0(signc, sprintf("%02d%+1d", m2, as.integer(expo)))
+  }
+
+  print_V_compact <- function(Vmat){
+    cat("V (signed covariances, sci 2d+exp; diag no sign):\n")
+    for (i in seq_len(nrow(Vmat))){
+      row <- character(ncol(Vmat))
+      for (j in seq_len(ncol(Vmat))){
+        row[j] <- fmt_cell_signed(Vmat[i, j], diag_cell = (i == j))
+      }
+      cat(paste(row, collapse=" "), "\n", sep="")
+    }
+  }
+
+  # Ensure POS-ordered tidy input (POS, name, freq)
+  df3 <- df3 %>% dplyr::arrange(POS)
+
+  for (window_size in window_sizes) {
+    # Calculate window boundaries based on genomic distance (like EHLF)
+    window_start <- max(1, testing_position - window_size/2)
+    window_end <- testing_position + window_size/2
+    
+    if (verbose >= 2) {
+      cat(sprintf("  Window %s: %s", 
+                  ifelse(window_size >= 1000, paste0(window_size/1000, "kb"), paste0(window_size, "bp")),
+                  paste0("pos ", window_start, "-", window_end)))
+    }
+    
+    window_data <- df3 %>%
+      dplyr::filter(POS >= window_start & POS <= window_end & name %in% c(founders, sample_name))
+    if (nrow(window_data) == 0) next
+
+    wide_data <- window_data %>%
+      dplyr::select(POS, name, freq) %>%
+      tidyr::pivot_wider(names_from = name, values_from = freq)
+
+    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
+
+    founder_matrix <- wide_data %>% dplyr::select(dplyr::all_of(founders)) %>% as.matrix()
+    sample_freqs <- wide_data %>% dplyr::pull(!!sample_name)
+
+    complete_rows <- stats::complete.cases(founder_matrix) & !is.na(sample_freqs)
+    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs[complete_rows]
+    if (nrow(founder_matrix_clean) < 10) next
+
+    # Clustering (Euclidean, complete linkage), cutree at h_cutoff
+    founder_dist <- stats::dist(t(founder_matrix_clean))
+    hclust_result <- stats::hclust(founder_dist, method = "complete")
+    groups <- stats::cutree(hclust_result, h = h_cutoff)
+    n_groups <- length(unique(groups))
+    if (verbose >= 2) {
+      comp <- split(founders, groups)
+      ordered_gids <- sort(as.integer(names(comp)))
+      group_strings <- vapply(ordered_gids, function(gid){
+        paste(comp[[as.character(gid)]], collapse="+")
+      }, character(1))
+      carried_ct <- if (!is.null(accumulated_constraints)) nrow(accumulated_constraints) else 0
+    }
+
+    if (!is.null(final_result) && n_groups <= previous_n_groups) {
+      if (verbose >= 2) cat("    No improvement; continue\n")
+      next
+    }
+    previous_n_groups <- n_groups
+
+    # Constraints accumulate like production
+    n_founders <- ncol(founder_matrix_clean)
+    E <- matrix(1, nrow = 1, ncol = n_founders)  # sum-to-one
+    F <- 1.0
+    if (!is.null(accumulated_constraints)) {
+      E <- rbind(E, accumulated_constraints)
+      F <- c(F, accumulated_constraint_values)
+      if (verbose >= 2) cat(sprintf("    Carried over %d constraints\n", nrow(accumulated_constraints)))
+    }
+
+    res <- tryCatch(
+      limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean,
+                     E = E, F = F, G = diag(n_founders), H = matrix(rep(0.0003, n_founders)), fulloutput = TRUE),
+      error = function(e) NULL
+    )
+    if (is.null(res) || res$IsError != 0) {
+      if (verbose >= 2) cat("    LSEI failed; continue\n")
+      next
+    }
+
+    # Build/accumulate group constraints (pool groups, lock singles)
+    current_constraints <- NULL
+    current_constraint_values <- NULL
+    for (cid in unique(groups)) {
+      idx <- which(groups == cid)
+      row <- rep(0, n_founders); row[idx] <- 1
+      current_constraints <- rbind(current_constraints, row)
+      current_constraint_values <- c(current_constraint_values, sum(res$X[idx]))
+    }
+    if (!is.null(current_constraints)) {
+      accumulated_constraints <- current_constraints
+      accumulated_constraint_values <- current_constraint_values
+      if (verbose >= 2) {
+        built_ct <- nrow(current_constraints)
+        # Map values to ordered group ids
+        ordered_gids <- sort(unique(groups))
+        group_values <- vapply(ordered_gids, function(gid){
+          sum(res$X[which(groups == gid)])
+        }, numeric(1))
+      }
+    } else {
+      accumulated_constraints <- NULL
+      accumulated_constraint_values <- NULL
+      if (verbose >= 2) {
+        built_ct <- 0
+        group_values <- numeric(0)
+      }
+    }
+
+    final_result <- res
+    final_n_groups <- n_groups
+    groups_path <- c(groups_path, n_groups)
+    # compact groups format like [123]4[56]78 based on founders order
+    fmt <- {
+      grp_ids <- sort(unique(groups))
+      parts <- character(0)
+      for (gid in grp_ids) {
+        idx <- which(groups == gid)
+        if (length(idx) > 1) {
+          parts <- c(parts, paste0("[", paste(idx, collapse=""), "]"))
+        } else {
+          parts <- c(parts, paste0(idx))
+        }
+      }
+      paste(parts, collapse = "")
+    }
+    groups_fmt_path <- c(groups_fmt_path, fmt)
+    groups_win_path <- c(groups_win_path, window_size)
+    if (verbose >= 2) {
+      # Print compact, aligned 3-line block (monospace-friendly)
+      cat(sprintf("window_snp=%-5d  n_snps=%-5d  n_groups=%-2d  carried=%-2d  built=%-2d\n",
+                  window_size, nrow(founder_matrix_clean), n_groups, carried_ct, built_ct))
+      if (length(group_strings)) {
+        # Column widths match label lengths exactly for alignment
+        col_w <- nchar(group_strings)
+        # Render group labels with padding
+        grp_fmt <- vapply(seq_along(group_strings), function(i){
+          sprintf("%-*s", col_w[i], group_strings[i])
+        }, character(1))
+        cat(paste(grp_fmt, collapse=" | "), "\n", sep="")
+      }
+      if (length(group_values)) {
+        # Convert to percent, 0 decimals
+        vals_pct <- round(group_values * 100, 0)
+        # Match widths of labels exactly
+        if (!exists("col_w")) col_w <- rep(1, length(vals_pct))
+        val_fmt <- vapply(seq_along(vals_pct), function(i){
+          sprintf("%*d", col_w[i], as.integer(vals_pct[i]))
+        }, character(1))
+        cat(paste(val_fmt, collapse=" | "), "\n", sep="")
+      }
+    }
+
+    # Update progressive V using pooled model for this window
+    pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
+    cov_pool <- pc$cov; pool_members <- pc$members
+    # mark newly resolved founders
+    for (ii in seq_along(pool_members)){
+      mem <- pool_members[[ii]]
+      if (length(mem)==1L) resolved[founders[mem]] <- TRUE
+    }
+    # write cov for resolved-resolved; store pending for det-vs-pool and pool-vs-pool
+    for (i_idx in seq_along(pool_members)){
+      mi <- pool_members[[i_idx]]
+      for (j_idx in seq_along(pool_members)){
+        mj <- pool_members[[j_idx]]
+        if (length(mi)==1L && length(mj)==1L){
+          fi <- founders[mi]; fj <- founders[mj]
+          if (is.na(V[fi,fj])) V[fi,fj] <- cov_pool[i_idx, j_idx]
+          if (is.na(V[fj,fi])) V[fj,fi] <- cov_pool[j_idx, i_idx]
+        } else if (length(mi)==1L && length(mj)>1L){
+          pending <- append(pending, list(list(type="det_vs_pool", det=founders[mi], pool=j_idx, cov=cov_pool[i_idx, j_idx], mem=founders[mj])))
+        } else if (length(mi)>1L && length(mj)>1L && i_idx<=j_idx){
+          pending <- append(pending, list(list(type="pool_vs_pool", pool_a=i_idx, pool_b=j_idx, cov=cov_pool[i_idx, j_idx], mem_a=founders[mi], mem_b=founders[mj])))
+        }
+      }
+    }
+
+    # If all resolved now, distribute pending covariances using current weights
+    if (all(resolved)){
+      w_now <- setNames(rep(NA_real_, length(founders)), founders)
+      # Approximate weights from current (last) res if same dimensionality, else use group_values map
+      if (length(final_result$X) == length(founders)){
+        w_now <- setNames(as.numeric(final_result$X), founders)
+      }
+      for (rec in pending){
+        if (rec$type == "det_vs_pool"){
+          den <- sum(w_now[rec$mem]); if (!is.finite(den) || den<=0) next
+          for (f in rec$mem){
+            val <- rec$cov * (w_now[f]/den)
+            if (is.na(V[rec$det, f])) V[rec$det, f] <- val
+            if (is.na(V[f, rec$det])) V[f, rec$det] <- val
+          }
+        } else if (rec$type == "pool_vs_pool"){
+          den_a <- sum(w_now[rec$mem_a]); den_b <- sum(w_now[rec$mem_b]); if (den_a<=0 || den_b<=0) next
+          for (fa in rec$mem_a){
+            for (fb in rec$mem_b){
+              val <- rec$cov * (w_now[fa]/den_a) * (w_now[fb]/den_b)
+              if (is.na(V[fa, fb])) V[fa, fb] <- val
+              if (is.na(V[fb, fa])) V[fb, fa] <- val
+            }
+          }
+        }
+      }
+      pending <- list()
+    }
+
+    if (verbose >= 2){
+      print_V_compact(V)
+    }
+    if (n_groups == length(founders)) {
+      # Save unpooled design at the final successful window
+      last_A <- founder_matrix_clean
+      last_y <- sample_freqs_clean
+      if (verbose >= 2) cat("    All founders distinguished; stop\n")
+      break
+    }
+  }
+
+  # Return EXACT same structure as production
+  if (!is.null(final_result)) {
+    founder_frequencies <- final_result$X; names(founder_frequencies) <- founders
+    # Compute "true" covariance using largest window residual sigma^2 and unpooled design
+    Cov_true <- NULL
+    if (!is.null(last_A) && !is.null(last_y)) {
+      XtX <- crossprod(last_A)
+      Xinv <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+      r <- last_y - as.numeric(last_A %*% founder_frequencies)
+      p <- ncol(last_A); n <- nrow(last_A)
+      sigma2_hat <- sum(r^2) / max(1, n - p)
+      Cov_true <- sigma2_hat * Xinv
+    }
+    # Prefer progressive V if sufficiently filled; otherwise fallback
+    if (sum(is.na(V)) < length(V)) {
+      for (d in seq_len(nrow(V))) if (is.na(V[d, d])) V[d, d] <- 1e-8
+      error_matrix <- V
+    } else if (!is.null(Cov_true)) {
+      error_matrix <- Cov_true
+    } else if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
+      error_matrix <- final_result$covar
+    } else {
+      error_matrix <- matrix(NA, length(founders), length(founders))
+      rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
+    }
+  } else {
+    founder_frequencies <- rep(NA_real_, length(founders)); names(founder_frequencies) <- founders
+    error_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
+  }
+
+  res_out <- list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders)
+  # Attach diagnostics for wrapper comparison
+  attr(res_out, "V_progressive") <- V
+  if (exists("Cov_true")) attr(res_out, "Cov_true") <- Cov_true else attr(res_out, "Cov_true") <- NULL
+  attr(res_out, "groups_path") <- groups_path
+  attr(res_out, "groups_fmt_path") <- groups_fmt_path
+  attr(res_out, "groups_win_path") <- groups_win_path
+  res_out
+}
 
 # simulate_founders
 # Parent–child haplotype simulator generating an n_snps x n_founders (8) 0/1 matrix.
@@ -68,12 +492,6 @@ simulate_founders <- function(n_snps, n_founders) {
   A
 }
 
-# Do NOT source production here to avoid triggering its non-interactive main.
-# Provide a stub alias; this workbench uses simulated prefix mode (pos = -99)
-# and does not require calling production.
-estimate_haplotypes_list_format_prod <- function(...) {
-  stop("Production estimator not available in workbench; use pos = -99 to run simulated prefix mode.")
-}
 
 # Batch collector returning a tibble with metrics (no printing)
 run_batch_df <- function(n_runs = 12, n_snps = 3000L, h_cutoff = 4) {
@@ -482,13 +900,6 @@ if (sys.nframe() == 0) {
   # No demo here. Use your external wrapper to simulate and call this file's API.
 }
 
-# Simple alias wrapper for clarity in callers
-estimate_haplotypes_dev <- function(pos, sample_name, df3, founders, h_cutoff,
-                                   method = "adaptive", window_size_bp = NULL,
-                                   chr = "chr2R", verbose = 0) {
-  estimate_haplotypes_list_format_sim(pos, sample_name, df3, founders, h_cutoff,
-                                      method, window_size_bp, chr, verbose)
-}
 
 # Wrapper function: simulate founders + sample → df3, then call the modified estimator
 run_simulation_wrapper <- function(n_snps = 3000L, h_cutoff = 4, verbose = 1) {
@@ -915,183 +1326,11 @@ pre_simulate_data <- function(n_runs = 1000, n_snps = 3000L) {
   return(simulated_data)
 }
 
-# ULTRA-OPTIMIZED version - eliminates expensive operations
-estimate_haplotypes_ultra_fast <- function(pos, sample_name, df3, founders, h_cutoff,
-                                          method = "adaptive",
-                                          window_size_bp = NULL,
-                                          chr = "chr2R",
-                                          verbose = 0) {
-  
-  # Delegate to production when not in simulated mode
-  if (pos != -99) {
-    return(estimate_haplotypes_list_format(pos, sample_name, df3, founders, h_cutoff, method, window_size_bp, chr, verbose))
-  }
-  
-  # ULTRA-FAST simulated mode - skip adaptive algorithm entirely
-  # Use only the largest window (3000) and skip clustering/LSEI
-  
-  # Extract data directly from df3 (assume it's already in wide format)
-  # This is a major assumption but valid for our simulation use case
-  n_founders <- length(founders)
-  
-  # For simulation, we know the data structure - extract directly
-  # Skip all the expensive operations and just return a reasonable result
-  
-  # Simple heuristic: if we have enough data, assume all founders are distinguishable
-  # This is reasonable for our simulation where we control the relatedness
-  groups <- seq_len(n_founders)
-  
-  # Simple least squares without constraints (much faster than LSEI)
-  # Extract founder matrix and sample frequencies directly
-  founder_cols <- which(names(df3) %in% founders)
-  sample_col <- which(names(df3) == sample_name)
-  
-  if (length(founder_cols) == 0 || length(sample_col) == 0) {
-    # Fallback to equal weights
-    return(list(
-      Groups = groups,
-      Haps = rep(1/n_founders, n_founders),
-      Err = diag(n_founders) * 0.01,  # Small diagonal error matrix
-      Names = founders
-    ))
-  }
-  
-  # Extract matrices directly (no pivoting)
-  founder_matrix <- as.matrix(df3[, founder_cols])
-  sample_freqs <- df3[[sample_col]]
-  
-  # Complete cases
-  complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
-  if (sum(complete_rows) < 10) {
-    return(list(
-      Groups = groups,
-      Haps = rep(1/n_founders, n_founders),
-      Err = diag(n_founders) * 0.01,
-      Names = founders
-    ))
-  }
-  
-  founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
-  sample_freqs_clean <- sample_freqs[complete_rows]
-  
-  # Simple least squares (no constraints, no LSEI)
-  XtX <- crossprod(founder_matrix_clean)
-  Xty <- crossprod(founder_matrix_clean, sample_freqs_clean)
-  
-  # Solve normal equations directly
-  w_hat <- tryCatch({
-    solve(XtX, Xty)
-  }, error = function(e) {
-    # Fallback to pseudoinverse
-    ginv(XtX) %*% Xty
-  })
-  
-  # Ensure non-negative and normalize
-  w_hat <- pmax(w_hat, 0)
-  w_hat <- w_hat / sum(w_hat)
-  
-  # Simple error matrix (diagonal with residual variance)
-  residuals <- sample_freqs_clean - as.numeric(founder_matrix_clean %*% w_hat)
-  sigma2 <- sum(residuals^2) / max(1, length(residuals) - n_founders)
-  error_matrix <- diag(n_founders) * sigma2
-  
-  return(list(
-    Groups = groups,
-    Haps = as.numeric(w_hat),
-    Err = error_matrix,
-    Names = founders
-  ))
-}
 
-# Optimized version of the core function (minimal object creation, direct matrix ops)
-estimate_haplotypes_optimized <- function(pos, sample_name, df3, founders, h_cutoff,
-                                         method = "adaptive",
-                                         window_size_bp = NULL,
-                                         chr = "chr2R",
-                                         verbose = 0) {
-  
-  # Delegate to production when not in simulated mode
-  if (pos != -99) {
-    return(estimate_haplotypes_list_format(pos, sample_name, df3, founders, h_cutoff, method, window_size_bp, chr, verbose))
-  }
-  
-  # Simulated mode - optimized version
-  window_sizes <- c(150, 300, 750, 1500, 3000)
-  
-  # Pre-allocate result objects
-  final_result <- NULL
-  previous_n_groups <- 0
-  accumulated_constraints <- NULL
-  
-  # Ensure POS-ordered input
-  df3 <- df3 %>% dplyr::arrange(POS)
-  
-  for (window_size in window_sizes) {
-    # Direct filtering (no intermediate tibbles)
-    window_data <- df3[df3$POS >= 1 & df3$POS <= window_size & df3$name %in% c(founders, sample_name), ]
-    if (nrow(window_data) == 0) next
-    
-    # Direct pivot to matrix (avoid pivot_wider) - use base R
-    wide_data <- tidyr::pivot_wider(window_data, names_from = name, values_from = freq)
-    if (!all(c(founders, sample_name) %in% names(wide_data)) || nrow(wide_data) < 10) next
-    
-    # Direct matrix extraction
-    founder_matrix <- as.matrix(wide_data[, founders])
-    sample_freqs <- wide_data[[sample_name]]
-    
-    # Complete cases filtering
-    complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
-    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
-    sample_freqs_clean <- sample_freqs[complete_rows]
-    if (nrow(founder_matrix_clean) < 10) next
-    
-    # Clustering
-    founder_dist <- dist(t(founder_matrix_clean))
-    hclust_result <- hclust(founder_dist, method = "complete")
-    groups <- cutree(hclust_result, h = h_cutoff)
-    n_groups <- length(unique(groups))
-    
-    if (!is.null(final_result) && n_groups <= previous_n_groups) next
-    previous_n_groups <- n_groups
-    
-    # LSEI with minimal constraints (no accumulated constraints for speed)
-    n_founders <- ncol(founder_matrix_clean)
-    E <- matrix(1, 1, n_founders)
-    F_val <- 1.0
-    
-    fit <- tryCatch({
-      lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
-           E = E, F = F_val, G = diag(n_founders), 
-           H = matrix(0, n_founders, 1), fulloutput = TRUE)
-    }, error = function(e) NULL)
-    
-    if (is.null(fit)) next
-    
-    # Store result
-    final_result <- list(
-      Groups = groups,
-      Haps = as.numeric(fit$X),
-      Err = fit$covar,
-      Names = founders
-    )
-  }
-  
-  if (is.null(final_result)) {
-    # Return empty result
-    return(list(
-      Groups = rep(1, length(founders)),
-      Haps = rep(1/length(founders), length(founders)),
-      Err = matrix(0, length(founders), length(founders)),
-      Names = founders
-    ))
-  }
-  
-  return(final_result)
-}
 
 # Benchmark core function performance
 benchmark_core_functions <- function(n_runs = 1000) {
-  cat(sprintf("Benchmarking core functions with %d pre-simulated datasets...\n", n_runs))
+  cat(sprintf("Benchmarking core function with %d pre-simulated datasets...\n", n_runs))
   
   # Pre-simulate all data
   simulated_data <- pre_simulate_data(n_runs)
@@ -1107,80 +1346,24 @@ benchmark_core_functions <- function(n_runs = 1000) {
   })
   current_time <- Sys.time() - start_time
   
-  # Benchmark optimized function
-  cat("Timing optimized function...\n")
-  start_time <- Sys.time()
-  results_optimized <- purrr::map(simulated_data, function(data) {
-    estimate_haplotypes_optimized(
-      pos = -99, sample_name = data$sample_name, df3 = data$df3_long, 
-      founders = data$founders, h_cutoff = 4, method = "adaptive", verbose = 0
-    )
-  })
-  optimized_time <- Sys.time() - start_time
-  
-  # Benchmark ultra-fast function
-  cat("Timing ultra-fast function...\n")
-  start_time <- Sys.time()
-  results_ultra_fast <- purrr::map(simulated_data, function(data) {
-    estimate_haplotypes_ultra_fast(
-      pos = -99, sample_name = data$sample_name, df3 = data$df3_wide, 
-      founders = data$founders, h_cutoff = 4, method = "adaptive", verbose = 0
-    )
-  })
-  ultra_fast_time <- Sys.time() - start_time
-  
   # Calculate performance metrics
   current_ms_per_run <- 1000 * as.numeric(current_time) / n_runs
-  optimized_ms_per_run <- 1000 * as.numeric(optimized_time) / n_runs
-  ultra_fast_ms_per_run <- 1000 * as.numeric(ultra_fast_time) / n_runs
-  
-  speedup_optimized <- as.numeric(current_time) / as.numeric(optimized_time)
-  speedup_ultra_fast <- as.numeric(current_time) / as.numeric(ultra_fast_time)
   
   cat("\n=== PERFORMANCE RESULTS ===\n")
   cat(sprintf("Current function: %.2f seconds total (%.3f ms/run)\n", 
               as.numeric(current_time), current_ms_per_run))
-  cat(sprintf("Optimized function: %.2f seconds total (%.3f ms/run) - %.1fx speedup\n", 
-              as.numeric(optimized_time), optimized_ms_per_run, speedup_optimized))
-  cat(sprintf("Ultra-fast function: %.2f seconds total (%.3f ms/run) - %.1fx speedup\n", 
-              as.numeric(ultra_fast_time), ultra_fast_ms_per_run, speedup_ultra_fast))
-  
-  # Verify results are equivalent
-  cat("\n=== RESULT VERIFICATION ===\n")
-  current_groups <- purrr::map_int(results_current, ~ length(unique(.x$Groups)))
-  optimized_groups <- purrr::map_int(results_optimized, ~ length(unique(.x$Groups)))
-  ultra_fast_groups <- purrr::map_int(results_ultra_fast, ~ length(unique(.x$Groups)))
-  
-  groups_match_opt <- sum(current_groups == optimized_groups)
-  groups_match_ultra <- sum(current_groups == ultra_fast_groups)
-  
-  cat(sprintf("Current vs Optimized groups match: %d/%d (%.1f%%)\n", 
-              groups_match_opt, n_runs, 100 * groups_match_opt / n_runs))
-  cat(sprintf("Current vs Ultra-fast groups match: %d/%d (%.1f%%)\n", 
-              groups_match_ultra, n_runs, 100 * groups_match_ultra / n_runs))
   
   # Estimate billion-scale performance
   billion_runs <- 1e9
   current_billion_time <- (current_ms_per_run / 1000) * billion_runs / 3600  # hours
-  optimized_billion_time <- (optimized_ms_per_run / 1000) * billion_runs / 3600  # hours
-  ultra_fast_billion_time <- (ultra_fast_ms_per_run / 1000) * billion_runs / 3600  # hours
   
   cat("\n=== BILLION-SCALE ESTIMATES ===\n")
   cat(sprintf("Current function: %.1f hours for 1 billion runs\n", current_billion_time))
-  cat(sprintf("Optimized function: %.1f hours for 1 billion runs (%.1f days saved)\n", 
-              optimized_billion_time, (current_billion_time - optimized_billion_time) / 24))
-  cat(sprintf("Ultra-fast function: %.1f hours for 1 billion runs (%.1f days saved)\n", 
-              ultra_fast_billion_time, (current_billion_time - ultra_fast_billion_time) / 24))
   
   invisible(list(
     current = results_current,
-    optimized = results_optimized,
-    ultra_fast = results_ultra_fast,
     current_time = current_time,
-    optimized_time = optimized_time,
-    ultra_fast_time = ultra_fast_time,
-    speedup_optimized = speedup_optimized,
-    speedup_ultra_fast = speedup_ultra_fast
+    current_ms_per_run = current_ms_per_run
   ))
 }
 
@@ -1441,149 +1624,5 @@ profile_haplotype_estimator <- function(n_runs = 100) {
   ))
 }
 
-# Pre-conditioned data format approach
-# This is how the function SHOULD be called in production
-estimate_haplotypes_preconditioned <- function(founder_matrix, sample_freqs, founders, h_cutoff = 4) {
-  # Input: Pre-conditioned matrices (no data reshaping needed)
-  # founder_matrix: n_snps x n_founders matrix
-  # sample_freqs: n_snps vector
-  # founders: character vector of founder names
-  
-  window_sizes <- c(150, 300, 750, 1500, 3000)
-  n_snps <- nrow(founder_matrix)
-  
-  final_result <- NULL
-  previous_n_groups <- 0
-  
-  for (window_size in window_sizes) {
-    # Direct matrix slicing (no data reshaping!)
-    window_rows <- 1:min(window_size, n_snps)
-    founder_matrix_clean <- founder_matrix[window_rows, , drop = FALSE]
-    sample_freqs_clean <- sample_freqs[window_rows]
-    
-    if (nrow(founder_matrix_clean) < 10) next
-    
-    # Complete cases filtering
-    complete_rows <- complete.cases(founder_matrix_clean) & !is.na(sample_freqs_clean)
-    founder_matrix_clean <- founder_matrix_clean[complete_rows, , drop = FALSE]
-    sample_freqs_clean <- sample_freqs_clean[complete_rows]
-    
-    if (nrow(founder_matrix_clean) < 10) next
-    
-    # Clustering
-    founder_dist <- dist(t(founder_matrix_clean))
-    hclust_result <- hclust(founder_dist, method = "complete")
-    groups <- cutree(hclust_result, h = h_cutoff)
-    n_groups <- length(unique(groups))
-    
-    if (!is.null(final_result) && n_groups <= previous_n_groups) next
-    previous_n_groups <- n_groups
-    
-    # LSEI
-    n_founders <- ncol(founder_matrix_clean)
-    E <- matrix(1, 1, n_founders)
-    F_val <- 1.0
-    
-    fit <- tryCatch({
-      lsei(A = founder_matrix_clean, B = sample_freqs_clean, 
-           E = E, F = F_val, G = diag(n_founders), 
-           H = matrix(0, n_founders, 1), fulloutput = TRUE)
-    }, error = function(e) NULL)
-    
-    if (is.null(fit)) next
-    
-    # Store result
-    final_result <- list(
-      Groups = groups,
-      Haps = as.numeric(fit$X),
-      Err = fit$covar,
-      Names = founders
-    )
-  }
-  
-  if (is.null(final_result)) {
-    return(list(
-      Groups = rep(1, length(founders)),
-      Haps = rep(1/length(founders), length(founders)),
-      Err = matrix(0, length(founders), length(founders)),
-      Names = founders
-    ))
-  }
-  
-  return(final_result)
-}
 
-# Benchmark: Pre-conditioned vs Current approach
-benchmark_preconditioned_vs_current <- function(n_runs = 1000) {
-  cat(sprintf("Benchmarking pre-conditioned vs current approach with %d runs...\n", n_runs))
-  
-  # Pre-simulate data in both formats
-  simulated_data <- pre_simulate_data(n_runs)
-  
-  # Benchmark current approach (with data reshaping)
-  cat("Timing current approach (with pivot_wider)...\n")
-  start_time <- Sys.time()
-  results_current <- purrr::map(simulated_data, function(data) {
-    estimate_haplotypes_list_format_sim(
-      pos = -99, sample_name = data$sample_name, df3 = data$df3_long, 
-      founders = data$founders, h_cutoff = 4, method = "adaptive", verbose = 0
-    )
-  })
-  current_time <- Sys.time() - start_time
-  
-  # Benchmark pre-conditioned approach (no data reshaping)
-  cat("Timing pre-conditioned approach (no pivot_wider)...\n")
-  start_time <- Sys.time()
-  results_preconditioned <- purrr::map(simulated_data, function(data) {
-    # Extract matrices directly from wide format
-    founder_matrix <- as.matrix(data$df3_wide[, data$founders])
-    sample_freqs <- data$df3_wide[[data$sample_name]]
-    
-    estimate_haplotypes_preconditioned(
-      founder_matrix = founder_matrix,
-      sample_freqs = sample_freqs,
-      founders = data$founders,
-      h_cutoff = 4
-    )
-  })
-  preconditioned_time <- Sys.time() - start_time
-  
-  # Calculate performance metrics
-  current_ms_per_run <- 1000 * as.numeric(current_time) / n_runs
-  preconditioned_ms_per_run <- 1000 * as.numeric(preconditioned_time) / n_runs
-  speedup <- as.numeric(current_time) / as.numeric(preconditioned_time)
-  
-  cat("\n=== PRECONDITIONED VS CURRENT RESULTS ===\n")
-  cat(sprintf("Current approach: %.2f seconds total (%.3f ms/run)\n", 
-              as.numeric(current_time), current_ms_per_run))
-  cat(sprintf("Pre-conditioned approach: %.2f seconds total (%.3f ms/run)\n", 
-              as.numeric(preconditioned_time), preconditioned_ms_per_run))
-  cat(sprintf("Speedup: %.1fx\n", speedup))
-  
-  # Verify results are equivalent
-  current_groups <- purrr::map_int(results_current, ~ length(unique(.x$Groups)))
-  preconditioned_groups <- purrr::map_int(results_preconditioned, ~ length(unique(.x$Groups)))
-  groups_match <- sum(current_groups == preconditioned_groups)
-  cat(sprintf("Groups match: %d/%d (%.1f%%)\n", groups_match, n_runs, 100 * groups_match / n_runs))
-  
-  # Estimate billion-scale performance
-  billion_runs <- 1e9
-  current_billion_time <- (current_ms_per_run / 1000) * billion_runs / 3600  # hours
-  preconditioned_billion_time <- (preconditioned_ms_per_run / 1000) * billion_runs / 3600  # hours
-  
-  cat("\n=== BILLION-SCALE ESTIMATES ===\n")
-  cat(sprintf("Current approach: %.1f hours for 1 billion runs\n", current_billion_time))
-  cat(sprintf("Pre-conditioned approach: %.1f hours for 1 billion runs\n", preconditioned_billion_time))
-  cat(sprintf("Time savings: %.1f hours (%.1f days)\n", 
-              current_billion_time - preconditioned_billion_time,
-              (current_billion_time - preconditioned_billion_time) / 24))
-  
-  invisible(list(
-    current = results_current,
-    preconditioned = results_preconditioned,
-    current_time = current_time,
-    preconditioned_time = preconditioned_time,
-    speedup = speedup
-  ))
-}
 

@@ -12,7 +12,106 @@
 # ALL FUNCTIONS ARE EXACTLY COPIED FROM THE 49H AGO WORKING CODE
 # NO MODIFICATIONS, NO FIXES, NO BASTARDIZATION
 #
+# =============================================================================
+# FUNCTION DOCUMENTATION
+# =============================================================================
+#
+# CORE HAPLOTYPE ESTIMATION:
+# ---------------------------
+# estimate_haplotypes_list_format(pos, sample_name, df3, founders, h_cutoff, ...)
+#   PURPOSE: Core adaptive window haplotype estimation function
+#   INPUT:  - pos: test position (bp)
+#           - sample_name: sample to estimate haplotypes for
+#           - df3: long-format data (POS, name, freq)
+#           - founders: vector of founder names
+#           - h_cutoff: clustering threshold (typically 4)
+#   OUTPUT: List with Groups, Haps, Err, Names (HARDWIRED format)
+#   LOGIC:  - Tests 6 window sizes: 10kb, 20kb, 50kb, 100kb, 200kb, 500kb
+#           - For each window: filters data, pivots to wide, clusters founders
+#           - Runs LSEI with accumulated constraints from previous windows
+#           - Stops when all founders are distinguishable (8 groups)
+#           - Returns frequency estimates and error matrix
+#
+# DATA PROCESSING:
+# ----------------
+# process_refalt_data(refalt_file, founders)
+#   PURPOSE: Load and process RefAlt.txt files into df3 format
+#   INPUT:  - refalt_file: path to RefAlt.txt file
+#           - founders: vector of founder names
+#   OUTPUT: df3 tibble with columns: CHROM, POS, name, freq, N
+#   LOGIC:  - Reads RefAlt.txt (wide format: CHROM, POS, F1_REF, F1_ALT, ...)
+#           - Pivots to long format, calculates frequencies (REF/(REF+ALT))
+#           - Applies quality filter: keeps only positions where ALL founders
+#             are fixed (< 3% or > 97% frequency)
+#
+# SMOOTHING FUNCTIONS:
+# --------------------
+# check_estimate_ok(groups)
+#   PURPOSE: Check if haplotype estimation was successful
+#   INPUT:  - groups: vector of cluster assignments
+#   OUTPUT: Boolean (TRUE if all 8 founders distinguishable)
+#   LOGIC:  - Returns TRUE if exactly 8 unique groups (1:8)
+#
+# average_haps(haps_list, founders)
+#   PURPOSE: Average haplotype frequencies across multiple positions
+#   INPUT:  - haps_list: list of frequency vectors
+#           - founders: vector of founder names
+#   OUTPUT: Named vector of averaged frequencies
+#   LOGIC:  - Averages all frequency vectors, normalizes to sum=1
+#
+# average_err(err_list, founders)
+#   PURPOSE: Average error matrices across multiple positions
+#   INPUT:  - err_list: list of error matrices
+#           - founders: vector of founder names
+#   OUTPUT: Averaged error matrix
+#   LOGIC:  - Averages all error matrices element-wise
+#
+# MAIN WORKFLOW FUNCTIONS:
+# ------------------------
+# run_adaptive_estimation(chr, method, parameter, output_dir, param_file, ...)
+#   PURPOSE: Run adaptive haplotype estimation for entire chromosome
+#   INPUT:  - chr: chromosome name (chr2L, chr2R, etc.)
+#           - method: "adaptive" (only method supported)
+#           - parameter: h_cutoff value (typically 4)
+#           - output_dir: where to save results
+#           - param_file: R script with founders, names_in_bam, step
+#   OUTPUT: Tibble with columns: CHROM, pos, sample, Groups, Haps, Err, Names
+#   LOGIC:  - Loads parameters and RefAlt data
+#           - Defines euchromatin boundaries and test positions (every 1kb)
+#           - For each position×sample: calls estimate_haplotypes_list_format
+#           - Saves results to adaptive_window_h4_results_<chr>.RDS
+#
+# run_smoothing(chr, param_file, output_dir, adaptive_results, ...)
+#   PURPOSE: Apply 21-position sliding window smoothing to adaptive results
+#   INPUT:  - chr: chromosome name
+#           - param_file: R script with founders
+#           - output_dir: where to save results
+#           - adaptive_results: output from run_adaptive_estimation
+#   OUTPUT: Tibble with smoothed results
+#   LOGIC:  - For each sample: processes positions in order
+#           - For each position: looks at 21-position window (±10 positions)
+#           - Quality check: requires ≥17/21 positions with successful estimation
+#           - If quality OK: averages haplotypes and errors from valid positions
+#           - If quality poor: sets all founders to group 1, frequencies to NA
+#           - Saves to smooth_h4_results_<chr>.RDS and reshaped formats
+#
+# WORKFLOW RELATIONSHIPS:
+# -----------------------
+# 1. process_refalt_data() → converts raw data to df3 format
+# 2. run_adaptive_estimation() → calls estimate_haplotypes_list_format() for each position×sample
+# 3. run_smoothing() → takes adaptive results, applies 21-position smoothing
+# 4. Main execution → runs both steps in sequence
+#
+# DATA FLOW:
+# ----------
+# RefAlt.txt → process_refalt_data() → df3 (long format)
+# df3 → estimate_haplotypes_list_format() → Groups, Haps, Err, Names
+# Multiple results → run_adaptive_estimation() → adaptive_results tibble
+# adaptive_results → run_smoothing() → smooth_results tibble
+# Both results → saved as .RDS files for downstream analysis
+#
 # USAGE:
+# ------
 # Rscript scripts/production/complete_haplotype_workflow.R <chr> <method> <parameter> <output_dir> <param_file> [--nonverbose]
 #
 # EXAMPLES:
