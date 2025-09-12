@@ -1085,6 +1085,19 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
     }
   }
 
+  # #tempdebug - Print input data to reality check
+  cat("=== INPUT DATA DEBUG ===\n")
+  cat("freq_matrix class:", class(freq_matrix), "\n")
+  cat("freq_matrix dimensions:", dim(freq_matrix), "\n")
+  cat("freq_matrix column names:", paste(colnames(freq_matrix), collapse=", "), "\n")
+  cat("positions length:", length(positions), "\n")
+  cat("positions range:", range(positions), "\n")
+  cat("sample_name:", sample_name, "\n")
+  cat("founders:", paste(founders, collapse=", "), "\n")
+  cat("First few rows of freq_matrix:\n")
+  print(head(freq_matrix, 3))
+  cat("========================\n")
+
   # Work directly with wide format matrices - no pivot operations needed!
   for (window_size_snp_count in window_sizes) {
     # Convert SNP count to base pairs (approximate: 1 SNP per 100bp)
@@ -1099,12 +1112,31 @@ estimate_haplotypes_list_format_wide_input <- function(pos, sample_name, freq_ma
     # Extract window data directly from matrices
     window_freq_matrix <- freq_matrix[window_positions, , drop = FALSE]
     
-    if (nrow(window_freq_matrix) < 10) next
-    if (!all(c(founders, sample_name) %in% colnames(window_freq_matrix))) next
+    # #tempdebug - Print window data
+    cat(sprintf("Window %d SNPs: %d positions, window_start=%d, window_end=%d\n", 
+                window_size_snp_count, nrow(window_freq_matrix), window_start, window_end))
+    cat("Window freq_matrix dimensions:", dim(window_freq_matrix), "\n")
+    cat("Window freq_matrix column names:", paste(colnames(window_freq_matrix), collapse=", "), "\n")
+    
+    if (nrow(window_freq_matrix) < 10) {
+      cat("  -> Skipping: too few positions\n")
+      next
+    }
+    if (!all(c(founders, sample_name) %in% colnames(window_freq_matrix))) {
+      cat("  -> Skipping: missing founders or sample\n")
+      next
+    }
 
     # Extract founder matrix and sample frequencies directly
     founder_matrix <- window_freq_matrix[, founders, drop = FALSE]
     sample_freqs <- window_freq_matrix[, sample_name]
+    
+    # #tempdebug - Print extracted data
+    cat("  Founder matrix dimensions:", dim(founder_matrix), "\n")
+    cat("  Sample freqs length:", length(sample_freqs), "\n")
+    cat("  First few founder freqs:\n")
+    print(head(founder_matrix, 3))
+    cat("  First few sample freqs:", head(sample_freqs, 5), "\n")
 
     complete_rows <- complete.cases(founder_matrix) & !is.na(sample_freqs)
     founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
