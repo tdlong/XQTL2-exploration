@@ -2,12 +2,12 @@
 
 ## Current Status (Updated)
 
-**BASE_VAR ESTIMATOR TIMING IN PROGRESS** 🔄
+**BASE_VAR ESTIMATOR TIMING COMPLETED** ✅
 - **Script**: `BASE_VAR.R` 
 - **Command**: `Rscript scripts/ErrMatrix/BASE_VAR.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
-- **Status**: Currently running on cluster
-- **Expected**: Advanced variance/covariance estimation with genomic distance-based windowing
-- **Comparison**: Will benchmark against BASE.R results
+- **Results**: 1597.4 seconds (26.62 minutes) for 3000 function calls = 0.5325 seconds per call
+- **Status**: Successfully completed on cluster
+- **Comparison**: 54% slower than BASE.R (0.3448 sec/call vs 0.5325 sec/call)
 
 **BASE ESTIMATOR TIMING COMPLETED** ✅
 - Using `BASE.R` with command: `Rscript scripts/ErrMatrix/BASE.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
@@ -131,6 +131,7 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 - Speedup measurement (hopefully 5-10x faster)
 - Verification that results are similar between versions
 - **BASE estimator performance metrics (COMPLETED)**: 0.3448 seconds per call for 3000 function calls
+- **BASE_VAR estimator performance metrics (COMPLETED)**: 0.5325 seconds per call for 3000 function calls (54% slower than BASE)
 - Haplotype estimator validation results (100% convergence, proper var/cov estimation)
 
 ## Recent Accomplishments
@@ -156,14 +157,16 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 ### 4. Testing & Validation
 - ✅ **Local validation**: `run_100_with_dataframe` with 100% convergence and proper var/cov estimation
 - ✅ **BASE.R benchmarking**: Completed (0.3448 seconds per call for 3000 function calls)
-- 🔄 **BASE_VAR.R benchmarking**: Currently running on cluster
+- ✅ **BASE_VAR.R benchmarking**: Completed (0.5325 seconds per call for 3000 function calls)
+- 🔄 **BASE_VAR_WIDE.R benchmarking**: Ready for testing (wide format optimization)
 
 ## Next Steps
 
-### Immediate (After BASE_VAR.R completes)
-1. **Compare performance**: BASE.R vs BASE_VAR.R timing results
-2. **Analyze accuracy**: Compare variance/covariance estimation quality
-3. **Document results**: Update README with performance comparison
+### Immediate (Performance Analysis)
+1. **✅ Compare performance**: BASE.R (0.3448 sec/call) vs BASE_VAR.R (0.5325 sec/call) - 54% slower
+2. **Analyze trade-offs**: Advanced variance/covariance estimation vs performance cost
+3. **Test BASE_VAR_WIDE.R**: Wide format optimization should improve performance
+4. **Document results**: Update README with performance comparison
 
 ### Future Development
 1. **Optimization**: If BASE_VAR.R is slower, identify bottlenecks
