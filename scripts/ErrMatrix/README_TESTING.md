@@ -115,17 +115,23 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 
 ## What Each Script Does
 
-- **test_production.R**: Runs production version in debug mode (100 positions × 1 sample)
-- **test_wide_format.R**: Runs wide format version in debug mode (100 positions × 1 sample)  
-- **benchmark_wide_vs_production.R**: Runs both versions on same data and compares performance
-- **BASE.R**: Existing working code for BASE estimator timing (completed: 0.3448 sec/call)
-- **BASE_VAR.R**: Clean duplicate of BASE.R for variance/covariance estimation work (currently benchmarking)
-- **BASE_VAR_WIDE.R**: Copy of BASE_VAR.R for speed optimization experiments
+### Current Production Script
+- **`BASE_VAR_WIDE.R`**: Current production script with 19.5x speedup (0.0177 sec/call)
   - **WIDE FORMAT OPTIMIZATION**: Eliminates long↔wide pivoting overhead
   - **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
   - **Performance**: Direct column access instead of pivot_longer/pivot_wider
-- **haplotype_error_workbench.R**: Validated haplotype estimator with proper var/cov estimation (tested locally)
+  - **Complete Workflow**: Adaptive estimation + smoothing + output formatting
+  - **SLURM Ready**: Use `run_all_chroms.slurm` for cluster deployment
+
+### Archived Scripts (in `archive/` folder)
+- **`BASE.R`**: Original working BASE estimator (timing completed: 0.3448 sec/call)
+- **`BASE_VAR.R`**: Advanced variance/covariance estimator (timing completed: 0.5325 sec/call)
+
+### Supporting Scripts
+- **`haplotype_error_workbench.R`**: Main simulation and testing framework
   - **`est_haps_var`**: Advanced haplotype estimation with genomic distance-based windowing and progressive variance/covariance estimation
+  - **`run_100_with_dataframe`**: Wrapper for 100 simulations with proper validation
+- **`run_all_chroms.slurm`**: SLURM wrapper for cluster deployment across all chromosomes
 
 ## Safe Testing
 - All scripts use debug mode (limited data)
