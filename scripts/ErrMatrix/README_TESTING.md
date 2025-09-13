@@ -191,12 +191,22 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 ### Production Deployment
 1. **SLURM Wrapper**: Created `run_all_chroms.slurm` for cluster deployment
    - Processes all 5 chromosomes (chrX, chr2L, chr2R, chr3L, chr3R)
-   - Uses JUICE parameters (not ZINC2) for ErrMatrix testing
+   - Configurable parameters via environment variables (defaults to JUICE)
    - Runs BASE_VAR_WIDE.R in production mode (non-debug, non-verbose)
    - Complete workflow: adaptive estimation + smoothing + output formatting
 
-2. **Command**: `sbatch scripts/ErrMatrix/run_all_chroms.slurm`
-   - Creates production-ready output files in `process/JUICE/`
+2. **Command**: 
+   ```bash
+   # Default (JUICE parameters)
+   sbatch scripts/ErrMatrix/run_all_chroms.slurm
+   
+   # Custom parameters (ZINC2 example)
+   PARAM_FILE=helpfiles/ZINC2_haplotype_parameters.R OUTPUT_DIR=process/ZINC2 sbatch scripts/ErrMatrix/run_all_chroms.slurm
+   
+   # Custom parameter value
+   PARAMETER=6 sbatch scripts/ErrMatrix/run_all_chroms.slurm
+   ```
+   - Creates production-ready output files in specified directory
    - Generates both adaptive and smooth results in proper format
    - Expected runtime: ~1-2 hours per chromosome (19.5x faster than BASE.R)
 
