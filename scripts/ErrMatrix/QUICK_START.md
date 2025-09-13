@@ -2,6 +2,9 @@
 
 ## 🚀 Ready to Use Commands
 
+### ⚠️ IMPORTANT: Cluster Account Settings
+**On this cluster, you MUST specify account and partition, otherwise jobs default to limited "free" resources!**
+
 ### Cluster Deployment (All Chromosomes)
 ```bash
 # JUICE dataset (default)
