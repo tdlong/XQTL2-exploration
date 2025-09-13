@@ -10,10 +10,17 @@
 
 set -euo pipefail
 
-# Default parameters (can be overridden by environment variables)
-PARAM_FILE=${PARAM_FILE:-"helpfiles/JUICE_haplotype_parameters.R"}
-OUTPUT_DIR=${OUTPUT_DIR:-"process/JUICE"}
-PARAMETER=${PARAMETER:-4}
+# Parse command line arguments
+if [ $# -lt 2 ]; then
+    echo "Usage: sbatch run_all_chroms.slurm <param_file> <output_dir> [parameter]"
+    echo "Example: sbatch run_all_chroms.slurm helpfiles/JUICE_haplotype_parameters.R process/JUICE"
+    echo "Example: sbatch run_all_chroms.slurm helpfiles/ZINC2_haplotype_parameters.R process/ZINC2 6"
+    exit 1
+fi
+
+PARAM_FILE="$1"
+OUTPUT_DIR="$2"
+PARAMETER="${3:-4}"  # Default to 4 if not provided
 
 # Chromosomes to process
 chrs=("chrX" "chr2L" "chr2R" "chr3L" "chr3R")
