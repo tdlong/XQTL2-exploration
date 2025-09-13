@@ -815,7 +815,16 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   cat("✓ Adaptive estimation complete:", nrow(adaptive_results), "results\n")
   cat("✓ Saved to:", adaptive_file, "\n")
   
-  return(adaptive_results)
+  # Step 2: Apply 21-position sliding window smoothing
+  cat("\n=== STEP 2: APPLYING SMOOTHING ===\n")
+  smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
+  
+  cat("\n=== WORKFLOW COMPLETE ===\n")
+  cat("✓ Adaptive estimation completed successfully\n")
+  cat("✓ Smoothing completed successfully\n")
+  cat("✓ Output files created in production format\n")
+  
+  return(smooth_results)
 }
 
 run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
@@ -1044,11 +1053,12 @@ if (!interactive()) {
   }
   cat("========================\n\n")
   
-  # Step 2: Smoothing - SKIPPED
-  # smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
+  # Step 2: Apply 21-position sliding window smoothing
+  cat("\n=== STEP 2: APPLYING SMOOTHING ===\n")
+  smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
   
   cat("\n=== WORKFLOW COMPLETE ===\n")
   cat("✓ Adaptive estimation completed successfully\n")
-  cat("✓ Smoothing skipped (as requested)\n")
+  cat("✓ Smoothing completed successfully\n")
   cat("✓ Output files created in production format\n")
 }

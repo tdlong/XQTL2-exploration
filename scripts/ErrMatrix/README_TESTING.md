@@ -2,6 +2,13 @@
 
 ## Current Status (Updated)
 
+**BASE_VAR_WIDE ESTIMATOR TIMING COMPLETED** ✅🚀
+- **Script**: `BASE_VAR_WIDE.R` 
+- **Command**: `Rscript scripts/ErrMatrix/BASE_VAR_WIDE.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
+- **Results**: 53.19 seconds (0.89 minutes) for 3000 function calls = 0.0177 seconds per call
+- **Status**: Successfully completed on cluster
+- **Performance**: **19.5x FASTER** than BASE.R (0.3448 sec/call vs 0.0177 sec/call)!
+
 **BASE_VAR ESTIMATOR TIMING COMPLETED** ✅
 - **Script**: `BASE_VAR.R` 
 - **Command**: `Rscript scripts/ErrMatrix/BASE_VAR.R chr2R adaptive 4 process/JUICE helpfiles/JUICE_haplotype_parameters.R --debug --nonverbose`
@@ -132,6 +139,7 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 - Verification that results are similar between versions
 - **BASE estimator performance metrics (COMPLETED)**: 0.3448 seconds per call for 3000 function calls
 - **BASE_VAR estimator performance metrics (COMPLETED)**: 0.5325 seconds per call for 3000 function calls (54% slower than BASE)
+- **BASE_VAR_WIDE estimator performance metrics (COMPLETED)**: 0.0177 seconds per call for 3000 function calls (**19.5x FASTER than BASE!**)
 - Haplotype estimator validation results (100% convergence, proper var/cov estimation)
 
 ## Recent Accomplishments
@@ -148,27 +156,45 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
 - ✅ **Advanced variance/covariance**: Progressive V matrix construction and pooled covariance
 - ✅ **Constraint accumulation**: Builds constraints across window sizes for better estimation
 
-### 3. Speed Optimization (In Progress)
-- 🔄 **Wide Format Optimization**: Created `BASE_VAR_WIDE.R` to eliminate pivoting overhead
-- 🔄 **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
-- 🔄 **Direct Access**: No more `pivot_longer`/`pivot_wider` - direct column access
-- 🔄 **Expected Speedup**: Significant reduction in data transformation time
+### 3. Speed Optimization (COMPLETED) 🚀
+- ✅ **Wide Format Optimization**: Created `BASE_VAR_WIDE.R` to eliminate pivoting overhead
+- ✅ **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
+- ✅ **Direct Access**: No more `pivot_longer`/`pivot_wider` - direct column access
+- ✅ **MASSIVE SPEEDUP**: **19.5x FASTER** than BASE.R (0.3448 sec/call → 0.0177 sec/call)
+- ✅ **Pre-subset Strategy**: Filter data once per position instead of 6 times per position×sample
 
 ### 4. Testing & Validation
 - ✅ **Local validation**: `run_100_with_dataframe` with 100% convergence and proper var/cov estimation
 - ✅ **BASE.R benchmarking**: Completed (0.3448 seconds per call for 3000 function calls)
 - ✅ **BASE_VAR.R benchmarking**: Completed (0.5325 seconds per call for 3000 function calls)
-- 🔄 **BASE_VAR_WIDE.R benchmarking**: Ready for testing (wide format optimization)
+- ✅ **BASE_VAR_WIDE.R benchmarking**: Completed (0.0177 seconds per call for 3000 function calls) - **19.5x FASTER!**
 
 ## Next Steps
 
-### Immediate (Performance Analysis)
+### Immediate (Performance Analysis) ✅
 1. **✅ Compare performance**: BASE.R (0.3448 sec/call) vs BASE_VAR.R (0.5325 sec/call) - 54% slower
-2. **Analyze trade-offs**: Advanced variance/covariance estimation vs performance cost
-3. **Test BASE_VAR_WIDE.R**: Wide format optimization should improve performance
-4. **Document results**: Update README with performance comparison
+2. **✅ Analyze trade-offs**: Advanced variance/covariance estimation vs performance cost
+3. **✅ Test BASE_VAR_WIDE.R**: Wide format optimization delivered **19.5x speedup!**
+4. **✅ Document results**: Updated README with performance comparison
+
+### Performance Summary 🚀
+- **BASE.R**: 0.3448 sec/call (baseline)
+- **BASE_VAR.R**: 0.5325 sec/call (54% slower - advanced var/cov estimation)
+- **BASE_VAR_WIDE.R**: 0.0177 sec/call (**19.5x FASTER** - wide format + pre-subset optimization)
+
+### Production Deployment
+1. **SLURM Wrapper**: Created `run_all_chroms.slurm` for cluster deployment
+   - Processes all 5 chromosomes (chrX, chr2L, chr2R, chr3L, chr3R)
+   - Uses JUICE parameters (not ZINC2) for ErrMatrix testing
+   - Runs BASE_VAR_WIDE.R in production mode (non-debug, non-verbose)
+   - Complete workflow: adaptive estimation + smoothing + output formatting
+
+2. **Command**: `sbatch scripts/ErrMatrix/run_all_chroms.slurm`
+   - Creates production-ready output files in `process/JUICE/`
+   - Generates both adaptive and smooth results in proper format
+   - Expected runtime: ~1-2 hours per chromosome (19.5x faster than BASE.R)
 
 ### Future Development
-1. **Optimization**: If BASE_VAR.R is slower, identify bottlenecks
-2. **Integration**: Consider integrating best features into production pipeline
-3. **Validation**: Test with different datasets and parameters
+1. **Integration**: Consider integrating best features into production pipeline
+2. **Validation**: Test with different datasets and parameters
+3. **Monitoring**: Track performance across all chromosomes
