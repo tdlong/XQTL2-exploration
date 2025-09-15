@@ -29,101 +29,188 @@ cat("Loaded payload:\n")
 cat(" chr:", chr, " pos:", testing_position, " sample:", sample_name, "\n")
 cat(" window SNPs:", nrow(df_window), " founders:", length(founders), "\n\n")
 
-# Run the exact same logic as production (copy from est_haps_var)
+# Copy the ACTUAL est_haps_var function from production
 cat("Running debug estimator logic...\n")
 
-window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
-accumulated_constraints <- NULL
-accumulated_constraint_values <- NULL
-
-V <- matrix(NA_real_, length(founders), length(founders))
-rownames(V) <- founders; colnames(V) <- founders
-
-for (window_size in window_sizes) {
-  window_start <- max(1, testing_position - window_size/2)
-  window_end <- testing_position + window_size/2
-  window_data <- df_window %>% dplyr::filter(POS >= window_start & POS <= window_end)
+# This is the actual est_haps_var function from BASE_VAR_WIDE.R
+est_haps_var_debug <- function(testing_position, sample_name, df3, founders, h_cutoff, method = "adaptive", window_size_bp = NULL, chr = "chr2R", verbose = 0) {
   
-  if (nrow(window_data) < 10) next
-  if (!all(c(founders, sample_name) %in% names(window_data))) next
+  window_sizes <- c(10000, 20000, 50000, 100000, 200000, 500000)
+  accumulated_constraints <- NULL
+  accumulated_constraint_values <- NULL
+  final_result <- NULL
+  previous_n_groups <- 0
+  groups_path <- integer(0)
+  groups_fmt_path <- character(0)
+  groups_win_path <- integer(0)
+  resolved <- setNames(rep(FALSE, length(founders)), founders)
+  pending <- list()
+  V <- matrix(NA_real_, length(founders), length(founders))
+  rownames(V) <- founders; colnames(V) <- founders
+  last_A <- NULL; last_y <- NULL
 
-  founder_matrix <- window_data %>% dplyr::select(dplyr::all_of(founders)) %>% as.matrix()
-  sample_freqs <- window_data %>% dplyr::pull(!!sample_name)
-  complete_rows <- stats::complete.cases(founder_matrix) & !is.na(sample_freqs)
-  founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
-  sample_freqs_clean <- sample_freqs[complete_rows]
-  
-  if (nrow(founder_matrix_clean) < 10) next
+  for (window_size in window_sizes) {
+    window_start <- max(1, testing_position - window_size/2)
+    window_end <- testing_position + window_size/2
+    
+    window_data <- df3 %>%
+      dplyr::filter(POS >= window_start & POS <= window_end)
+    if (nrow(window_data) == 0) next
 
-  founder_dist <- stats::dist(t(founder_matrix_clean))
-  hclust_result <- stats::hclust(founder_dist, method = "complete")
-  groups <- stats::cutree(hclust_result, h = h_cutoff)
-  n_groups <- length(unique(groups))
+    if (!all(c(founders, sample_name) %in% names(window_data)) || nrow(window_data) < 10) next
 
-  # Pooled covariance calculation (copy from production)
-  gid <- sort(unique(groups))
-  k <- length(gid)
-  if (k == 0) next
-  if (k == 1) {
-    cov_pool <- matrix(1, 1, 1)
-    pool_members <- list(which(groups == gid[1]))
-  } else {
-    A_pool <- matrix(0, nrow(founder_matrix_clean), k)
-    members <- vector("list", k)
-    for (ii in seq_along(gid)){
-      mem <- which(groups == gid[ii])
-      members[[ii]] <- mem
-      A_pool[, ii] <- if (length(mem) == 1L) founder_matrix_clean[, mem] else rowMeans(founder_matrix_clean[, mem, drop=FALSE])
+    founder_matrix <- window_data %>% dplyr::select(dplyr::all_of(founders)) %>% as.matrix()
+    sample_freqs <- window_data %>% dplyr::pull(!!sample_name)
+    complete_rows <- stats::complete.cases(founder_matrix) & !is.na(sample_freqs)
+    founder_matrix_clean <- founder_matrix[complete_rows, , drop = FALSE]
+    sample_freqs_clean <- sample_freqs[complete_rows]
+    if (nrow(founder_matrix_clean) < 10) next
+
+    founder_dist <- stats::dist(t(founder_matrix_clean))
+    hclust_result <- stats::hclust(founder_dist, method = "complete")
+    groups <- stats::cutree(hclust_result, h = h_cutoff)
+    n_groups <- length(unique(groups))
+
+    if (!is.null(final_result) && n_groups <= previous_n_groups) next
+    previous_n_groups <- n_groups
+
+    n_founders <- ncol(founder_matrix_clean)
+    E <- matrix(1, nrow = 1, ncol = n_founders)
+    F <- 1.0
+    if (!is.null(accumulated_constraints)) {
+      E <- rbind(E, accumulated_constraints)
+      F <- c(F, accumulated_constraint_values)
     }
-    E <- matrix(1, 1, k); F <- 1
-    fit <- tryCatch(limSolve::lsei(A=A_pool, B=sample_freqs_clean, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
-    if (!is.null(fit) && !is.null(fit$covar) && is.matrix(fit$covar) && nrow(fit$covar) == k && ncol(fit$covar) == k) {
-      cov_pool <- fit$covar
-      pool_members <- members
+
+    res <- tryCatch(
+      limSolve::lsei(A = founder_matrix_clean, B = sample_freqs_clean,
+                     E = E, F = F, G = diag(n_founders), H = matrix(rep(0.0003, n_founders)), fulloutput = TRUE),
+      error = function(e) NULL
+    )
+    if (is.null(res) || res$IsError != 0) next
+
+    current_constraints <- NULL
+    current_constraint_values <- NULL
+    for (cid in unique(groups)) {
+      idx <- which(groups == cid)
+      row <- rep(0, n_founders); row[idx] <- 1
+      current_constraints <- rbind(current_constraints, row)
+      current_constraint_values <- c(current_constraint_values, sum(res$X[idx]))
+    }
+    if (!is.null(current_constraints)) {
+      accumulated_constraints <- current_constraints
+      accumulated_constraint_values <- current_constraint_values
     } else {
-      XtX <- crossprod(A_pool)
-      xhat <- tryCatch(solve(XtX, crossprod(A_pool, sample_freqs_clean)), error=function(e) MASS::ginv(XtX) %*% crossprod(A_pool, sample_freqs_clean))
-      r <- sample_freqs_clean - as.numeric(A_pool %*% xhat)
-      sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
-      cov_matrix <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
-      if (!is.matrix(cov_matrix) || any(!is.finite(cov_matrix))) cov_matrix <- diag(k)
-      cov_pool <- sigma2 * cov_matrix
-      pool_members <- members
+      accumulated_constraints <- NULL
+      accumulated_constraint_values <- NULL
     }
-  }
 
-  # Update V matrix
-  if (is.matrix(cov_pool) && nrow(cov_pool) == length(pool_members)) {
+    final_result <- res
+    final_n_groups <- n_groups
+    groups_path <- c(groups_path, n_groups)
+
+    # Pooled covariance calculation
+    gid <- sort(unique(groups))
+    k <- length(gid)
+    if (k == 0) next
+    if (k == 1) {
+      cov_pool <- matrix(1, 1, 1)
+      pool_members <- list(which(groups == gid[1]))
+    } else {
+      A_pool <- matrix(0, nrow(founder_matrix_clean), k)
+      members <- vector("list", k)
+      for (ii in seq_along(gid)){
+        mem <- which(groups == gid[ii])
+        members[[ii]] <- mem
+        A_pool[, ii] <- if (length(mem) == 1L) founder_matrix_clean[, mem] else rowMeans(founder_matrix_clean[, mem, drop=FALSE])
+      }
+      E <- matrix(1, 1, k); F <- 1
+      fit <- tryCatch(limSolve::lsei(A=A_pool, B=sample_freqs_clean, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
+      if (!is.null(fit) && !is.null(fit$covar) && is.matrix(fit$covar) && nrow(fit$covar) == k && ncol(fit$covar) == k) {
+        cov_pool <- fit$covar
+        pool_members <- members
+      } else {
+        XtX <- crossprod(A_pool)
+        xhat <- tryCatch(solve(XtX, crossprod(A_pool, sample_freqs_clean)), error=function(e) MASS::ginv(XtX) %*% crossprod(A_pool, sample_freqs_clean))
+        r <- sample_freqs_clean - as.numeric(A_pool %*% xhat)
+        sigma2 <- sum(r^2) / max(1, nrow(A_pool) - ncol(A_pool))
+        cov_matrix <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+        if (!is.matrix(cov_matrix) || any(!is.finite(cov_matrix))) cov_matrix <- diag(k)
+        cov_pool <- sigma2 * cov_matrix
+        pool_members <- members
+      }
+    }
+
+    if (!is.matrix(cov_pool)) next
+    if (nrow(cov_pool) != length(pool_members) || ncol(cov_pool) != length(pool_members)) next
+
+    for (ii in seq_along(pool_members)){
+      mem <- pool_members[[ii]]
+      if (length(mem)==1L) resolved[founders[mem]] <- TRUE
+    }
     for (i_idx in seq_along(pool_members)){
       mi <- pool_members[[i_idx]]
       for (j_idx in seq_along(pool_members)){
         mj <- pool_members[[j_idx]]
-        for (fi in mi) {
-          for (fj in mj) {
-            V[fi, fj] <- cov_pool[i_idx, j_idx]
-          }
+        if (length(mi)==1L && length(mj)==1L){
+          fi <- founders[mi]; fj <- founders[mj]
+          if (is.na(V[fi,fj])) V[fi,fj] <- cov_pool[i_idx, j_idx]
+          if (is.na(V[fj,fi])) V[fj,fi] <- cov_pool[j_idx, i_idx]
         }
       }
     }
+
+    if (n_groups == length(founders)) {
+      last_A <- founder_matrix_clean
+      last_y <- sample_freqs_clean
+      break
+    }
   }
 
-  # Check if all founders are separated
-  if (n_groups == length(founders)) {
-    cat("All founders separated at window", window_size, "bp\n")
-    break
+  if (!is.null(final_result)) {
+    founder_frequencies <- final_result$X; names(founder_frequencies) <- founders
+    Cov_true <- NULL
+    if (!is.null(last_A) && !is.null(last_y)) {
+      XtX <- crossprod(last_A)
+      Xinv <- tryCatch(solve(XtX), error=function(e) MASS::ginv(XtX))
+      r <- last_y - as.numeric(last_A %*% founder_frequencies)
+      p <- ncol(last_A); n <- nrow(last_A)
+      sigma2_hat <- sum(r^2) / max(1, n - p)
+      Cov_true <- sigma2_hat * Xinv
+    }
+    if (sum(is.na(V)) < length(V)) {
+      for (d in seq_len(nrow(V))) if (is.na(V[d, d])) V[d, d] <- 1e-8
+      error_matrix <- V
+    } else if (!is.null(Cov_true)) {
+      error_matrix <- Cov_true
+    } else if ("covar" %in% names(final_result) && !is.null(final_result$covar)) {
+      error_matrix <- final_result$covar
+    } else {
+      error_matrix <- matrix(NA, length(founders), length(founders))
+      rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
+    }
+  } else {
+    founder_frequencies <- rep(NA_real_, length(founders)); names(founder_frequencies) <- founders
+    error_matrix <- matrix(NA, length(founders), length(founders))
+    rownames(error_matrix) <- founders; colnames(error_matrix) <- founders
   }
+
+  res_out <- list(Groups=groups, Haps=founder_frequencies, Err=error_matrix, Names=founders)
+  attr(res_out, "V_progressive") <- V
+  if (exists("Cov_true")) attr(res_out, "Cov_true") <- Cov_true else attr(res_out, "Cov_true") <- NULL
+  res_out
 }
 
-# Build final result
-groups_final <- unique(groups)
-names_final <- founders[groups_final]
-haps_final <- rep(1/length(groups_final), length(groups_final))
-
-result <- list(
-  Groups = groups_final,
-  Haps = haps_final,
-  Err = V,
-  Names = names_final
+# Run the actual function
+result <- est_haps_var_debug(
+  testing_position = testing_position,
+  sample_name = sample_name,
+  df3 = df_window,
+  founders = founders,
+  h_cutoff = h_cutoff,
+  method = method,
+  chr = chr,
+  verbose = 2
 )
 
 cat("\n=== DEBUG RESULT ===\n")
