@@ -191,7 +191,16 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
     E <- matrix(1, 1, k); F <- 1
     fit <- tryCatch(lsei(A=A_pool, B=y_full, E=E, F=F, G=diag(k), H=matrix(0, k, 1), fulloutput=TRUE), error=function(e) NULL)
     if (!is.null(fit) && !is.null(fit$covar) && is.matrix(fit$covar) && nrow(fit$covar) == k && ncol(fit$covar) == k) {
-      return(list(cov=fit$covar, members=members, w=as.numeric(fit$X)))
+      # Add regularization to stabilize ill-conditioned matrices
+      final_cov <- fit$covar
+      if (is.matrix(final_cov) && nrow(final_cov) > 0) {
+        kappa_val <- tryCatch(kappa(final_cov), error = function(e) Inf)
+        if (is.finite(kappa_val) && kappa_val > 1e12) {
+          reg_factor <- max(diag(final_cov)) * 1e-6
+          diag(final_cov) <- diag(final_cov) + reg_factor
+        }
+      }
+      return(list(cov=final_cov, members=members, w=as.numeric(fit$X)))
     }
     
     # Fallback: compute covariance manually
@@ -208,7 +217,19 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
       cov_matrix <- diag(k)
     }
     
-    list(cov = sigma2 * cov_matrix, members=members, w=as.numeric(xhat))
+    # Add regularization to stabilize ill-conditioned matrices
+    final_cov <- sigma2 * cov_matrix
+    if (is.matrix(final_cov) && nrow(final_cov) > 0) {
+      # Check condition number and add regularization if needed
+      kappa_val <- tryCatch(kappa(final_cov), error = function(e) Inf)
+      if (is.finite(kappa_val) && kappa_val > 1e12) {
+        # Add small regularization term to diagonal
+        reg_factor <- max(diag(final_cov)) * 1e-6
+        diag(final_cov) <- diag(final_cov) + reg_factor
+      }
+    }
+    
+    list(cov = final_cov, members=members, w=as.numeric(xhat))
   }
 
   fmt_cell_signed <- function(x, diag_cell){
@@ -386,35 +407,6 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
     
-    # DEBUG PROBE: print diagnostics only for target position/sample
-    target_pos <- 24050000L     # change to any problematic pos
-    target_sample <- "Rep01_W_F"  # REPLACE_WITH_ACTUAL_SAMPLE_NAME
-    
-    if (testing_position == target_pos && sample_name == target_sample) {
-      cat("\n=== DEBUG V MATRIX @", chr, ":", testing_position, " sample:", sample_name, "===\n")
-      # pool summary
-      cat("pool_members (length):", length(pool_members), "\n")
-      cat("pool_members sizes:", paste(purrr::map_int(pool_members, length), collapse=", "), "\n")
-      
-      # cov_pool basics
-      if (is.matrix(cov_pool)) {
-        cat("cov_pool dim:", paste(dim(cov_pool), collapse="x"), "\n")
-        # matrix condition and eigenvalues
-        kappa_val <- tryCatch(kappa(cov_pool), error=function(e) NA_real_)
-        eig_vals <- tryCatch(eigen(cov_pool, only.values=TRUE)$values, error=function(e) NA_real_)
-        cat("kappa(cov_pool):", kappa_val, "\n")
-        if (!all(is.na(eig_vals))) {
-          cat("eig(min,max):", min(Re(eig_vals), na.rm=TRUE), max(Re(eig_vals), na.rm=TRUE), "\n")
-        }
-        
-        # diagonal/off-diagonal magnitudes
-        cat("sum(|diag(cov_pool)|):", sum(abs(diag(cov_pool)), na.rm=TRUE), "\n")
-        off <- cov_pool; diag(off) <- 0
-        cat("sum(|offdiag(cov_pool)|):", sum(abs(off), na.rm=TRUE), "\n")
-      } else {
-        cat("cov_pool is not matrix; class:", class(cov_pool), " length:", length(cov_pool), "\n")
-      }
-    }
     
     # Debug: Check if cov_pool is a proper matrix
     if (!is.matrix(cov_pool)) {
@@ -714,14 +706,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   all_positions <- seq(scan_start, scan_end, by = step)
   
   if (debug) {
-    # Target specific problematic position for debugging
-    target_pos <- 24050000L
-    all_positions <- all_positions[all_positions == target_pos]
-    if (length(all_positions) == 0) {
-      # If target position not in range, add it
-      all_positions <- c(target_pos)
-    }
-    cat("Debug: Targeting position", target_pos, "for error matrix debugging\n")
+    all_positions <- head(all_positions, 500)  # Limit to 500 positions for benchmarking
+    # names_in_bam <- head(names_in_bam, 1)      # Run all 4 samples for benchmarking
   }
   
   total_operations <- length(all_positions) * length(names_in_bam)
@@ -756,6 +742,25 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
       map_dfr(names_in_bam, ~ {
         sample_name <- .x
         if (debug) cat("  Processing sample:", sample_name, "\n")
+        # Optional: dump estimator inputs for reproducible debugging
+        if (dump_inputs && !is.na(dump_target_pos) && !is.na(dump_target_sample) &&
+            testing_position == dump_target_pos && identical(sample_name, dump_target_sample)) {
+          dump_payload <- list(
+            testing_position = testing_position,
+            sample_name = sample_name,
+            df_window = df4,
+            founders = founders,
+            h_cutoff = parameter,
+            method = method,
+            chr = chr
+          )
+          default_dump_path <- file.path(output_dir, "haplotype_results_list_format",
+                                         sprintf("estimator_input_%s_%s_%d.RDS", chr, sample_name, testing_position))
+          dump_path <- if (!is.na(dump_file)) dump_file else default_dump_path
+          dir.create(dirname(dump_path), recursive = TRUE, showWarnings = FALSE)
+          saveRDS(dump_payload, file = dump_path)
+          cat("  ✓ Dumped estimator input to:", dump_path, "\n")
+        }
         
         result <- estimate_haplotypes_list_format(
           pos = testing_position,
@@ -1054,11 +1059,20 @@ if (!interactive()) {
   if ("--debug-level-1" %in% args) debug_level <- 1
   if ("--debug-level-2" %in% args) debug_level <- 2
   if ("--debug-level-3" %in% args) debug_level <- 3
+
+  # Optional: dump estimator inputs for a specific position/sample
+  dump_inputs <- "--dump-estimator-input" %in% args
+  target_pos_arg <- args[grepl("^--target-pos=", args)]
+  target_sample_arg <- args[grepl("^--target-sample=", args)]
+  dump_file_arg <- args[grepl("^--dump-file=", args)]
+  dump_target_pos <- if (length(target_pos_arg) == 1) suppressWarnings(as.integer(sub("^--target-pos=", "", target_pos_arg))) else NA_integer_
+  dump_target_sample <- if (length(target_sample_arg) == 1) sub("^--target-sample=", "", target_sample_arg) else NA_character_
+  dump_file <- if (length(dump_file_arg) == 1) sub("^--dump-file=", "", dump_file_arg) else NA_character_
   
   # Run the complete workflow
   if (debug) {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW (DEBUG MODE) ===\n")
-    cat("Targeting specific position for error matrix debugging\n")
+    cat("Limited to 500 positions × 4 samples for benchmarking\n")
   } else {
     cat("=== COMPLETE HAPLOTYPE WORKFLOW ===\n")
     cat("Processing all positions and samples\n")
