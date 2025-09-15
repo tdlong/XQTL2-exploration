@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+Great.  #!/usr/bin/env Rscript
 
 # Test both the working function and the new list format function on the same position
 # This ensures the new function gives the same results as the working function

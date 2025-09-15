@@ -527,6 +527,22 @@ if (file.exists(prod_file)) {
       cat("Length mismatch!\n")
     }
     
+    # Check attributes and storage modes
+    cat("Debug groups attributes:\n")
+    print(attributes(debug_groups_sorted))
+    cat("Prod groups attributes:\n")
+    print(attributes(prod_groups_sorted))
+    
+    cat("Debug groups storage.mode:", storage.mode(debug_groups_sorted), "\n")
+    cat("Prod groups storage.mode:", storage.mode(prod_groups_sorted), "\n")
+    
+    cat("Debug groups typeof:", typeof(debug_groups_sorted), "\n")
+    cat("Prod groups typeof:", typeof(prod_groups_sorted), "\n")
+    
+    # Try different comparison methods
+    cat("all.equal result:", all.equal(debug_groups_sorted, prod_groups_sorted), "\n")
+    cat("== comparison:", all(debug_groups_sorted == prod_groups_sorted), "\n")
+    
     groups_match <- identical(debug_groups_sorted, prod_groups_sorted)
     names_match <- identical(sort(result$Names), sort(prod_names))
     
