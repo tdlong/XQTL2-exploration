@@ -706,8 +706,17 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   all_positions <- seq(scan_start, scan_end, by = step)
   
   if (debug) {
-    all_positions <- head(all_positions, 500)  # Limit to 500 positions for benchmarking
-    # names_in_bam <- head(names_in_bam, 1)      # Run all 4 samples for benchmarking
+    if (dump_inputs && !is.na(dump_target_pos)) {
+      # When dumping, target only the specific position
+      all_positions <- all_positions[all_positions == dump_target_pos]
+      if (length(all_positions) == 0) {
+        all_positions <- c(dump_target_pos)
+      }
+      cat("Debug: Targeting position", dump_target_pos, "for input dumping\n")
+    } else {
+      all_positions <- head(all_positions, 500)  # Limit to 500 positions for benchmarking
+      # names_in_bam <- head(names_in_bam, 1)      # Run all 4 samples for benchmarking
+    }
   }
   
   total_operations <- length(all_positions) * length(names_in_bam)
