@@ -501,7 +501,33 @@ if (file.exists(prod_file)) {
     cat("Prod groups class:", class(prod_groups), "\n")
     cat("Prod groups length:", length(prod_groups), "\n")
     
-    groups_match <- identical(sort(result$Groups), sort(prod_groups))
+    # More detailed comparison
+    debug_groups_sorted <- sort(result$Groups)
+    prod_groups_sorted <- sort(prod_groups)
+    
+    cat("Debug groups sorted:", paste(debug_groups_sorted, collapse=","), "\n")
+    cat("Prod groups sorted:", paste(prod_groups_sorted, collapse=","), "\n")
+    cat("Debug groups sorted class:", class(debug_groups_sorted), "\n")
+    cat("Prod groups sorted class:", class(prod_groups_sorted), "\n")
+    cat("Debug groups sorted length:", length(debug_groups_sorted), "\n")
+    cat("Prod groups sorted length:", length(prod_groups_sorted), "\n")
+    
+    # Check for any differences
+    if (length(debug_groups_sorted) == length(prod_groups_sorted)) {
+      diff_idx <- which(debug_groups_sorted != prod_groups_sorted)
+      if (length(diff_idx) > 0) {
+        cat("Differences at indices:", paste(diff_idx, collapse=","), "\n")
+        for (i in diff_idx) {
+          cat("  Index", i, ": debug =", debug_groups_sorted[i], ", prod =", prod_groups_sorted[i], "\n")
+        }
+      } else {
+        cat("No differences found in values\n")
+      }
+    } else {
+      cat("Length mismatch!\n")
+    }
+    
+    groups_match <- identical(debug_groups_sorted, prod_groups_sorted)
     names_match <- identical(sort(result$Names), sort(prod_names))
     
     cat("Groups match:", groups_match, "\n")
