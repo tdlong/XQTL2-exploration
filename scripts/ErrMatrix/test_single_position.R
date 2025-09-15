@@ -39,8 +39,8 @@ cat("Output directory:", output_dir, "\n\n")
 # Load parameters
 source(param_file, local = TRUE)
 founders <- get("founders")
-parameter <- get("parameter")
-method <- get("method")
+parameter <- get("h_cutoff")  # The parameter file defines h_cutoff, not parameter
+method <- "adaptive"  # Set method directly since it's not in the parameter file
 
 cat("Loaded parameters:\n")
 cat("  Founders:", paste(founders, collapse=", "), "\n")
