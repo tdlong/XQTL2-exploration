@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+l runs t#!/usr/bin/env Rscript
 
 # Test script to reproduce Friday night results for ONE position only
 # This runs BASE_VAR_WIDE.R but only for position 19610000
