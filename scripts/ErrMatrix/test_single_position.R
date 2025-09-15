@@ -15,12 +15,8 @@ base_var_wide_content <- readLines("scripts/ErrMatrix/BASE_VAR_WIDE.R")
 # Find the function definitions (lines that start with function names)
 function_lines <- grep("^[a-zA-Z_][a-zA-Z0-9_]*\\s*<-\\s*function", base_var_wide_content)
 
-# Source the Friday night version but make it think it's in interactive mode
-# to avoid command line argument parsing
-old_interactive <- interactive
-interactive <- function() TRUE  # Override interactive() to return TRUE
-source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
-interactive <- old_interactive  # Restore original
+# Source the actual Friday night working code
+source("scripts/debug/haplotype_estimation_functions_working_copy.R")
 
 # Test parameters
 chr <- "chr3R"
@@ -78,7 +74,7 @@ cat("Saved subsetted data to:", subset_file, "\n\n")
 # Run the estimator
 cat("Running estimator...\n")
 result <- estimate_haplotypes_list_format(
-  testing_position = testing_position,
+  pos = testing_position,
   sample_name = sample_name,
   df3 = df4,
   founders = founders,
