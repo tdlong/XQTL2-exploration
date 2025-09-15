@@ -15,8 +15,12 @@ base_var_wide_content <- readLines("scripts/ErrMatrix/BASE_VAR_WIDE.R")
 # Find the function definitions (lines that start with function names)
 function_lines <- grep("^[a-zA-Z_][a-zA-Z0-9_]*\\s*<-\\s*function", base_var_wide_content)
 
-# Source the actual Friday night working code
-source("scripts/debug/haplotype_estimation_functions_working_copy.R")
+# Source the actual Friday night working code (BASE_VAR_WIDE.R)
+# Override interactive() to avoid command line parsing
+old_interactive <- interactive
+interactive <- function() TRUE  # Override interactive() to return TRUE
+source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
+interactive <- old_interactive  # Restore original
 
 # Test parameters
 chr <- "chr3R"
@@ -43,7 +47,7 @@ cat("  Founders:", paste(founders, collapse=", "), "\n")
 cat("  Parameter:", parameter, "\n")
 cat("  Method:", method, "\n\n")
 
-# Load RefAlt data
+# Load RefAlt data using BASE_VAR_WIDE.R function
 refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
 cat("Loading RefAlt data from:", refalt_file, "\n")
 
@@ -51,7 +55,7 @@ if (!file.exists(refalt_file)) {
   stop("RefAlt file not found: ", refalt_file)
 }
 
-# Process RefAlt data (this will be in wide format)
+# Use the process_refalt_data function from BASE_VAR_WIDE.R
 df3 <- process_refalt_data(refalt_file, founders)
 cat("Processed", nrow(df3), "rows for", ncol(df3)-1, "samples\n\n")
 
