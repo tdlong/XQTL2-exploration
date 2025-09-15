@@ -494,6 +494,13 @@ if (file.exists(prod_file)) {
     
     # Compare results
     cat("\n=== COMPARISON ===\n")
+    cat("Debug groups:", paste(result$Groups, collapse=","), "\n")
+    cat("Debug groups class:", class(result$Groups), "\n")
+    cat("Debug groups length:", length(result$Groups), "\n")
+    cat("Prod groups:", paste(prod_groups, collapse=","), "\n")
+    cat("Prod groups class:", class(prod_groups), "\n")
+    cat("Prod groups length:", length(prod_groups), "\n")
+    
     groups_match <- identical(sort(result$Groups), sort(prod_groups))
     names_match <- identical(sort(result$Names), sort(prod_names))
     
