@@ -37,10 +37,10 @@ cat("Parameter file:", param_file, "\n")
 cat("Output directory:", output_dir, "\n\n")
 
 # Load parameters
-source(param_file)
-founders <- get("founders", envir = .GlobalEnv)
-parameter <- get("parameter", envir = .GlobalEnv)
-method <- get("method", envir = .GlobalEnv)
+source(param_file, local = TRUE)
+founders <- get("founders")
+parameter <- get("parameter")
+method <- get("method")
 
 cat("Loaded parameters:\n")
 cat("  Founders:", paste(founders, collapse=", "), "\n")
