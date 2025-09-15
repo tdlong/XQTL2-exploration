@@ -561,6 +561,8 @@ process_refalt_data <- function(refalt_file, founders) {
       freq = REF / (REF + ALT),
       N = REF + ALT
     ) %>%
+    # Debug: check what columns exist
+    { cat("Columns before select:", paste(names(.), collapse=", "), "\n"); . } %>%
     select(-REF, -ALT) %>%
     as_tibble()
   
