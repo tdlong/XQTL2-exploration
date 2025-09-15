@@ -136,7 +136,7 @@ cat("Names:", paste(result$Names, collapse=","), "\n")
 
 # Load production output for comparison
 cat("\n=== LOADING PRODUCTION OUTPUT ===\n")
-prod_file <- "process/ZINC2/haplotype_results_list_format/adapt_h4.RDS"
+prod_file <- "process/ZINC2/haplotype_results_list_format/adapt_h4/R.haps.chr3R.out.rds"
 if (file.exists(prod_file)) {
   prod_data <- readRDS(prod_file)
   
