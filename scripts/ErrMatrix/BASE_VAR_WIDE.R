@@ -386,6 +386,36 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
     
+    # DEBUG PROBE: print diagnostics only for target position/sample
+    target_pos <- 24050000L     # change to any problematic pos
+    target_sample <- "Rep01_W_F"  # REPLACE_WITH_ACTUAL_SAMPLE_NAME
+    
+    if (testing_position == target_pos && sample_name == target_sample) {
+      cat("\n=== DEBUG V MATRIX @", chr, ":", testing_position, " sample:", sample_name, "===\n")
+      # pool summary
+      cat("pool_members (length):", length(pool_members), "\n")
+      cat("pool_members sizes:", paste(purrr::map_int(pool_members, length), collapse=", "), "\n")
+      
+      # cov_pool basics
+      if (is.matrix(cov_pool)) {
+        cat("cov_pool dim:", paste(dim(cov_pool), collapse="x"), "\n")
+        # matrix condition and eigenvalues
+        kappa_val <- tryCatch(kappa(cov_pool), error=function(e) NA_real_)
+        eig_vals <- tryCatch(eigen(cov_pool, only.values=TRUE)$values, error=function(e) NA_real_)
+        cat("kappa(cov_pool):", kappa_val, "\n")
+        if (!all(is.na(eig_vals))) {
+          cat("eig(min,max):", min(Re(eig_vals), na.rm=TRUE), max(Re(eig_vals), na.rm=TRUE), "\n")
+        }
+        
+        # diagonal/off-diagonal magnitudes
+        cat("sum(|diag(cov_pool)|):", sum(abs(diag(cov_pool)), na.rm=TRUE), "\n")
+        off <- cov_pool; diag(off) <- 0
+        cat("sum(|offdiag(cov_pool)|):", sum(abs(off), na.rm=TRUE), "\n")
+      } else {
+        cat("cov_pool is not matrix; class:", class(cov_pool), " length:", length(cov_pool), "\n")
+      }
+    }
+    
     # Debug: Check if cov_pool is a proper matrix
     if (!is.matrix(cov_pool)) {
       if (verbose >= 2) {
