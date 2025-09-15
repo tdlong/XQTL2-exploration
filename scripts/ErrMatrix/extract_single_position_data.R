@@ -29,10 +29,12 @@ cat("Sample:", sample_name, "\n")
 cat("Output directory:", output_dir, "\n")
 cat("Parameter file:", param_file, "\n\n")
 
-# Source BASE_VAR_WIDE.R to get ALL functions
+# Source the Friday night working version of BASE_VAR_WIDE.R
 old_interactive <- interactive
 interactive <- function() TRUE
-source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
+# Use the exact working version from Friday night
+system("git show 4a054fc:scripts/ErrMatrix/BASE_VAR_WIDE.R > /tmp/BASE_VAR_WIDE_working.R")
+source("/tmp/BASE_VAR_WIDE_working.R")
 interactive <- old_interactive
 
 # Load parameters (EXACT from BASE_VAR_WIDE.R)
