@@ -3,8 +3,24 @@
 # Test script to reproduce Friday night results for one position
 # Usage: Rscript scripts/ErrMatrix/test_single_position.R
 
-# Load the Friday night version of BASE_VAR_WIDE.R
+# Load required libraries
+library(tidyverse)
+library(limSolve)
+library(MASS)
+library(purrr)
+
+# Read the Friday night version of BASE_VAR_WIDE.R and extract just the functions
+base_var_wide_content <- readLines("scripts/ErrMatrix/BASE_VAR_WIDE.R")
+
+# Find the function definitions (lines that start with function names)
+function_lines <- grep("^[a-zA-Z_][a-zA-Z0-9_]*\\s*<-\\s*function", base_var_wide_content)
+
+# Extract functions (this is a simple approach - we'll get the main ones we need)
+# For now, let's just source the file but suppress the command line parsing
+old_args <- commandArgs(trailingOnly = TRUE)
+commandArgs <- function(trailingOnly = TRUE) character(0)  # Override commandArgs to return empty
 source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
+commandArgs <- function(trailingOnly = TRUE) old_args  # Restore original
 
 # Test parameters
 chr <- "chr3R"
