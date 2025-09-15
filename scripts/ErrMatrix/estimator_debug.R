@@ -12,10 +12,13 @@ suppressPackageStartupMessages({
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) {
-  stop("Usage: Rscript scripts/ErrMatrix/estimator_debug.R <dump_rds>")
+  stop("Usage: Rscript scripts/ErrMatrix/estimator_debug.R <dump_rds> [--v1] [--v2]")
 }
 
 dump_rds <- args[1]
+verbosity <- 0
+if ("--v1" %in% args) verbosity <- 1
+if ("--v2" %in% args) verbosity <- 2
 payload <- readRDS(dump_rds)
 
 # Extract
@@ -152,12 +155,47 @@ for (window_size in window_sizes) {
     }
   }
 
-  cat(sprintf("\n[%6s bp] groups: %s  (n_snps=%d)\n", format(window_size, trim=TRUE), group_strings, n_snps_clean))
-  if (is.matrix(cov_pool)) {
-    cat("V snapshot (singletons only):\n")
-    print_V_compact(V_step)
-  } else {
-    cat("V snapshot: cov_pool unavailable (non-matrix)\n")
+  if (verbosity >= 1) {
+    cat(sprintf("\n[%6s bp] groups: %s  (n_snps=%d)\n", format(window_size, trim=TRUE), group_strings, n_snps_clean))
+    if (is.matrix(cov_pool)) {
+      cat("V snapshot (singletons only):\n")
+      print_V_compact(V_step)
+    } else {
+      cat("V snapshot: cov_pool unavailable (non-matrix)\n")
+    }
+  }
+
+  if (verbosity >= 2) {
+    # Detailed prints
+    cat("pool_members (by founder indices): ", paste(vapply(pool_members, function(x) paste(x, collapse=","), ""), collapse=" | "), "\n", sep="")
+    # Show SVD singular values of centered A_pool
+    if (exists("A_pool")) {
+      svd_vals <- tryCatch(svd(scale(A_pool, center=TRUE, scale=FALSE))$d, error=function(e) NA_real_)
+      cat("A_pool singular values:", paste(signif(svd_vals, 4), collapse=", "), "\n")
+    }
+    # Top correlated founder pairs
+    if (exists("founder_cor") && !is.null(founder_cor)) {
+      off_mask <- row(founder_cor) < col(founder_cor)
+      if (any(off_mask, na.rm=TRUE)) {
+        vals <- abs(founder_cor[off_mask])
+        ord <- order(vals, decreasing=TRUE, na.last=NA)
+        top_n <- min(5, length(ord))
+        if (top_n > 0) {
+          cat("Top founder |cor| pairs:\n")
+          for (ii in seq_len(top_n)) {
+            # find the i,j for ord[ii]
+            idx <- which(off_mask, arr.ind=TRUE)[ord[ii], ]
+            i <- idx[1]; j <- idx[2]
+            cat(sprintf("  %s-%s: %.4f\n", colnames(founder_cor)[i], colnames(founder_cor)[j], abs(founder_cor[i,j])))
+          }
+        }
+      }
+    }
+    # cov_pool matrix print (full)
+    if (is.matrix(cov_pool)) {
+      cat("cov_pool (full):\n")
+      print(signif(cov_pool, 4))
+    }
   }
 
   # Additional diagnostics
