@@ -32,9 +32,8 @@ cat("Parameter file:", param_file, "\n\n")
 # Source the Friday night working version of BASE_VAR_WIDE.R
 old_interactive <- interactive
 interactive <- function() TRUE
-# Use the exact working version from Friday night
-system("git show 4a054fc:scripts/ErrMatrix/BASE_VAR_WIDE.R > /tmp/BASE_VAR_WIDE_working.R")
-source("/tmp/BASE_VAR_WIDE_working.R")
+# Use the current working version with dplyr fix
+source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
 interactive <- old_interactive
 
 # Load parameters (EXACT from BASE_VAR_WIDE.R)
