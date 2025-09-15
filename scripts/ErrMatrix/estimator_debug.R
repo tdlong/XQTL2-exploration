@@ -27,7 +27,15 @@ chr <- payload$chr
 
 cat("Loaded payload:\n")
 cat(" chr:", chr, " pos:", testing_position, " sample:", sample_name, "\n")
-cat(" window SNPs:", nrow(df_window), " founders:", length(founders), "\n\n")
+cat(" window SNPs:", nrow(df_window), " founders:", length(founders), "\n")
+cat(" h_cutoff:", h_cutoff, " method:", method, "\n")
+cat(" df_window columns:", paste(names(df_window), collapse=", "), "\n")
+cat(" founders list:", paste(founders, collapse=", "), "\n")
+cat(" sample_name:", sample_name, "\n")
+cat(" df_window dimensions:", nrow(df_window), "x", ncol(df_window), "\n")
+cat(" First few rows of df_window:\n")
+print(head(df_window, 3))
+cat("\n")
 
 # Copy the EXACT est_haps_var function from production
 cat("Running debug estimator logic...\n")
@@ -428,7 +436,17 @@ est_haps_var_debug <- function(testing_position, sample_name, df3, founders, h_c
   res_out
 }
 
-# Run the actual function
+# Run the actual function with exact same parameters as production
+cat("Calling est_haps_var_debug with:\n")
+cat("  testing_position:", testing_position, "\n")
+cat("  sample_name:", sample_name, "\n")
+cat("  df3 dimensions:", nrow(df_window), "x", ncol(df_window), "\n")
+cat("  founders:", paste(founders, collapse=", "), "\n")
+cat("  h_cutoff:", h_cutoff, "\n")
+cat("  method:", method, "\n")
+cat("  chr:", chr, "\n")
+cat("  verbose: 2\n\n")
+
 result <- est_haps_var_debug(
   testing_position = testing_position,
   sample_name = sample_name,
