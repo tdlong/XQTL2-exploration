@@ -1,2 +1,8 @@
 slurm*
 process.Dec6/
+
+# Large data files (50-100MB+) - keep on cluster only
+*.RDS
+*.rds
+*.csv
+haplotype_results_list_format/
