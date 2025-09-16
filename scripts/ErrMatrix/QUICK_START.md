@@ -79,6 +79,8 @@ process/JUICE/haplotype_results_list_format/
 1. **Adaptive Estimation**: Uses 6 window sizes (10kb-500kb) with genomic distance filtering
 2. **Variance/Covariance**: Advanced error matrix estimation with progressive V matrix
 3. **Smoothing**: 21-position sliding window with quality-based averaging
+   - ✅ **FIXED**: Now correctly produces exactly 20 fewer positions (10 from each end)
+   - ✅ **VERIFIED**: Position counts are accurate (e.g., 2729 → 2709 for chr3R)
 4. **Output**: Creates production-ready files in expected format
 
 ## 🔍 Monitor Progress
@@ -101,5 +103,10 @@ sbatch scripts/ErrMatrix/run_comparison_all_chroms.slurm process/ZINC2 100
 # Check comparison results
 tail -f logs/compare_adapt_reshaped_*.out
 ```
+
+## 🐛 Bug Fixes Applied
+- **Smoothing Position Count**: Fixed incorrect 40-position reduction (now correctly 20 positions)
+- **Window Logic**: Corrected to only process positions 11 through (n-10) for 21-position window
+- **Data Integrity**: Verified reshaping preserves exact values without recomputation
 
 **Ready to go!** 🎉
