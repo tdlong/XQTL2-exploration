@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # Extract single position data using EXACT logic from BASE_VAR_WIDE.R
-# Usage: Rscript scripts/ErrMatrix/extract_single_position_data.R <chr> <position> <sample_name> <output_dir> <param_file>
+# Usage: Rscript scripts/ErrMatrix/extract_single_position_data.R <chr> <position> <sample_name> <output_dir> <param_file> [h_cutoff]
 
 library(tidyverse)
 library(limSolve)
@@ -10,9 +10,8 @@ library(purrr)
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 5) {
-  cat("Usage: Rscript scripts/ErrMatrix/extract_single_position_data.R <chr> <position> <sample_name> <output_dir> <param_file>\n")
-  cat("Example: Rscript scripts/ErrMatrix/extract_single_position_data.R chr3R 19610000 Rep01_W_F process/ZINC2 helpfiles/ZINC2_haplotype_parameters.R\n")
+if (length(args) < 5 || length(args) > 6) {
+  cat("Usage: Rscript scripts/ErrMatrix/extract_single_position_data.R <chr> <position> <sample_name> <output_dir> <param_file> [h_cutoff]\n")
   quit(status = 1)
 }
 
@@ -21,13 +20,15 @@ testing_position <- as.numeric(args[2])
 sample_name <- args[3]
 output_dir <- args[4]
 param_file <- args[5]
+h_cutoff_cli <- if (length(args) == 6) as.numeric(args[6]) else 4
 
 cat("=== EXTRACTING SINGLE POSITION DATA ===\n")
 cat("Chromosome:", chr, "\n")
 cat("Position:", testing_position, "\n")
 cat("Sample:", sample_name, "\n")
 cat("Output directory:", output_dir, "\n")
-cat("Parameter file:", param_file, "\n\n")
+cat("Parameter file:", param_file, "\n")
+cat("Effective h_cutoff (CLI/default):", h_cutoff_cli, "\n\n")
 
 # Source the Friday night working version of BASE_VAR_WIDE.R
 old_interactive <- interactive
@@ -36,8 +37,8 @@ interactive <- function() TRUE
 source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
 interactive <- old_interactive
 
-# Load parameters (EXACT from BASE_VAR_WIDE.R)
-source(param_file)
+# Load parameters (founders, etc.). In adaptive mode we DO NOT read h_cutoff from file
+source(param_file, local = TRUE)
 
 # Load RefAlt data (EXACT from BASE_VAR_WIDE.R)
 refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
@@ -63,7 +64,7 @@ dump_payload <- list(
   sample_name = sample_name,
   df4 = df4,  # Pre-subsetted data
   founders = founders,
-  h_cutoff = h_cutoff,
+  h_cutoff = h_cutoff_cli,
   method = "adaptive",
   chr = chr
 )
@@ -77,6 +78,6 @@ cat("  Position:", testing_position, "\n")
 cat("  Sample:", sample_name, "\n")
 cat("  SNPs in window:", nrow(df4), "\n")
 cat("  Founders:", paste(founders, collapse=", "), "\n")
-cat("  h_cutoff:", h_cutoff, "\n")
+cat("  h_cutoff:", h_cutoff_cli, "\n")
 
 cat("\nDone.\n")
