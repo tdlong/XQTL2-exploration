@@ -63,7 +63,7 @@ dump_payload <- list(
   sample_name = sample_name,
   df4 = df4,  # Pre-subsetted data
   founders = founders,
-  h_cutoff = parameter,
+  h_cutoff = h_cutoff,
   method = "adaptive",
   chr = chr
 )
