@@ -53,10 +53,27 @@ check_row <- function(Names_o, Err_o, Haps_o, Names_r, Err_r, Haps_r) {
     ok_haps <- max(abs(Haps_ra - Haps_o), na.rm = TRUE) <= tol
   }
 
-  tibble(err_equal = ok_err, haps_equal = ok_haps, names_equal = ok_names)
+  tibble::tibble(err_equal = ok_err, haps_equal = ok_haps, names_equal = ok_names)
 }
 
-res <- purrr::pmap_dfr(df, ~check_row(..5, ..3, ..4, ..8, ..6, ..7))
+safe_check <- function(row) {
+  out <- tryCatch({
+    check_row(
+      row$Names_o[[1]],
+      row$Err_o[[1]],
+      row$Haps_o[[1]],
+      row$Names_r[[1]],
+      row$Err_r[[1]],
+      row$Haps_r[[1]]
+    )
+  }, error = function(e) {
+    tibble::tibble(err_equal = FALSE, haps_equal = FALSE, names_equal = FALSE)
+  })
+  out
+}
+
+# Use rowwise mapping with defensive wrapper to avoid aborting on bad rows
+res <- df %>% dplyr::rowwise() %>% dplyr::do(safe_check(.)) %>% dplyr::ungroup()
 out <- bind_cols(df %>% select(all_of(key)), res)
 
 cat("Total rows:", nrow(out), "\n")

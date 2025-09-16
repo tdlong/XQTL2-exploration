@@ -53,51 +53,67 @@ dfc <- common %>%
   rename(Groups_r = Groups, Haps_r = Haps, Err_r = Err, Names_r = Names)
 
 compute_metrics <- function(row) {
-  # Extract
-  Eo <- row$Err_o[[1]]
-  Er <- row$Err_r[[1]]
-  No <- row$Names_o[[1]]
-  Nr <- row$Names_r[[1]]
-  Ho <- row$Haps_o[[1]]
-  Hr <- row$Haps_r[[1]]
+  tryCatch({
+    # Extract
+    Eo <- row$Err_o[[1]]
+    Er <- row$Err_r[[1]]
+    No <- row$Names_o[[1]]
+    Nr <- row$Names_r[[1]]
+    Ho <- row$Haps_o[[1]]
+    Hr <- row$Haps_r[[1]]
 
-  # Defaults
-  trace_o <- NA_real_; trace_r <- NA_real_; trace_abs_diff <- NA_real_
-  fro_diff <- NA_real_; haps_ssq <- NA_real_; names_match <- NA
+    # Defaults
+    trace_o <- NA_real_; trace_r <- NA_real_; trace_abs_diff <- NA_real_
+    fro_diff <- NA_real_; haps_ssq <- NA_real_; names_match <- NA
 
-  # Names alignment check
-  if (is.character(No) && is.character(Nr)) {
-    names_match <- identical(No, Nr)
-  }
+    # Names alignment check
+    if (is.character(No) && is.character(Nr)) {
+      names_match <- identical(No, Nr)
+    }
 
-  # Err metrics
-  if (is.matrix(Eo) && is.matrix(Er)) {
-    # Align Er to No order
-    ErA <- Er[No, No, drop = FALSE]
-    trace_o <- sum(diag(Eo), na.rm = TRUE)
-    trace_r <- sum(diag(ErA), na.rm = TRUE)
-    trace_abs_diff <- abs(trace_r - trace_o)
-    D <- ErA - Eo
-    fro_diff <- sqrt(sum(D^2, na.rm = TRUE))
-  }
+    # Err metrics
+    if (is.matrix(Eo) && is.matrix(Er) && length(No) > 0) {
+      # Align Er to No order; guard against missing names
+      if (all(No %in% rownames(Er))) {
+        ErA <- Er[No, No, drop = FALSE]
+        trace_o <- sum(diag(Eo), na.rm = TRUE)
+        trace_r <- sum(diag(ErA), na.rm = TRUE)
+        trace_abs_diff <- abs(trace_r - trace_o)
+        D <- ErA - Eo
+        fro_diff <- sqrt(sum(D^2, na.rm = TRUE))
+      }
+    }
 
-  # Haps metrics (align by No)
-  if (is.numeric(Ho) && is.numeric(Hr)) {
-    HrA <- Hr[No]
-    haps_ssq <- sum((HrA - Ho)^2, na.rm = TRUE)
-  }
+    # Haps metrics (align by No)
+    if (is.numeric(Ho) && is.numeric(Hr) && length(No) > 0) {
+      if (all(No %in% names(Hr))) {
+        HrA <- Hr[No]
+        haps_ssq <- sum((HrA - Ho)^2, na.rm = TRUE)
+      }
+    }
 
-  tibble(
-    trace_o = trace_o,
-    trace_r = trace_r,
-    trace_abs_diff = trace_abs_diff,
-    fro_err_diff = fro_diff,
-    haps_ssq = haps_ssq,
-    names_match = names_match
-  )
+    tibble::tibble(
+      trace_o = trace_o,
+      trace_r = trace_r,
+      trace_abs_diff = trace_abs_diff,
+      fro_err_diff = fro_diff,
+      haps_ssq = haps_ssq,
+      names_match = names_match
+    )
+  }, error = function(e) {
+    tibble::tibble(
+      trace_o = NA_real_,
+      trace_r = NA_real_,
+      trace_abs_diff = NA_real_,
+      fro_err_diff = NA_real_,
+      haps_ssq = NA_real_,
+      names_match = NA
+    )
+  })
 }
 
-metrics <- purrr::pmap_dfr(dfc, compute_metrics)
+# Defensive rowwise mapping to ensure single bad row doesn't abort job
+metrics <- dfc %>% dplyr::rowwise() %>% dplyr::do(compute_metrics(.)) %>% dplyr::ungroup()
 out <- bind_cols(dfc %>% select(all_of(key_cols)), metrics)
 
 # Summaries
