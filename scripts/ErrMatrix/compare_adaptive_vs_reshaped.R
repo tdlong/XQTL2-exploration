@@ -62,9 +62,9 @@ dfc <- common %>%
 
 compute_metrics <- function(row) {
   tryCatch({
-    # Extract - Names are already unnested, so no [[1]] needed
+    # Extract - Names and matrices are already unnested, so no [[1]] needed
     Eo <- row$Err_o[[1]]
-    Er <- row$Err_r[[1]]
+    Er <- row$Err_r
     No <- row$Names_o
     Nr <- row$Names_r
     Ho <- row$Haps_o[[1]]
