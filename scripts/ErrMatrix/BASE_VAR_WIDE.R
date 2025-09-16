@@ -846,7 +846,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   return(smooth_results)
 }
 
-run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
+# Preserve current smoothing as old_run_smoothing for reference
+old_run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
   # Step 2: Apply 21-position sliding window smoothing - EXACT from working code
   #
   # CRITICAL: The output data frame structure is HARDWIRED and CANNOT be changed
@@ -1010,6 +1011,160 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
   cat("✓ Saved smooth_h4 (reshaped) to:", basename(smooth_reshaped_file), "\n")
   cat("✓ Saved adaptive_h4 (reshaped) to:", basename(adaptive_reshaped_file), "\n")
   
+  return(smooth_results)
+}
+
+# Revised smoothing with strict per-sample alignment during reshaping
+run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose = TRUE) {
+  # Step 2: Apply 21-position sliding window smoothing - EXACT from working code
+  # with added alignment guarantees during reshaping
+  cat("\n=== RUNNING SMOOTHING ===\n")
+
+  # Load parameters to get founders
+  source(param_file)
+
+  # Add estimate_OK column
+  adaptive_results <- adaptive_results %>%
+    mutate(estimate_OK = map_lgl(Groups, check_estimate_ok))
+
+  # Process smoothing for each sample
+  unique_samples <- unique(adaptive_results$sample)
+  total_samples <- length(unique_samples)
+
+  if (total_samples > 1 && verbose) {
+    cat("Smoothing", total_samples, "samples...\n")
+  }
+
+  smooth_results <- map_dfr(seq_along(unique_samples), function(sample_idx) {
+    sample_name <- unique_samples[sample_idx]
+
+    if (total_samples > 1 && verbose) {
+      cat(sprintf("Smoothing sample %d/%d: %s\n", sample_idx, total_samples, sample_name))
+    }
+
+    sample_data <- adaptive_results %>% 
+      filter(sample == sample_name) %>%
+      arrange(pos)
+
+    n_positions <- nrow(sample_data)
+
+    # Only process positions that have full 21-position window
+    valid_positions <- 11:(n_positions - 10)
+
+    if (length(valid_positions) == 0) {
+      return(tibble())
+    }
+
+    sample_smooth <- sample_data[valid_positions, ] %>%
+      select(CHROM, pos, sample) %>%
+      mutate(
+        window_quality = map_dbl(valid_positions, function(i) {
+          start_idx <- i - 10
+          end_idx <- i + 10
+          window_indices <- start_idx:end_idx
+          sum(sample_data$estimate_OK[window_indices], na.rm = TRUE)
+        }),
+        
+        quality_ok = window_quality >= 17,
+        
+        Groups = map2(valid_positions, quality_ok, function(i, quality) {
+          if (quality) {
+            return(1:8)
+          } else {
+            return(rep(1, length(founders)))
+          }
+        }),
+        
+        Haps = map2(valid_positions, quality_ok, function(i, quality) {
+          if (!quality) {
+            return(set_names(rep(NA, length(founders)), founders))
+          }
+          
+          start_idx <- i - 10
+          end_idx <- i + 10
+          window_indices <- start_idx:end_idx
+          
+          valid_haps <- sample_data$Haps[window_indices][sample_data$estimate_OK[window_indices]]
+          valid_haps <- valid_haps[map_lgl(valid_haps, ~ !any(is.na(.x)))]
+          
+          return(average_haps(valid_haps, founders))
+        }),
+        
+        Err = map2(valid_positions, quality_ok, function(i, quality) {
+          if (!quality) {
+            na_matrix <- matrix(NA, length(founders), length(founders))
+            rownames(na_matrix) <- founders
+            colnames(na_matrix) <- founders
+            return(na_matrix)
+          }
+          
+          start_idx <- i - 10
+          end_idx <- i + 10
+          window_indices <- start_idx:end_idx
+          
+          valid_errs <- sample_data$Err[window_indices][sample_data$estimate_OK[window_indices]]
+          valid_errs <- valid_errs[map_lgl(valid_errs, ~ !any(is.na(.x)))]
+          
+          return(average_err(valid_errs, founders))
+        }),
+        
+        Names = map(valid_positions, ~ founders)
+      ) %>%
+      select(CHROM, pos, sample, Groups, Haps, Err, Names)
+
+    return(sample_smooth)
+  })
+
+  # Reshape to one row per position with samples as lists (preserve alignment)
+  smooth_data_reshaped <- smooth_results %>%
+    dplyr::arrange(CHROM, pos, sample) %>%
+    dplyr::group_by(CHROM, pos) %>%
+    dplyr::summarise({
+      ord <- order(sample)
+      tibble(
+        sample = list(sample[ord]),
+        Groups = list(Groups[ord]),
+        Haps   = list(Haps[ord]),
+        Err    = list(Err[ord]),
+        Names  = list(Names[ord])
+      )
+    }, .groups = "drop")
+
+  # Also reshape the original adaptive_h4 data to the same format (preserve alignment)
+  adaptive_data_reshaped <- adaptive_results %>%
+    dplyr::arrange(CHROM, pos, sample) %>%
+    dplyr::group_by(CHROM, pos) %>%
+    dplyr::summarise({
+      ord <- order(sample)
+      tibble(
+        sample = list(sample[ord]),
+        Groups = list(Groups[ord]),
+        Haps   = list(Haps[ord]),
+        Err    = list(Err[ord]),
+        Names  = list(Names[ord])
+      )
+    }, .groups = "drop")
+
+  # Save results
+  list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
+  smooth_dir <- file.path(list_results_dir, "smooth_h4")
+  adapt_dir  <- file.path(list_results_dir, "adapt_h4")
+  dir.create(smooth_dir, recursive = TRUE, showWarnings = FALSE)
+  dir.create(adapt_dir,  recursive = TRUE, showWarnings = FALSE)
+
+  smooth_original_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
+  smooth_reshaped_file <- file.path(smooth_dir, paste0("R.haps.", chr, ".out.rds"))
+  adaptive_reshaped_file <- file.path(adapt_dir, paste0("R.haps.", chr, ".out.rds"))
+
+  saveRDS(smooth_results, smooth_original_file)
+  saveRDS(smooth_data_reshaped, smooth_reshaped_file)
+  saveRDS(adaptive_data_reshaped, adaptive_reshaped_file)
+
+  cat("✓ Smoothing complete:", nrow(smooth_results), "results\n")
+  cat("✓ Saved smooth_h4 (original) to:", basename(smooth_original_file), "\n")
+  cat("✓ Saved smooth_h4 (reshaped) to:", basename(smooth_reshaped_file), "\n")
+  cat("✓ Saved adaptive_h4 (reshaped) to:", basename(adaptive_reshaped_file), "\n")
+
   return(smooth_results)
 }
 

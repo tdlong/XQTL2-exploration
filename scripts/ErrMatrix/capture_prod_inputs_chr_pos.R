@@ -1,8 +1,9 @@
 #!/usr/bin/env Rscript
 
-# Capture the actual df3 (df4 window) and simple summaries passed to
+# Capture the actual df4 window and simple summaries that would be passed to
 # estimate_haplotypes_list_format inside BASE_VAR_WIDE.R for a single
-# chromosome/position/sample, without modifying production code.
+# chromosome/position/sample, WITHOUT running the full workflow and WITHOUT
+# writing any production outputs.
 #
 # Usage:
 # Rscript scripts/ErrMatrix/capture_prod_inputs_chr_pos.R <chr> <position> <sample_name> <output_dir> <param_file>
@@ -31,7 +32,7 @@ cat("Sample:", target_sample, "\n")
 cat("Output dir:", output_dir, "\n")
 cat("Param file:", param_file, "\n\n")
 
-# Source production code
+# Source production code (functions only; no writes are triggered here)
 old_interactive <- interactive
 interactive <- function() TRUE
 source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
@@ -40,63 +41,52 @@ interactive <- old_interactive
 # Load parameters
 source(param_file, local = TRUE)
 
-# Keep a reference to original function
-original_estimator <- estimate_haplotypes_list_format
-
-# Path to write capture
+# Paths to write capture (local, non-production)
 capture_rds <- paste0("prod_capture_", chr, "_", target_pos, "_", target_sample, ".RDS")
 capture_txt <- paste0("prod_capture_", chr, "_", target_pos, "_", target_sample, ".txt")
 
-# Wrap estimator to capture its inputs when pos/sample match
-estimate_haplotypes_list_format <- function(pos, sample_name, df3, founders, h_cutoff,
-                                            method = "adaptive", window_size_bp = NULL,
-                                            chr = "chr2R", verbose = 0) {
-  if (!exists(".captured_flag", inherits = FALSE)) .captured_flag <<- FALSE
-  if (!.captured_flag && pos == target_pos && sample_name == target_sample) {
-    # Summaries for df3 (this is the pre-subsetted window from run_adaptive_estimation)
-    df3_cols <- names(df3)
-    df3_n <- nrow(df3)
-    pos_min <- min(df3$POS, na.rm = TRUE)
-    pos_max <- max(df3$POS, na.rm = TRUE)
-    pos_mean <- mean(df3$POS, na.rm = TRUE)
-    df3_sha1 <- digest(df3, algo = "sha1")
+# DO NOT run the full workflow. Instead, emulate the exact df4 pre-subset
+# used by run_adaptive_estimation and capture that input, safely and quickly.
 
-    cat("[CAPTURE] Matched target; writing capture files\n")
-    # Save a compact text summary
-    sink(capture_txt)
-    cat("df3_rows:", df3_n, "\n")
-    cat("df3_cols:", paste(df3_cols, collapse=","), "\n")
-    cat("pos_min:", pos_min, " pos_max:", pos_max, " pos_mean:", pos_mean, "\n")
-    cat("df3_sha1:", df3_sha1, "\n")
-    cat("founders:", paste(founders, collapse=","), "\n")
-    cat("h_cutoff:", h_cutoff, " method:", method, " chr:", chr, "\n")
-    sink()
+# Load RefAlt and process -> df3 (wide), identical to BASE_VAR_WIDE.R
+refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+stopifnot(file.exists(refalt_file))
+df3 <- process_refalt_data(refalt_file, founders)
 
-    # Save the full object to RDS (df3 + params)
-    saveRDS(list(
-      df3 = df3,
-      founders = founders,
-      h_cutoff = h_cutoff,
-      method = method,
-      chr = chr,
-      position = pos,
-      sample_name = sample_name,
-      df3_sha1 = df3_sha1
-    ), capture_rds)
+# Pre-subset df3 to df4 (largest 500kb window around target_pos), identical logic
+max_window <- 500000
+window_start <- max(1, target_pos - max_window/2)
+window_end <- target_pos + max_window/2
+df4 <- df3 %>% dplyr::filter(POS >= window_start & POS <= window_end)
 
-    .captured_flag <<- TRUE
-    cat("[CAPTURE] Wrote:", capture_txt, "and", capture_rds, "\n")
-  }
-  # Delegate to original
-  original_estimator(pos, sample_name, df3, founders, h_cutoff, method, window_size_bp, chr, verbose)
-}
+# Summaries and capture
+df4_cols <- names(df4)
+df4_n <- nrow(df4)
+pos_min <- min(df4$POS, na.rm = TRUE)
+pos_max <- max(df4$POS, na.rm = TRUE)
+pos_mean <- mean(df4$POS, na.rm = TRUE)
+df4_sha1 <- digest(df4, algo = "sha1")
 
-# Run only the target chromosome in production mode (non-verbose)
-cat("Running run_adaptive_estimation for target chromosome...\n")
-run_adaptive_estimation(chr = chr, method = "adaptive", parameter = get("h_cutoff"),
-                        output_dir = output_dir, param_file = param_file,
-                        debug = FALSE, verbose = FALSE, debug_level = 0)
+sink(capture_txt)
+cat("df4_rows:", df4_n, "\n")
+cat("df4_cols:", paste(df4_cols, collapse=","), "\n")
+cat("pos_min:", pos_min, " pos_max:", pos_max, " pos_mean:", pos_mean, "\n")
+cat("df4_sha1:", df4_sha1, "\n")
+cat("founders:", paste(founders, collapse=","), "\n")
+cat("h_cutoff:", get("h_cutoff"), " method:", "adaptive", " chr:", chr, "\n")
+sink()
 
-cat("\nDone. If capture matched, see:", capture_txt, "and", capture_rds, "\n")
+saveRDS(list(
+  df4 = df4,
+  founders = founders,
+  h_cutoff = get("h_cutoff"),
+  method = "adaptive",
+  chr = chr,
+  testing_position = target_pos,
+  sample_name = target_sample,
+  df4_sha1 = df4_sha1
+), capture_rds)
+
+cat("Done. Wrote:", capture_txt, "and", capture_rds, "\n")
 
 
