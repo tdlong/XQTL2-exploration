@@ -62,13 +62,19 @@ dfc <- common %>%
 
 compute_metrics <- function(row) {
   tryCatch({
-    # Extract
+    # Extract - handle nested list structure correctly
     Eo <- row$Err_o[[1]]
     Er <- row$Err_r[[1]]
     No <- row$Names_o[[1]]
     Nr <- row$Names_r[[1]]
     Ho <- row$Haps_o[[1]]
     Hr <- row$Haps_r[[1]]
+    
+    # Debug: check if we're getting the right structure
+    if (row$pos == 4560000 && row$sample == "Rep01_W_F") {
+      cat("DEBUG: No class:", class(No), "length:", length(No), "content:", paste(No, collapse=","), "\n")
+      cat("DEBUG: Er rownames length:", length(rownames(Er)), "colnames length:", length(colnames(Er)), "\n")
+    }
 
     # Defaults
     trace_o <- NA_real_; trace_r <- NA_real_; trace_abs_diff <- NA_real_
