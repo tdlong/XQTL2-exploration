@@ -555,7 +555,7 @@ process_refalt_data <- function(refalt_file, founders) {
       RefAlt = str_sub(lab, 1, 3),
       name = str_sub(lab, 5)
     ) %>%
-    select(-lab) %>%
+    dplyr::select(-lab) %>%
     { cat("After pivot_longer, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
     pivot_wider(names_from = RefAlt, values_from = count) %>%
     { cat("After pivot_wider, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
