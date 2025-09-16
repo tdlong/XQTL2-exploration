@@ -62,11 +62,11 @@ dfc <- common %>%
 
 compute_metrics <- function(row) {
   tryCatch({
-    # Extract - handle nested list structure correctly
+    # Extract - Names are already unnested, so no [[1]] needed
     Eo <- row$Err_o[[1]]
     Er <- row$Err_r[[1]]
-    No <- row$Names_o[[1]]
-    Nr <- row$Names_r[[1]]
+    No <- row$Names_o
+    Nr <- row$Names_r
     Ho <- row$Haps_o[[1]]
     Hr <- row$Haps_r[[1]]
     
