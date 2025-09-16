@@ -565,8 +565,7 @@ process_refalt_data <- function(refalt_file, founders) {
     ) %>%
     # Debug: check what columns exist
     { cat("Columns before select:", paste(names(.), collapse=", "), "\n"); . } %>%
-    select(-REF, -ALT) %>%
-    as_tibble()
+    select(-REF, -ALT)
   
   # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
   founder_wide <- df3 %>%
