@@ -62,11 +62,11 @@ dfc <- common %>%
 
 compute_metrics <- function(row) {
   tryCatch({
-    # Extract - Names and matrices are already unnested, so no [[1]] needed
+    # Extract - handle the fact that we're passing a single-row tibble
     Eo <- row$Err_o[[1]]
-    Er <- row$Err_r
-    No <- row$Names_o
-    Nr <- row$Names_r
+    Er <- row$Err_r[[1]]
+    No <- row$Names_o[[1]]
+    Nr <- row$Names_r[[1]]
     Ho <- row$Haps_o[[1]]
     Hr <- row$Haps_r[[1]]
     
