@@ -2,7 +2,7 @@
 
 ## Original Adaptive Results (`adaptive_window_h4_results_chr3R.RDS`)
 
-**Format**: Nested tibble with one row per (CHROM, pos, sample) combination, but data stored in list columns
+**Format**: One row per (CHROM, pos, sample) combination with direct access to data
 
 **Structure**:
 - **Rows**: 163,740 (one per sample per position)
@@ -15,15 +15,20 @@
   - `Err`: list with 1 element - 8x8 error/covariance matrix for haplotype estimates
   - `Names`: list with 1 element - founder names (character vector, length = 8)
 
+**Data Access**:
+- `Haps[[1]]` - haplotype frequency vector (length 8)
+- `Err[[1]]` - error/covariance matrix (8x8) with rownames/colnames matching `Names[[1]]`
+- `Names[[1]]` - founder names vector (length 8)
+
 **Key Properties**:
-- Data is stored in list columns (need unnesting to access)
+- Each row represents one sample at one position
+- Data stored in list columns but accessible via `[[1]]`
 - `Err[[1]]` matrices have proper row/column names matching `Names[[1]]`
 - `Haps[[1]]` vectors have length 8 (one per founder)
-- `Names[[1]]` vectors have length 8 with founder identifiers
 
 ## Reshaped Adaptive Results (`R.haps.chr3R.out.rds`)
 
-**Format**: Nested tibble with one row per (CHROM, pos) combination, samples stored as lists
+**Format**: One row per (CHROM, pos) combination with samples stored as lists
 
 **Structure**:
 - **Rows**: 2,729 (one per position)
@@ -36,12 +41,17 @@
   - `Err`: list of numeric matrices - error/covariance matrices (length = 60, each matrix is 8x8)
   - `Names`: list of character vectors - founder names (length = 60, each vector has length 8)
 
+**Data Access**:
+- For position `i` and sample `j`: `Haps[[i]][[j]]` - haplotype frequency vector (length 8)
+- For position `i` and sample `j`: `Err[[i]][[j]]` - error/covariance matrix (8x8)
+- For position `i` and sample `j`: `Names[[i]][[j]]` - founder names vector (length 8)
+- Sample identifier: `sample[[i]][j]`
+
 **Key Properties**:
-- Nested format - each row contains lists of 60 samples
-- `Err` matrices have proper row/column names matching `Names`
-- `Haps` vectors have length 8 (one per founder)
-- `Names` vectors have length 8 with founder identifiers
-- **Requires unnesting** to get one row per sample for comparison
+- Each row represents one position with all samples for that position
+- For any given (CHROM, pos), the ith element of `sample` defines the sample
+- The ith element of `Haps`, `Err`, `Names` corresponds to that sample
+- All matrices have proper row/column names matching their corresponding `Names` vector
 
 ## Comparison Requirements
 

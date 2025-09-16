@@ -1116,6 +1116,14 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
   })
 
   # Reshape to one row per position with samples as lists (preserve alignment)
+  # INPUT: smooth_results - one row per (CHROM, pos, sample) with list columns
+  # OUTPUT: smooth_data_reshaped - one row per (CHROM, pos) with sample lists
+  #   - sample[[1]]: vector of sample identifiers (length 60)
+  #   - Haps[[1]]: list of haplotype frequency vectors (length 60, each vector length 8)
+  #   - Err[[1]]: list of 8x8 error/covariance matrices (length 60)
+  #   - Names[[1]]: list of founder name vectors (length 60, each vector length 8)
+  #   - For position i, sample j: Haps[[i]][[j]], Err[[i]][[j]], Names[[i]][[j]]
+  #   - Sample identifier: sample[[i]][j]
   smooth_data_reshaped <- smooth_results %>%
     dplyr::arrange(CHROM, pos, sample) %>%
     dplyr::group_by(CHROM, pos) %>%
@@ -1131,6 +1139,9 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
     }, .groups = "drop")
 
   # Also reshape the original adaptive_h4 data to the same format (preserve alignment)
+  # INPUT: adaptive_results - one row per (CHROM, pos, sample) with list columns
+  # OUTPUT: adaptive_data_reshaped - one row per (CHROM, pos) with sample lists
+  #   - Same structure as smooth_data_reshaped
   adaptive_data_reshaped <- adaptive_results %>%
     dplyr::arrange(CHROM, pos, sample) %>%
     dplyr::group_by(CHROM, pos) %>%
@@ -1155,6 +1166,21 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
   smooth_original_file <- file.path(list_results_dir, paste0("smooth_h4_results_", chr, ".RDS"))
   smooth_reshaped_file <- file.path(smooth_dir, paste0("R.haps.", chr, ".out.rds"))
   adaptive_reshaped_file <- file.path(adapt_dir, paste0("R.haps.", chr, ".out.rds"))
+
+  # FILE FORMAT DOCUMENTATION:
+  # smooth_results: One row per (CHROM, pos, sample) with list columns
+  #   - Haps[[1]]: haplotype frequency vector (length 8)
+  #   - Err[[1]]: 8x8 error/covariance matrix with rownames/colnames
+  #   - Names[[1]]: founder names vector (length 8)
+  #   - sample: character sample identifier
+  #
+  # smooth_data_reshaped & adaptive_data_reshaped: One row per (CHROM, pos) with sample lists
+  #   - sample[[1]]: vector of sample identifiers (length 60)
+  #   - Haps[[1]]: list of haplotype frequency vectors (length 60, each vector length 8)
+  #   - Err[[1]]: list of 8x8 error/covariance matrices (length 60)
+  #   - Names[[1]]: list of founder name vectors (length 60, each vector length 8)
+  #   - For position i, sample j: Haps[[i]][[j]], Err[[i]][[j]], Names[[i]][[j]]
+  #   - Sample identifier: sample[[i]][j]
 
   saveRDS(smooth_results, smooth_original_file)
   saveRDS(smooth_data_reshaped, smooth_reshaped_file)
