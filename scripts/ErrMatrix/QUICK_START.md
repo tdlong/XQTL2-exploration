@@ -94,14 +94,11 @@ tail -f logs/base_var_wide_all_*.out
 
 ## ✅ Verify Results (After Completion)
 ```bash
-# Run comparison for all chromosomes
-sbatch scripts/ErrMatrix/run_comparison_all_chroms.slurm process/ZINC2
+# Run comparison for individual chromosomes
+Rscript scripts/ErrMatrix/compare_adaptive_vs_reshaped.R chr3R process/ZINC2
 
-# Or test with a limit first
-sbatch scripts/ErrMatrix/run_comparison_all_chroms.slurm process/ZINC2 100
-
-# Check comparison results
-tail -f logs/compare_adapt_reshaped_*.out
+# Test with a limit first
+Rscript scripts/ErrMatrix/compare_adaptive_vs_reshaped.R chr3R process/ZINC2 100
 ```
 
 ## 🐛 Bug Fixes Applied
