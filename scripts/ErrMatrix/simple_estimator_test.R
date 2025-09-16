@@ -8,6 +8,23 @@ library(limSolve)
 library(MASS)
 library(purrr)
 
+# Print simple df4 summary
+print_df4_summary <- function(df4, founders, sample_name) {
+  cat("--- df4 summary ---\n")
+  cat("rows:", nrow(df4), "\n")
+  cat("POS min/max/mean:", min(df4$POS, na.rm=TRUE), max(df4$POS, na.rm=TRUE), round(mean(df4$POS, na.rm=TRUE), 2), "\n")
+  cols <- c(founders, sample_name)
+  cols <- cols[cols %in% names(df4)]
+  stats <- lapply(cols, function(cn) {
+    v <- df4[[cn]]
+    c(mean=round(mean(v, na.rm=TRUE),6), sd=round(sd(v, na.rm=TRUE),6), na=sum(is.na(v)))
+  })
+  stats_df <- as.data.frame(do.call(rbind, stats))
+  rownames(stats_df) <- cols
+  print(stats_df)
+  cat("-------------------\n\n")
+}
+
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2) {
@@ -37,6 +54,9 @@ cat("  SNPs:", nrow(df4), "\n")
 cat("  Founders:", paste(founders, collapse=", "), "\n")
 cat("  Position:", testing_position, "\n")
 cat("  h_cutoff:", h_cutoff, "\n\n")
+
+# Input summary for df4
+print_df4_summary(df4, founders, sample_name)
 
 # Load BASE_VAR_WIDE.R functions
 cat("Loading BASE_VAR_WIDE.R functions...\n")
