@@ -1046,17 +1046,20 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
 
     n_positions <- nrow(sample_data)
 
-    # Only process positions that have full 21-position window
+    # Only process positions that have full 21-position window (±10 from center)
+    # Position i can be smoothed if we have positions i-10 through i+10
+    # So valid positions are 11 through (n_positions - 10)
     valid_positions <- 11:(n_positions - 10)
-
+    
     if (length(valid_positions) == 0) {
       return(tibble())
     }
-
+    
     sample_smooth <- sample_data[valid_positions, ] %>%
       select(CHROM, pos, sample) %>%
       mutate(
         window_quality = map_dbl(valid_positions, function(i) {
+          # For 21-position window (±10 from center), we need positions i-10 to i+10
           start_idx <- i - 10
           end_idx <- i + 10
           window_indices <- start_idx:end_idx
@@ -1078,6 +1081,7 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
             return(set_names(rep(NA, length(founders)), founders))
           }
           
+          # Use full 21-position window
           start_idx <- i - 10
           end_idx <- i + 10
           window_indices <- start_idx:end_idx
@@ -1096,6 +1100,7 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, verbose
             return(na_matrix)
           }
           
+          # Use full 21-position window
           start_idx <- i - 10
           end_idx <- i + 10
           window_indices <- start_idx:end_idx
@@ -1250,10 +1255,6 @@ if (!interactive()) {
     cat("Time per call:", round(as.numeric(total_time, units = "secs") / nrow(adaptive_results), 4), "seconds\n")
   }
   cat("========================\n\n")
-  
-  # Step 2: Apply 21-position sliding window smoothing
-  cat("\n=== STEP 2: APPLYING SMOOTHING ===\n")
-  smooth_results <- run_smoothing(chr, param_file, output_dir, adaptive_results, verbose)
   
   cat("\n=== WORKFLOW COMPLETE ===\n")
   cat("✓ Adaptive estimation completed successfully\n")
