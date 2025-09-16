@@ -159,8 +159,10 @@ compute_metrics <- function(row) {
   })
 }
 
-# Defensive rowwise mapping to ensure single bad row doesn't abort job
-metrics <- dfc %>% dplyr::rowwise() %>% dplyr::do(compute_metrics(.)) %>% dplyr::ungroup()
+# Use map_dfr instead of rowwise/do for better reliability
+metrics <- purrr::map_dfr(1:nrow(dfc), function(i) {
+  compute_metrics(dfc[i,])
+})
 out <- bind_cols(dfc %>% select(all_of(key_cols)), metrics)
 
 valid_rows <- sum(!is.na(out$trace_abs_diff) | !is.na(out$fro_err_diff) | !is.na(out$haps_ssq))
