@@ -6,3 +6,6 @@ process.Dec6/
 *.rds
 *.csv
 haplotype_results_list_format/
+
+# Temporary directories
+tmp/

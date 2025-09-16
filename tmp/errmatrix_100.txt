@@ -1,1 +1,0 @@
- run    hap%     kappa   Ng  groups progression (win:groups)
