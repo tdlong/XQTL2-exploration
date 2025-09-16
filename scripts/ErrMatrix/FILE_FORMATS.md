@@ -1,61 +1,106 @@
 # File Format Documentation
 
-## Adaptive Window Results (Original Format)
-**File**: `process/ZINC2/haplotype_results_list_format/adaptive_window_h4_results_chr3R.RDS`
+## Original Adaptive Results (`adaptive_window_h4_results_chr3R.RDS`)
 
-**Structure**: One row per (CHROM, pos, sample)
-- `CHROM`: character (e.g., "chr3R")
-- `pos`: numeric (genomic position)
-- `sample`: character (e.g., "Rep01_W_F")
-- `Groups`: list of integers (e.g., `c(1,2,3,4,5,6,7,8)`)
-- `Haps`: list of named numeric vectors (e.g., `c(B1=0.1, B2=0.2, ...)`)
-- `Err`: list of 8x8 matrices with row/column names matching founder names
-- `Names`: list of character vectors (e.g., `c("B1","B2","B3","B4","B5","B6","B7","AB8")`)
+**Format**: Unnested tibble with one row per (CHROM, pos, sample) combination
 
-**Key Properties**:
-- `Err[[i]]` is a matrix with `rownames(Err[[i]]) == Names[[i]]` and `colnames(Err[[i]]) == Names[[i]]`
-- `Haps[[i]]` is a named vector with `names(Haps[[i]]) == Names[[i]]`
-- `Groups[[i]]` indicates which founders are grouped together (1-8 for full separation)
-
-## Reshaped Adapt H4 Results
-**File**: `process/ZINC2/haplotype_results_list_format/adapt_h4/R.haps.chr3R.out.rds`
-
-**Structure**: One row per (CHROM, pos) with nested lists for samples
-- `CHROM`: character (e.g., "chr3R")
-- `pos`: numeric (genomic position)
-- `sample`: list of character vectors (e.g., `list(c("Rep01_W_F", "Rep01_W_M", ...))`)
-- `Groups`: list of lists (e.g., `list(list(c(1,2,3,4,5,6,7,8), c(1,2,3,4,5,6,7,8), ...))`)
-- `Haps`: list of lists (e.g., `list(list(c(B1=0.1, B2=0.2, ...), c(B1=0.1, B2=0.2, ...), ...))`)
-- `Err`: list of lists (e.g., `list(list(matrix(...), matrix(...), ...))`)
-- `Names`: list of lists (e.g., `list(list(c("B1","B2",...), c("B1","B2",...), ...))`)
-
-**After unnesting** (via `tidyr::unnest(c(sample, Groups, Haps, Err, Names))`):
-- `sample`: character (e.g., "Rep01_W_F")
-- `Groups`: list of integers (e.g., `c(1,2,3,4,5,6,7,8)`)
-- `Haps`: list of named numeric vectors (e.g., `c(B1=0.1, B2=0.2, ...)`)
-- `Err`: list of 8x8 matrices
-- `Names`: list of character vectors (e.g., `c("B1","B2","B3","B4","B5","B6","B7","AB8")`)
+**Structure**:
+- **Rows**: 163,740 (one per sample per position)
+- **Columns**: 7
+  - `CHROM`: character - chromosome name (e.g., "chr3R")
+  - `pos`: numeric - genomic position
+  - `sample`: character - sample identifier (e.g., "Rep01_W_F")
+  - `Groups`: numeric vector - group assignments (length varies by sample)
+  - `Haps`: numeric vector - haplotype frequency estimates (length = 8, one per founder)
+  - `Err`: numeric matrix - 8x8 error/covariance matrix for haplotype estimates
+  - `Names`: character vector - founder names (length = 8, e.g., c("B1","B2","B3","B4","B5","B6","B7","AB8"))
 
 **Key Properties**:
-- After unnesting, structure should match original format
-- `Err[[i]]` should be a matrix with proper row/column names
-- `Haps[[i]]` should be a named vector
-- `Names[[i]]` should be a character vector
+- Already unnested - each row contains single values/vectors/matrices
+- `Err` matrices have proper row/column names matching `Names`
+- `Haps` vectors have length 8 (one per founder)
+- `Names` vectors have length 8 with founder identifiers
 
-## Expected Alignment
-For comparison, we expect:
-1. `Names_o[[i]] == Names_r[[i]]` (same founder order)
-2. `Err_o[[i]]` and `Err_r[[i]]` are both 8x8 matrices
-3. `rownames(Err_r[[i]]) == Names_r[[i]]` and `colnames(Err_r[[i]]) == Names_r[[i]]`
-4. `names(Haps_r[[i]]) == Names_r[[i]]`
+## Reshaped Adaptive Results (`R.haps.chr3R.out.rds`)
 
-## Current Issue
-The comparison script shows:
-- `has_names: TRUE` - Names are present and match
-- `has_err_mats: FALSE` - Error matrices are missing or malformed
-- `names_in_Er: FALSE` - The reshaped error matrices don't have expected row/column names
+**Format**: Nested tibble with one row per (CHROM, pos) combination, samples stored as lists
 
-This suggests the reshaped `Err` matrices are either:
-1. Not matrices at all (maybe lists or vectors)
-2. Missing row/column names entirely
-3. Have different row/column names than expected
+**Structure**:
+- **Rows**: 2,729 (one per position)
+- **Columns**: 7
+  - `CHROM`: character - chromosome name (e.g., "chr3R")
+  - `pos`: numeric - genomic position
+  - `sample`: list of character vectors - sample identifiers (length = 60, one per sample)
+  - `Groups`: list of numeric vectors - group assignments (length = 60, one per sample)
+  - `Haps`: list of numeric vectors - haplotype frequency estimates (length = 60, each vector has length 8)
+  - `Err`: list of numeric matrices - error/covariance matrices (length = 60, each matrix is 8x8)
+  - `Names`: list of character vectors - founder names (length = 60, each vector has length 8)
+
+**Key Properties**:
+- Nested format - each row contains lists of 60 samples
+- `Err` matrices have proper row/column names matching `Names`
+- `Haps` vectors have length 8 (one per founder)
+- `Names` vectors have length 8 with founder identifiers
+- **Requires unnesting** to get one row per sample for comparison
+
+## Comparison Requirements
+
+To compare these files:
+
+1. **Original file**: Use as-is (already unnested)
+2. **Reshaped file**: Must be unnested using `tidyr::unnest(c(sample, Groups, Haps, Err, Names))`
+3. **After unnesting**: Both files have identical structure with one row per (CHROM, pos, sample)
+4. **Data integrity**: The unnested reshaped data should be identical to the original data
+
+## Data Flow
+
+```
+Original Adaptive Results (163,740 rows)
+    ↓
+Reshaping (group_by CHROM, pos, summarise with lists)
+    ↓
+Reshaped Results (2,729 rows with list columns)
+    ↓
+Unnesting (tidyr::unnest)
+    ↓
+Unnested Reshaped Results (163,740 rows)
+    ↓
+Should be identical to Original Adaptive Results
+```
+
+## File Creation Code
+
+**Original file creation** (in `BASE_VAR_WIDE.R`):
+```r
+# Results are already in unnested format from est_haps_var()
+adaptive_results <- est_haps_var(df4, founders, ...)
+saveRDS(adaptive_results, adaptive_original_file)
+```
+
+**Reshaped file creation** (in `BASE_VAR_WIDE.R`):
+```r
+# Reshape to one row per position with samples as lists
+adaptive_data_reshaped <- adaptive_results %>%
+  dplyr::arrange(CHROM, pos, sample) %>%
+  dplyr::group_by(CHROM, pos) %>%
+  dplyr::summarise({
+    ord <- order(sample)
+    tibble(
+      sample = list(sample[ord]),
+      Groups = list(Groups[ord]),
+      Haps   = list(Haps[ord]),
+      Err    = list(Err[ord]),
+      Names  = list(Names[ord])
+    )
+  }, .groups = "drop")
+saveRDS(adaptive_data_reshaped, adaptive_reshaped_file)
+```
+
+## Validation
+
+The reshaped file should preserve:
+- All data values (no recomputation)
+- Sample ordering within each position
+- Matrix dimensions and names
+- Vector lengths and content
+- Founder name alignment between `Names` and `Err` matrix dimensions
