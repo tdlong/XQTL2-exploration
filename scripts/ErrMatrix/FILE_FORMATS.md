@@ -2,7 +2,7 @@
 
 ## Original Adaptive Results (`adaptive_window_h4_results_chr3R.RDS`)
 
-**Format**: Unnested tibble with one row per (CHROM, pos, sample) combination
+**Format**: Nested tibble with one row per (CHROM, pos, sample) combination, but data stored in list columns
 
 **Structure**:
 - **Rows**: 163,740 (one per sample per position)
@@ -10,16 +10,16 @@
   - `CHROM`: character - chromosome name (e.g., "chr3R")
   - `pos`: numeric - genomic position
   - `sample`: character - sample identifier (e.g., "Rep01_W_F")
-  - `Groups`: numeric vector - group assignments (length varies by sample)
-  - `Haps`: numeric vector - haplotype frequency estimates (length = 8, one per founder)
-  - `Err`: numeric matrix - 8x8 error/covariance matrix for haplotype estimates
-  - `Names`: character vector - founder names (length = 8, e.g., c("B1","B2","B3","B4","B5","B6","B7","AB8"))
+  - `Groups`: list with 1 element - group assignments (numeric vector)
+  - `Haps`: list with 1 element - haplotype frequency estimates (numeric vector, length = 8)
+  - `Err`: list with 1 element - 8x8 error/covariance matrix for haplotype estimates
+  - `Names`: list with 1 element - founder names (character vector, length = 8)
 
 **Key Properties**:
-- Already unnested - each row contains single values/vectors/matrices
-- `Err` matrices have proper row/column names matching `Names`
-- `Haps` vectors have length 8 (one per founder)
-- `Names` vectors have length 8 with founder identifiers
+- Data is stored in list columns (need unnesting to access)
+- `Err[[1]]` matrices have proper row/column names matching `Names[[1]]`
+- `Haps[[1]]` vectors have length 8 (one per founder)
+- `Names[[1]]` vectors have length 8 with founder identifiers
 
 ## Reshaped Adaptive Results (`R.haps.chr3R.out.rds`)
 
@@ -47,10 +47,10 @@
 
 To compare these files:
 
-1. **Original file**: Use as-is (already unnested)
+1. **Original file**: Must be unnested using `tidyr::unnest(c(sample, Groups, Haps, Err, Names))`
 2. **Reshaped file**: Must be unnested using `tidyr::unnest(c(sample, Groups, Haps, Err, Names))`
 3. **After unnesting**: Both files have identical structure with one row per (CHROM, pos, sample)
-4. **Data integrity**: The unnested reshaped data should be identical to the original data
+4. **Data integrity**: The unnested reshaped data should be identical to the unnested original data
 
 ## Data Flow
 
