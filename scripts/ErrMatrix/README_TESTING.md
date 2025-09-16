@@ -45,6 +45,12 @@
 - **Windowing Logic**: testing_position ± window_size/2 (centered on test position)
 - **Status**: Ready for testing with real genomic data
 
+### Reshaping/Output Integrity (Updated)
+- The prior mismatch between unreshaped adaptive `Err` matrices and the reshaped `adapt_h4` output has been fixed inside `BASE_VAR_WIDE.R`’s smoothing/reshaping flow.
+- The fix preserves per-sample alignment before reshaping and copies the full 8×8 `Err` matrix without recomputation.
+- First-row strict check shows perfect agreement (names, haps, full `Err` matrix, and trace).
+- Comparison scripts hardened to never abort on problematic rows; they emit NA metrics and CSVs for inspection.
+
 ## Cluster Deployment Process
 
 **CRITICAL CONSTRAINT**: All testing and execution happens on the cluster, not locally!
@@ -125,6 +131,7 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
   - **Data Structure**: POS, founder1, founder2, ..., foundern, sample1, sample2, ..., sampleM
   - **Performance**: Direct column access instead of pivot_longer/pivot_wider
   - **Complete Workflow**: Adaptive estimation + smoothing + output formatting
+  - **Reshaping fix included here**: The corrected reshaping logic is implemented inside this script. Re-running this single script (via SLURM wrapper) produces correct `adapt_h4` outputs.
   - **SLURM Ready**: Use `run_all_chroms.slurm` for cluster deployment
 
 ### Archived Scripts (in `archive/` folder)
@@ -213,6 +220,17 @@ Rscript -e "source('scripts/ErrMatrix/haplotype_error_workbench.R'); run_100_wit
    - Creates production-ready output files in specified directory
    - Generates both adaptive and smooth results in proper format
    - Expected runtime: ~1-2 hours per chromosome (19.5x faster than BASE.R)
+
+### Sanity-Check & Validation Tools (New)
+- Summary metrics across all rows:
+  ```bash
+  Rscript scripts/ErrMatrix/compare_adaptive_vs_reshaped.R <chr> <output_dir>
+  ```
+- Strict equality + CSV of mismatches:
+  ```bash
+  Rscript scripts/ErrMatrix/strict_compare_adapt_vs_reshaped.R <chr> <output_dir> 1e-10
+  ```
+Both scripts are hardened and will not abort on malformed rows.
 
 ### Future Development
 1. **Integration**: Consider integrating best features into production pipeline
