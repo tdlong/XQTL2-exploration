@@ -86,4 +86,8 @@ cat("Error matrix:\n")
 print(result$Err)
 cat("Names:", paste(result$Names, collapse=","), "\n")
 
+# Add the same scalar diagnostic as the single-position runner
+trace_Err <- tryCatch(sum(diag(result$Err), na.rm=TRUE), error=function(e) NA)
+cat("trace(Err):", format(trace_Err, digits=10), "\n")
+
 cat("\nDone.\n")
