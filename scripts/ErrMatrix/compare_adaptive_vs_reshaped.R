@@ -88,6 +88,12 @@ compute_metrics <- function(row) {
       names_match <- identical(No, Nr)
       has_names <- TRUE
     }
+    
+    # Debug: check names logic
+    if (row$pos == 4560000 && row$sample == "Rep01_W_F") {
+      cat("DEBUG: No is.character:", is.character(No), "Nr is.character:", is.character(Nr), "\n")
+      cat("DEBUG: has_names:", has_names, "names_match:", names_match, "\n")
+    }
 
     # Err metrics (coerce to matrices and verify names exist)
     if (!is.null(Eo)) Eo <- tryCatch(as.matrix(Eo), error=function(e) NULL)
