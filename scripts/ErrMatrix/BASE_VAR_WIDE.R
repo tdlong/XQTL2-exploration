@@ -712,9 +712,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   cat("Total operations:", total_operations, "\n")
   
   if (!debug && total_operations > 100) {
-    cat("This may take several hours to days. Progress will be shown every 100 operations.\n")
-    cat("Estimated time per operation: 2-5 seconds (varies by data complexity)\n")
-    cat("Estimated total time:", round(total_operations * 3.5 / 3600, 1), "hours\n\n")
+    cat("This may take several hours to days. Progress will be shown every 100 operations.\n\n")
   }
   
   # Run adaptive estimation with OPTIMIZED mapping - pre-subset data per position
