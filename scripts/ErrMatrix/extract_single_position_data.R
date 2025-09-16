@@ -77,6 +77,6 @@ cat("  Position:", testing_position, "\n")
 cat("  Sample:", sample_name, "\n")
 cat("  SNPs in window:", nrow(df4), "\n")
 cat("  Founders:", paste(founders, collapse=", "), "\n")
-cat("  h_cutoff:", parameter, "\n")
+cat("  h_cutoff:", h_cutoff, "\n")
 
 cat("\nDone.\n")
