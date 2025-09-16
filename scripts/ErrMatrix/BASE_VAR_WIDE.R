@@ -565,12 +565,12 @@ process_refalt_data <- function(refalt_file, founders) {
     ) %>%
     # Debug: check what columns exist
     { cat("Columns before select:", paste(names(.), collapse=", "), "\n"); . } %>%
-    select(-REF, -ALT)
+    dplyr::select(-REF, -ALT)
   
   # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
   founder_wide <- df3 %>%
     filter(name %in% founders) %>%
-    select(POS, name, freq) %>%
+    dplyr::select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
   quality_filtered_positions <- founder_wide %>%
