@@ -556,7 +556,9 @@ process_refalt_data <- function(refalt_file, founders) {
       name = str_sub(lab, 5)
     ) %>%
     select(-lab) %>%
+    { cat("After pivot_longer, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
     pivot_wider(names_from = RefAlt, values_from = count) %>%
+    { cat("After pivot_wider, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
     mutate(
       freq = REF / (REF + ALT),
       N = REF + ALT
