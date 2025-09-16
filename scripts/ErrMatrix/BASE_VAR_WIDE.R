@@ -13,6 +13,12 @@
 # This file is frozen to work with the cluster's dplyr version
 # DO NOT "modernize" or "fix" the dplyr syntax - it will break on the cluster
 #
+# MASS PACKAGE MASKING ISSUE:
+# limSolve loads MASS, which masks dplyr::select with MASS::select
+# MASS::select has different syntax and causes "unused arguments" errors
+# SOLUTION: Use dplyr::select() explicitly throughout this file
+# This prevents masking issues regardless of package loading order
+#
 # 
 # This file contains ALL functions needed to reproduce the complete workflow
 # that the SLURM script runs. It combines:
