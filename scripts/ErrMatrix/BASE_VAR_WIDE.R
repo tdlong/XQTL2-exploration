@@ -584,7 +584,7 @@ process_refalt_data <- function(refalt_file, founders) {
     filter(POS %in% quality_filtered_positions)
   
   # Convert to wide format before returning - ONE LINER OPTIMIZATION
-  df3 <- df3 %>% select(POS, name, freq) %>% pivot_wider(names_from = name, values_from = freq)
+  df3 <- df3 %>% dplyr::select(POS, name, freq) %>% pivot_wider(names_from = name, values_from = freq)
   
   cat("✓ Processed", nrow(df3), "rows for", ncol(df3)-1, "samples in WIDE format\n")
   return(df3)
