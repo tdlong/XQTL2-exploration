@@ -89,6 +89,12 @@ compute_metrics <- function(row) {
     if (is.matrix(Eo) && is.matrix(Er) && length(No) > 0) {
       rn <- rownames(Er); cn <- colnames(Er)
       names_in_Er <- !is.null(rn) && !is.null(cn) && all(No %in% rn) && all(No %in% cn)
+      # Debug: print first row details
+      if (row$pos == 4560000 && row$sample == "Rep01_W_F") {
+        cat("DEBUG: Eo is.matrix:", is.matrix(Eo), "Er is.matrix:", is.matrix(Er), "\n")
+        cat("DEBUG: No length:", length(No), "rn length:", length(rn), "cn length:", length(cn), "\n")
+        cat("DEBUG: names_in_Er:", names_in_Er, "\n")
+      }
       if (names_in_Er) {
         ErA <- Er[No, No, drop = FALSE]
         trace_o <- sum(diag(Eo), na.rm = TRUE)
