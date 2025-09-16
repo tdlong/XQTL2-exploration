@@ -10,8 +10,8 @@ step <- 10000  # 10kb steps
 # Window size comes from command line; keep commented here
 # size <- 50000
 
-# Clustering parameters (used for fixed-window hierarchical clustering)
-h_cutoff <- 6
+# NOTE: In adaptive mode, h_cutoff is provided via CLI/SLURM (parameter arg).
+# Do not define h_cutoff here to avoid ambiguity.
 
 # Samples to process (select subset from large REFALT files)
 # Full 60-sample experiment

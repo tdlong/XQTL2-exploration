@@ -27,5 +27,6 @@ Interpretation:
 - If hashes differ: fix the pipeline so the exact same payload reaches the function.
 
 Notes:
+- In adaptive mode, h_cutoff MUST come from CLI/SLURM (third argument). Parameter files must not define h_cutoff.
 - We avoid changing production logic; debug uses explicit dplyr::select at call-sites to avoid MASS masking.
 - Keep trace(Err) as first-line diagnostic; it’s the signal we care about.
