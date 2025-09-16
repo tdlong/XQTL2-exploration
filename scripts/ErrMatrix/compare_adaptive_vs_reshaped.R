@@ -33,14 +33,18 @@ cat("Comparing:\n  orig:", orig_file, "\n  resh:", resh_file, "\n\n")
 orig <- readRDS(orig_file)
 resh <- readRDS(resh_file)
 
-# Reshaped has one row per CHROM/pos with list-of-lists by sample
-# Unnest reshaped to rows per sample
+# Both files need unnesting but in different ways
+# Original: unnest the list columns to get vectors/matrices
+orig_u <- orig %>%
+  tidyr::unnest(c(sample, Groups, Haps, Err, Names))
+
+# Reshaped: unnest the nested lists to get one row per sample
 dash_u <- resh %>%
   tidyr::unnest(c(sample, Groups, Haps, Err, Names))
 
 # Keep only present in both
 key_cols <- c("CHROM","pos","sample")
-orig_key <- orig %>% select(all_of(key_cols)) %>% mutate(in_orig = TRUE)
+orig_key <- orig_u %>% select(all_of(key_cols)) %>% mutate(in_orig = TRUE)
 dash_key <- dash_u %>% select(all_of(key_cols)) %>% mutate(in_resh = TRUE)
 keys <- full_join(orig_key, dash_key, by = key_cols)
 common <- keys %>% filter(in_orig == TRUE, in_resh == TRUE) %>% select(all_of(key_cols))
@@ -51,24 +55,24 @@ if (!is.na(limit_n) && limit_n > 0) {
   common <- head(common, limit_n)
 }
 
-cat("Total orig rows:", nrow(orig), " resh rows:", nrow(dash_u), " common (after limit):", nrow(common), "\n\n")
+cat("Total orig rows:", nrow(orig_u), " resh rows:", nrow(dash_u), " common (after limit):", nrow(common), "\n\n")
 
 # Join payloads for common rows
 dfc <- common %>%
-  left_join(orig, by = key_cols) %>%
+  left_join(orig_u, by = key_cols) %>%
   rename(Groups_o = Groups, Haps_o = Haps, Err_o = Err, Names_o = Names) %>%
   left_join(dash_u, by = key_cols) %>%
   rename(Groups_r = Groups, Haps_r = Haps, Err_r = Err, Names_r = Names)
 
 compute_metrics <- function(row) {
   tryCatch({
-    # Extract - handle the fact that we're passing a single-row tibble
-    Eo <- row$Err_o[[1]]
-    Er <- row$Err_r[[1]]
-    No <- row$Names_o[[1]]
-    Nr <- row$Names_r[[1]]
-    Ho <- row$Haps_o[[1]]
-    Hr <- row$Haps_r[[1]]
+    # Extract - both files are now unnested, so direct access
+    Eo <- row$Err_o
+    Er <- row$Err_r
+    No <- row$Names_o
+    Nr <- row$Names_r
+    Ho <- row$Haps_o
+    Hr <- row$Haps_r
     
     # Debug: check if we're getting the right structure
     if (row$pos == 4560000 && row$sample == "Rep01_W_F") {
