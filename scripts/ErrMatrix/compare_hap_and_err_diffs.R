@@ -58,15 +58,18 @@ results <- pairs %>%
         sum(abs(a - b))
       }
     ),
-    Err_diff = purrr::pmap_dbl(
+    Err_ratio = purrr::pmap_dbl(
       list(err_mat_adapt, err_mat_fixed),
       function(A, B) {
         if (is.null(A) || is.null(B)) return(NA_real_)
-        sum(diag(as.matrix(A))) - sum(diag(as.matrix(B)))
+        adapt_sum <- sum(diag(as.matrix(A)))
+        fixed_sum <- sum(diag(as.matrix(B)))
+        if (fixed_sum == 0) return(NA_real_)
+        adapt_sum / fixed_sum
       }
     )
   ) %>%
-  dplyr::select(pos, sample = sample_id, hap_diff, Err_diff) %>%
+  dplyr::select(pos, sample = sample_id, hap_diff, Err_ratio) %>%
   dplyr::arrange(pos, sample)
 
 readr::write_csv(results, "results_hap_err_diffs.csv")
@@ -85,13 +88,14 @@ ggplot2::ggsave("plot_hap_diff_by_pos.png", p1, width = 10, height = 6, dpi = 30
 cat("Saved plot_hap_diff_by_pos.png\n")
 
 p2 <- results %>%
-  ggplot2::ggplot(ggplot2::aes(x = pos, y = Err_diff, color = sample)) +
+  ggplot2::ggplot(ggplot2::aes(x = pos, y = Err_ratio, color = sample)) +
   ggplot2::geom_point(alpha = 0.9, size = 2) +
-  ggplot2::labs(title = "Signed diff of error-diagonal sums (adapt - fixed)", x = "Position", y = "Err_diff") +
+  ggplot2::geom_hline(yintercept = 1, linetype = "dashed", color = "red", alpha = 0.7) +
+  ggplot2::labs(title = "Ratio of error-diagonal sums (adapt / fixed)", x = "Position", y = "Err_ratio") +
   ggplot2::theme_minimal() +
   ggplot2::theme(legend.position = "none")
-ggplot2::ggsave("plot_err_diff_by_pos.png", p2, width = 10, height = 6, dpi = 300)
-cat("Saved plot_err_diff_by_pos.png\n")
+ggplot2::ggsave("plot_err_ratio_by_pos.png", p2, width = 10, height = 6, dpi = 300)
+cat("Saved plot_err_ratio_by_pos.png\n")
 
 cat("Done.\n")
 

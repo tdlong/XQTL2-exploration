@@ -745,7 +745,7 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
           founders = founders,
           h_cutoff = parameter,
           method = method,
-          window_size_bp = NULL,
+          window_size_bp = NULL,productio
           chr = chr,
           verbose = debug_level
         )
