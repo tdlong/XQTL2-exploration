@@ -3,7 +3,7 @@
 # Simple extraction script for server execution
 # Run this on the server to extract the testing positions
 
-library(dplyr)
+library(tidyverse)
 
 # Define the testing positions
 testing_positions <- c(19780000, 19790000, 19800000, 19810000, 19820000, 19830000, 19840000)
@@ -25,8 +25,8 @@ if (is.list(adapt_data) && !is.data.frame(adapt_data)) {
   }
 }
 adapt_extracted <- adapt_data %>%
-  filter(pos %in% testing_positions) %>%
-  mutate(method = "adapt")
+  dplyr::filter(pos %in% testing_positions) %>%
+  dplyr::mutate(method = "adapt")
 
 # Extract fixed data
 cat("Loading fixed data...\n")
@@ -41,12 +41,12 @@ if (is.list(fixed_data) && !is.data.frame(fixed_data)) {
   }
 }
 fixed_extracted <- fixed_data %>%
-  filter(pos %in% testing_positions) %>%
-  mutate(method = "fixed")
+  dplyr::filter(pos %in% testing_positions) %>%
+  dplyr::mutate(method = "fixed")
 
 # Combine and save
-combined <- bind_rows(adapt_extracted, fixed_extracted) %>%
-  arrange(pos, method)
+combined <- dplyr::bind_rows(adapt_extracted, fixed_extracted) %>%
+  dplyr::arrange(pos, method)
 
 saveRDS(combined, "testing_positions_comparison.rds")
 

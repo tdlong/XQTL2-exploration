@@ -5,8 +5,7 @@
 # from both adaptive and fixed window methods for comparison
 
 # Load required libraries
-library(dplyr)
-library(readr)
+library(tidyverse)
 
 # Define the testing positions (every 10000 on the 10000)
 testing_positions <- c(19780000, 19790000, 19800000, 19810000, 19820000, 19830000, 19840000)
@@ -68,22 +67,22 @@ extract_positions <- function(file_path, method_name) {
 }
 
 # Extract data from both methods
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 cat("EXTRACTING ADAPTIVE METHOD DATA\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 adapt_data <- extract_positions(adapt_file, "adapt")
 
 cat("\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 cat("EXTRACTING FIXED METHOD DATA\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 fixed_data <- extract_positions(fixed_file, "fixed")
 
 # Combine the data
 cat("\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 cat("COMBINING DATA\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 
 # Check if both datasets have the same columns (excluding method)
 adapt_cols <- names(adapt_data)[names(adapt_data) != "method"]
@@ -111,18 +110,18 @@ cat("Positions:", paste(unique(combined_data$pos), collapse = ", "), "\n")
 
 # Save the combined data
 cat("\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 cat("SAVING RESULTS\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 
 saveRDS(combined_data, output_file)
 cat("Saved combined data to:", output_file, "\n")
 
 # Display summary
 cat("\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 cat("SUMMARY\n")
-cat("=" %R% 60, "\n")
+cat(strrep("=", 60), "\n")
 
 # Show data structure
 cat("Data structure:\n")
