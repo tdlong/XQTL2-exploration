@@ -291,9 +291,39 @@ process/ZINC2_h10/
     └── R.haps.chrX.out.rds                     # Reshaped smooth
 ```
 
-**Input Files**: RefAlt files are read directly from `process/ZINC2/RefAlt.chrX.txt` (no symlinks needed)
+**Input Files**: 
+- RefAlt files are read directly from the original data directory (no symlinks needed)
+- **Automatic detection**: Script extracts data directory from output directory by removing `_h{parameter}` suffix
+- **Examples**:
+  - `process/ZINC2_h10` → reads from `process/ZINC2/RefAlt.chrX.txt`
+  - `process/JUICE_h10` → reads from `process/JUICE/RefAlt.chrX.txt`
+  - `process/MYDATA_h5` → reads from `process/MYDATA/RefAlt.chrX.txt`
 
 **Expected Results**: With the bug fixes, `h_cutoff=10` should now produce the lowest error estimates (3.66x ratio vs fixed method) across all chromosomes.
+
+### File Structure Requirements
+
+**Required Input Structure**:
+```
+process/
+├── ZINC2/                          # Original data directory
+│   ├── RefAlt.chrX.txt
+│   ├── RefAlt.chr2L.txt
+│   ├── RefAlt.chr2R.txt
+│   ├── RefAlt.chr3L.txt
+│   └── RefAlt.chr3R.txt
+└── JUICE/                          # Another dataset
+    ├── RefAlt.chrX.txt
+    ├── RefAlt.chr2L.txt
+    ├── RefAlt.chr2R.txt
+    ├── RefAlt.chr3L.txt
+    └── RefAlt.chr3R.txt
+```
+
+**Output Directory Naming Convention**:
+- Must follow pattern: `{data_directory}_h{parameter}`
+- Examples: `process/ZINC2_h10`, `process/JUICE_h10`, `process/MYDATA_h5`
+- Script automatically detects data directory by removing `_h{parameter}` suffix
 
 ## Files Created and Organized
 
