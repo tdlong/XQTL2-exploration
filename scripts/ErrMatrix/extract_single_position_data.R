@@ -29,8 +29,8 @@ cat("h_cutoff:", h_cutoff, "\n\n")
 source(param_file)
 if (!exists("founders")) stop("Param file must define 'founders'")
 
-# Load the working production functions
-source("scripts/ErrMatrix/BASE_VAR_WIDE.R")
+# Load only the df3 builder copied from production
+source("scripts/ErrMatrix/tools/df3_builders.R")
 
 # Load RefAlt data (exact same as production)
 refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
