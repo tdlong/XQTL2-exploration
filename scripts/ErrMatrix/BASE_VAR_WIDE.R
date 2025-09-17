@@ -709,14 +709,9 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   # Load parameters
   source(param_file)
   
-  # Load RefAlt data - look in original data directory, not output directory
-  # Extract dataset name from output_dir (e.g., "process/ZINC2_h10" -> "ZINC2")
-  dataset_name <- basename(dirname(output_dir))
-  if (grepl("_h[0-9]+$", dataset_name)) {
-    # Remove _h10 suffix to get original dataset name
-    dataset_name <- gsub("_h[0-9]+$", "", dataset_name)
-  }
-  data_dir <- file.path("process", dataset_name)
+  # Load RefAlt data - look in original data directory
+  # Extract data directory from output_dir by removing the _h{parameter} suffix
+  data_dir <- gsub("_h[0-9]+$", "", output_dir)
   refalt_file <- file.path(data_dir, paste0("RefAlt.", chr, ".txt"))
   if (!file.exists(refalt_file)) {
     stop("RefAlt file not found: ", refalt_file)
