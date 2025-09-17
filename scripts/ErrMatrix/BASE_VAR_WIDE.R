@@ -856,6 +856,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   }
   
   # Save adaptive results - long format files go directly in output directory
+  # Create output directory if it doesn't exist
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   adaptive_file <- file.path(output_dir, paste0("adaptive_window_h", parameter, "_results_", chr, ".RDS"))
   saveRDS(adaptive_results, adaptive_file)
   
