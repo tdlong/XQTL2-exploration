@@ -247,6 +247,59 @@ The issue is likely that **our extractor is not replicating the exact same data 
 - ✅ **Committed and pushed** to repository
 - ✅ **Ready for production use** with improved error estimates
 
+### Additional Fix: Output Directory Structure ✅
+
+**Problem**: The output directory structure was hardcoded to use `adapt_h4` and `smooth_h4` regardless of the actual `h_cutoff` parameter value.
+
+**Solution**: Updated the production code to use the actual parameter value in directory names.
+
+**Before Fix**:
+```
+process/ZINC2_adapt_h10/haplotype_results_list_format/adapt_h4/R.haps.chrX.out.rds
+```
+(Even with `h_cutoff=10`, files went to `adapt_h4` directory)
+
+**After Fix**:
+```
+process/ZINC2_adapt_h10/haplotype_results_list_format/adapt_h10/R.haps.chrX.out.rds
+process/ZINC2_adapt_h10/haplotype_results_list_format/smooth_h10/R.haps.chrX.out.rds
+```
+
+**Changes Made**:
+- Updated directory creation to use `paste0("adapt_h", parameter)` and `paste0("smooth_h", parameter)`
+- Updated file naming to use `paste0("smooth_h", parameter, "_results_", chr, ".RDS")`
+- Updated `run_smoothing()` function to accept `parameter` argument
+- Updated all output messages to show actual parameter value
+
+**Result**: Output directory structure now correctly reflects the actual `h_cutoff` parameter value, making the file organization much more logical and clear.
+
+### How to Run Whole Genome Scan with h_cutoff=10
+
+**Command**:
+```bash
+sbatch scripts/ErrMatrix/run_all_chroms.slurm helpfiles/ZINC2_haplotype_parameters.R process/ZINC2_adapt_h10 10
+```
+
+**Output Structure**:
+```
+process/ZINC2_adapt_h10/
+├── haplotype_results_list_format/
+│   ├── adapt_h10/
+│   │   ├── R.haps.chrX.out.rds
+│   │   ├── R.haps.chr2L.out.rds
+│   │   ├── R.haps.chr2R.out.rds
+│   │   ├── R.haps.chr3L.out.rds
+│   │   └── R.haps.chr3R.out.rds
+│   └── smooth_h10/
+│       ├── R.haps.chrX.out.rds
+│       ├── R.haps.chr2L.out.rds
+│       ├── R.haps.chr2R.out.rds
+│       ├── R.haps.chr3L.out.rds
+│       └── R.haps.chr3R.out.rds
+```
+
+**Expected Results**: With the bug fixes, `h_cutoff=10` should now produce the lowest error estimates (3.66x ratio vs fixed method) across all chromosomes.
+
 ## Files Created and Organized
 
 ### Scripts
