@@ -277,26 +277,21 @@ process/ZINC2_adapt_h10/haplotype_results_list_format/smooth_h10/R.haps.chrX.out
 
 **Command**:
 ```bash
-sbatch scripts/ErrMatrix/run_all_chroms.slurm helpfiles/ZINC2_haplotype_parameters.R process/ZINC2_adapt_h10 10
+sbatch scripts/ErrMatrix/run_all_chroms.slurm helpfiles/ZINC2_haplotype_parameters.R process/ZINC2_h10 10
 ```
 
-**Output Structure**:
+**Output Structure** (4 files per chromosome):
 ```
-process/ZINC2_adapt_h10/
-├── haplotype_results_list_format/
-│   ├── adapt_h10/
-│   │   ├── R.haps.chrX.out.rds
-│   │   ├── R.haps.chr2L.out.rds
-│   │   ├── R.haps.chr2R.out.rds
-│   │   ├── R.haps.chr3L.out.rds
-│   │   └── R.haps.chr3R.out.rds
-│   └── smooth_h10/
-│       ├── R.haps.chrX.out.rds
-│       ├── R.haps.chr2L.out.rds
-│       ├── R.haps.chr2R.out.rds
-│       ├── R.haps.chr3L.out.rds
-│       └── R.haps.chr3R.out.rds
+process/ZINC2_h10/
+├── adaptive_window_h10_results_chrX.RDS        # Long format adaptive
+├── smooth_h10_results_chrX.RDS                 # Long format smooth
+├── adapt_h10/
+│   └── R.haps.chrX.out.rds                     # Reshaped adaptive
+└── smooth_h10/
+    └── R.haps.chrX.out.rds                     # Reshaped smooth
 ```
+
+**Input Files**: RefAlt files are read directly from `process/ZINC2/RefAlt.chrX.txt` (no symlinks needed)
 
 **Expected Results**: With the bug fixes, `h_cutoff=10` should now produce the lowest error estimates (3.66x ratio vs fixed method) across all chromosomes.
 
