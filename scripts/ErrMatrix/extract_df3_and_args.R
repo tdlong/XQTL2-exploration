@@ -38,7 +38,10 @@ cat("window_size_bp:", window_size_bp, "\n\n")
 # Load analysis parameters (founders, h_cutoff, etc.)
 source(param_file)
 if (!exists("founders")) stop("Param file must define 'founders'")
-if (!exists("h_cutoff")) stop("Param file must define 'h_cutoff'")
+if (!exists("h_cutoff")) {
+  h_cutoff <- 4  # Default value used throughout codebase
+  cat("h_cutoff not found in param file, using default:", h_cutoff, "\n")
+}
 
 # Use the exact df3 constructor from BASE_VAR_WIDE.R
 base_script <- "scripts/ErrMatrix/BASE_VAR_WIDE.R"
