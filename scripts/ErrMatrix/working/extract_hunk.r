@@ -4,43 +4,48 @@ suppressPackageStartupMessages({
   library(tidyverse)
 })
 
-# Include process_refalt_data function so script is self-contained
 process_refalt_data <- function(refalt_file, founders) {
+  # Load RefAlt data and process into df3 format - EXACT from working code
   cat("Loading RefAlt data from:", refalt_file, "\n")
+  
   refalt_data <- read.table(refalt_file, header = TRUE, stringsAsFactors = FALSE)
   
+  # Process into df3 format (one row per sample per position) - EXACT from working code
   df3 <- refalt_data %>%
     pivot_longer(c(-CHROM, -POS), names_to = "lab", values_to = "count") %>%
     mutate(
-      RefAlt = stringr::str_sub(lab, 1, 3),
-      name = stringr::str_sub(lab, 5)
+      RefAlt = str_sub(lab, 1, 3),
+      name = str_sub(lab, 5)
     ) %>%
-    select(-lab) %>%
+    dplyr::select(-lab) %>%
+    { cat("After pivot_longer, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
     pivot_wider(names_from = RefAlt, values_from = count) %>%
+    { cat("After pivot_wider, columns:", paste(names(.), collapse=", "), "\n"); . } %>%
     mutate(
-      freq = ALT / (REF + ALT),
-      total_count = REF + ALT
+      freq = REF / (REF + ALT),
+      N = REF + ALT
     ) %>%
-    select(-REF, -ALT)
+    # Debug: check what columns exist
+    { cat("Columns before select:", paste(names(.), collapse=", "), "\n"); . } %>%
+    dplyr::select(-REF, -ALT)
   
+  # Apply quality filter: keep rows where ALL founders are fixed (< 3% or > 97%)
   founder_wide <- df3 %>%
     filter(name %in% founders) %>%
     dplyr::select(POS, name, freq) %>%
     pivot_wider(names_from = name, values_from = freq)
   
   quality_filtered_positions <- founder_wide %>%
-    mutate(across(all_of(founders), ~ .x)) %>%
-    rowwise() %>%
-    mutate(
-      zeros = sum(is.na(c_across(all_of(founders))) | is.infinite(c_across(all_of(founders))))
+    filter(
+      if_all(all_of(founders), ~ is.na(.x) | .x < 0.03 | .x > 0.97)
     ) %>%
-    ungroup() %>%
-    filter(zeros == 0) %>%
     pull(POS)
   
+  # Filter to quality positions and include sample data
   df3 <- df3 %>%
     filter(POS %in% quality_filtered_positions)
   
+  # Convert to wide format before returning - ONE LINER OPTIMIZATION
   df3 <- df3 %>% dplyr::select(POS, name, freq) %>% pivot_wider(names_from = name, values_from = freq)
   
   cat("✓ Processed", nrow(df3), "rows for", ncol(df3)-1, "samples in WIDE format\n")
