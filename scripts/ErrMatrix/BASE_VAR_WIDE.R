@@ -709,8 +709,15 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
   # Load parameters
   source(param_file)
   
-  # Load RefAlt data
-  refalt_file <- file.path(output_dir, paste0("RefAlt.", chr, ".txt"))
+  # Load RefAlt data - look in original data directory, not output directory
+  # Extract dataset name from output_dir (e.g., "process/ZINC2_h10" -> "ZINC2")
+  dataset_name <- basename(dirname(output_dir))
+  if (grepl("_h[0-9]+$", dataset_name)) {
+    # Remove _h10 suffix to get original dataset name
+    dataset_name <- gsub("_h[0-9]+$", "", dataset_name)
+  }
+  data_dir <- file.path("process", dataset_name)
+  refalt_file <- file.path(data_dir, paste0("RefAlt.", chr, ".txt"))
   if (!file.exists(refalt_file)) {
     stop("RefAlt file not found: ", refalt_file)
   }
@@ -853,11 +860,8 @@ run_adaptive_estimation <- function(chr, method, parameter, output_dir, param_fi
                 total_time/60, total_operations/total_time))
   }
   
-  # Save adaptive results
-  list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
-  dir.create(list_results_dir, recursive = TRUE, showWarnings = FALSE)
-  
-  adaptive_file <- file.path(list_results_dir, paste0("adaptive_window_h4_results_", chr, ".RDS"))
+  # Save adaptive results - long format files go directly in output directory
+  adaptive_file <- file.path(output_dir, paste0("adaptive_window_h", parameter, "_results_", chr, ".RDS"))
   saveRDS(adaptive_results, adaptive_file)
   
   cat("✓ Adaptive estimation complete:", nrow(adaptive_results), "results\n")
@@ -1010,22 +1014,16 @@ old_run_smoothing <- function(chr, param_file, output_dir, adaptive_results, ver
       .groups = "drop"
     )
   
-  # Save results
-  # CRITICAL: Output file formats and locations are HARDWIRED and CANNOT be changed
-  # The downstream pipeline expects these exact file names and structures:
-  # - adaptive_window_h4_results_<chr>.RDS (original format)
-  # - smooth_h4_results_<chr>.RDS (original format)  
-  # - smooth_h{parameter}/R.haps.<chr>.out.rds (reshaped format)
-  # - adapt_h{parameter}/R.haps.<chr>.out.rds (reshaped format)
-  # Any changes to file names or structures will break the pipeline
-  list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
-  smooth_dir <- file.path(list_results_dir, paste0("smooth_h", parameter))
-  adapt_dir  <- file.path(list_results_dir, paste0("adapt_h", parameter))
+  # Save results - NEW STRUCTURE: long format files in main directory, reshaped in subdirectories
+  # Long format files go directly in output directory
+  # Reshaped files go in subdirectories
+  smooth_dir <- file.path(output_dir, paste0("smooth_h", parameter))
+  adapt_dir  <- file.path(output_dir, paste0("adapt_h", parameter))
   dir.create(smooth_dir, recursive = TRUE, showWarnings = FALSE)
   dir.create(adapt_dir,  recursive = TRUE, showWarnings = FALSE)
   
   # Save smooth_h{parameter} in both formats
-  smooth_original_file <- file.path(list_results_dir, paste0("smooth_h", parameter, "_results_", chr, ".RDS"))
+  smooth_original_file <- file.path(output_dir, paste0("smooth_h", parameter, "_results_", chr, ".RDS"))
   smooth_reshaped_file <- file.path(smooth_dir, paste0("R.haps.", chr, ".out.rds"))
   
   # Save adaptive_h{parameter} in reshaped format
@@ -1190,14 +1188,13 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, paramet
       )
     }, .groups = "drop")
 
-  # Save results
-  list_results_dir <- file.path(output_dir, "haplotype_results_list_format")
-  smooth_dir <- file.path(list_results_dir, paste0("smooth_h", parameter))
-  adapt_dir  <- file.path(list_results_dir, paste0("adapt_h", parameter))
+  # Save results - NEW STRUCTURE: long format files in main directory, reshaped in subdirectories
+  smooth_dir <- file.path(output_dir, paste0("smooth_h", parameter))
+  adapt_dir  <- file.path(output_dir, paste0("adapt_h", parameter))
   dir.create(smooth_dir, recursive = TRUE, showWarnings = FALSE)
   dir.create(adapt_dir,  recursive = TRUE, showWarnings = FALSE)
 
-  smooth_original_file <- file.path(list_results_dir, paste0("smooth_h", parameter, "_results_", chr, ".RDS"))
+  smooth_original_file <- file.path(output_dir, paste0("smooth_h", parameter, "_results_", chr, ".RDS"))
   smooth_reshaped_file <- file.path(smooth_dir, paste0("R.haps.", chr, ".out.rds"))
   adaptive_reshaped_file <- file.path(adapt_dir, paste0("R.haps.", chr, ".out.rds"))
 
@@ -1221,9 +1218,9 @@ run_smoothing <- function(chr, param_file, output_dir, adaptive_results, paramet
   saveRDS(adaptive_data_reshaped, adaptive_reshaped_file)
 
   cat("✓ Smoothing complete:", nrow(smooth_results), "results\n")
-  cat("✓ Saved smooth_h4 (original) to:", basename(smooth_original_file), "\n")
-  cat("✓ Saved smooth_h4 (reshaped) to:", basename(smooth_reshaped_file), "\n")
-  cat("✓ Saved adaptive_h4 (reshaped) to:", basename(adaptive_reshaped_file), "\n")
+  cat("✓ Saved smooth_h", parameter, " (original) to:", basename(smooth_original_file), "\n")
+  cat("✓ Saved smooth_h", parameter, " (reshaped) to:", basename(smooth_reshaped_file), "\n")
+  cat("✓ Saved adaptive_h", parameter, " (reshaped) to:", basename(adaptive_reshaped_file), "\n")
 
   return(smooth_results)
 }
