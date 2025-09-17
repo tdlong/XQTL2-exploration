@@ -385,7 +385,7 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
 }
 
 # Load hunk data
-hunk_file <- "single_position_data_chr3R_19780000_Rep01_W_F_h4.rds"
+hunk_file <- "hunk_data_chr3R_19780000_Rep01_W_F_h4.rds"
 if (!file.exists(hunk_file)) {
   stop("Hunk data file not found: ", hunk_file)
 }
