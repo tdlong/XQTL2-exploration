@@ -5,7 +5,7 @@
 #SBATCH --job-name=base_var_wide_all
 #SBATCH --output=logs/base_var_wide_all_%A_%a.out
 #SBATCH --error=logs/base_var_wide_all_%A_%a.err
-#SBATCH --time=12:00:00
+#SBATCH --time=6:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --array=1-5
