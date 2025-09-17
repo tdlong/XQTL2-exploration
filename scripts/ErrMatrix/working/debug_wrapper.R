@@ -195,16 +195,39 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
       current_constraints <- rbind(current_constraints, row)
       current_constraint_values <- c(current_constraint_values, sum(res$X[idx]))
     }
+    
+    # Check for linear dependence before adding constraints
     if (!is.null(current_constraints)) {
-      accumulated_constraints <- current_constraints
-      accumulated_constraint_values <- current_constraint_values
-      if (verbose >= 2) {
-        built_ct <- nrow(current_constraints)
-        # Map values to ordered group ids
-        ordered_gids <- sort(unique(groups))
-        group_values <- vapply(ordered_gids, function(gid){
-          sum(res$X[which(groups == gid)])
-        }, numeric(1))
+      # Check if new constraints are linearly independent from existing ones
+      if (!is.null(accumulated_constraints)) {
+        # Combine existing and new constraints
+        E_combined <- rbind(accumulated_constraints, current_constraints)
+        
+        # Check rank deficiency - if rank < nrow, there's linear dependence
+        if (qr(E_combined)$rank < nrow(E_combined)) {
+          if (verbose >= 2) {
+            cat("    Warning: Linear dependence detected, skipping constraint addition\n")
+            cat("    Existing constraints:", nrow(accumulated_constraints), "\n")
+            cat("    New constraints:", nrow(current_constraints), "\n")
+            cat("    Combined rank:", qr(E_combined)$rank, "vs rows:", nrow(E_combined), "\n")
+          }
+          # Skip adding these constraints to avoid numerical issues
+          current_constraints <- NULL
+          current_constraint_values <- NULL
+        }
+      }
+      
+      if (!is.null(current_constraints)) {
+        accumulated_constraints <- current_constraints
+        accumulated_constraint_values <- current_constraint_values
+        if (verbose >= 2) {
+          built_ct <- nrow(current_constraints)
+          # Map values to ordered group ids
+          ordered_gids <- sort(unique(groups))
+          group_values <- vapply(ordered_gids, function(gid){
+            sum(res$X[which(groups == gid)])
+          }, numeric(1))
+        }
       }
     } else {
       accumulated_constraints <- NULL
@@ -262,6 +285,14 @@ est_haps_var <- function(testing_position, sample_name, df3, founders, h_cutoff,
     # Update progressive V using pooled model for this window
     pc <- pooled_cov(founder_matrix_clean, sample_freqs_clean, groups)
     cov_pool <- pc$cov; pool_members <- pc$members
+    
+    # Skip V matrix update if only 1 group - no meaningful variance estimation possible
+    if (n_groups == 1) {
+      if (verbose >= 2) {
+        cat("    Warning: Only 1 group, skipping V matrix update (no meaningful variance estimation)\n")
+      }
+      next  # Skip this window - no variance estimation possible with single group
+    }
     
     # Debug: Check if cov_pool is a proper matrix
     if (!is.matrix(cov_pool)) {

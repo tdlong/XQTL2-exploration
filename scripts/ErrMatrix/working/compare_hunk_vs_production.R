@@ -8,10 +8,10 @@ suppressPackageStartupMessages({
 })
 
 # Load the estimator function
-source("scripts/ErrMatrix/archive/BASE_VAR_WIDE.R")
+source("scripts/ErrMatrix/working/est_haps_var_only.R")
 
 # Load hunk data (from extract_hunk.r)
-hunk_file <- "hunk_data_chr3R_19780000_Rep01_W_F_h4.rds"
+hunk_file <- "single_position_data_chr3R_19780000_Rep01_W_F_h4.rds"
 if (!file.exists(hunk_file)) {
   stop("Hunk data file not found: ", hunk_file)
 }

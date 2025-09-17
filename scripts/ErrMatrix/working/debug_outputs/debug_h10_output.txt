@@ -1,0 +1,84 @@
+Loaded hunk data with 7619 rows
+
+=== LOADING HUNK DATA ===
+df3 dimensions: 7619 x 69 
+Args: testing_position, sample_name, founders, h_cutoff, method, window_size_bp, chr, verbose 
+
+=== RUNNING PRODUCTION ESTIMATOR WITH MAX VERBOSITY ===
+=== ADVANCED HAPLOTYPE ESTIMATION: h_cutoff=4, pos=19,780,000, sample=Rep01_W_F ===
+  Window 10kb: pos 19775000-19785000window_snp=10000  n_snps=105    n_groups=7   carried=0   built=7 
+B1 | B2 | B3 | B4+B7 | B5 | B6 | AB8
+19 |  1 |  2 |    24 |  8 |  8 |  39
+V (signed covariances, sci 2d+exp; diag no sign):
+ 40-4 -35-5 +24-5   NA  -21-5 -16-4   NA  +13-4
+-35-5  64-4 -25-4   NA  -49-4 -14-4   NA  +20-4
++24-5 -25-4  87-4   NA  +25-4 -30-4   NA  -56-4
+  NA    NA    NA    NA    NA    NA    NA    NA 
+-21-5 -49-4 +25-4   NA   10-3 -81-5   NA  -69-4
+-16-4 -14-4 -30-4   NA  -81-5  62-4   NA  +21-5
+  NA    NA    NA    NA    NA    NA    NA    NA 
++13-4 +20-4 -56-4   NA  -69-4 +21-5   NA   12-3
+  Window 20kb: pos 19770000-19790000    No improvement; continue
+  Window 50kb: pos 19755000-19805000    Carried over 7 constraints
+window_snp=50000  n_snps=647    n_groups=8   carried=7   built=8 
+B1 | B2 | B3 | B4 | B5 | B6 | B7 | AB8
+19 |  1 |  2 | 17 |  8 |  8 |  6 |  39
+V (signed covariances, sci 2d+exp; diag no sign):
+ 40-4 -35-5 +24-5 -11-5 -21-5 -16-4 -86-6 +13-4
+-35-5  64-4 -25-4 -18-5 -49-4 -14-4 -42-6 +20-4
++24-5 -25-4  87-4 +12-6 +25-4 -30-4 -23-5 -56-4
+-11-5 -18-5 +12-6  11-4 -21-6 +25-6 -77-5 -17-6
+-21-5 -49-4 +25-4 -21-6  10-3 -81-5 -44-6 -69-4
+-16-4 -14-4 -30-4 +25-6 -81-5  62-4 -76-6 +21-5
+-86-6 -42-6 -23-5 -77-5 -44-6 -76-6  13-4 -51-6
++13-4 +20-4 -56-4 -17-6 -69-4 +21-5 -51-6  12-3
+    All founders distinguished; stop
+
+=== FINAL RESULT ===
+Groups: 1, 2, 3, 4, 5, 6, 7, 8 
+Haps: 0.185512, 0.009649, 0.019621, 0.171110, 0.081301, 0.079877, 0.064186, 0.388745 
+Error matrix diagonal sum: 0.005053485 
+Error matrix diagonal: 4.01e-04, 6.44e-04, 8.68e-04, 1.06e-04, 1.05e-03, 6.23e-04, 1.30e-04, 1.24e-03 
+
+Saved debug result to: debug_result_chr3R_19780000_Rep01_W_F.rds
+=== RUNNING DEBUG WITH H_CUTOFF=10 ===
+=== ADVANCED HAPLOTYPE ESTIMATION: h_cutoff=10, pos=19,780,000, sample=Rep01_W_F ===
+  Window 10kb: pos 19775000-19785000window_snp=10000  n_snps=105    n_groups=1   carried=0   built=1 
+B1+B2+B3+B4+B5+B6+B7+AB8
+                     100
+V (signed covariances, sci 2d+exp; diag no sign):
+ 10+0   NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  Window 20kb: pos 19770000-19790000    Carried over 1 constraints
+window_snp=20000  n_snps=221    n_groups=3   carried=1   built=3 
+B1 | B2+B4+B7 | B3+B5+B6+AB8
+21 |       32 |           48
+V (signed covariances, sci 2d+exp; diag no sign):
+ 10+0   NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  NA    NA    NA    NA    NA    NA    NA    NA 
+  Window 50kb: pos 19755000-19805000    Carried over 3 constraints
+window_snp=50000  n_snps=647    n_groups=8   carried=3   built=8 
+B1 | B2 | B3 | B4 | B5 | B6 | B7 | AB8
+21 |  6 |  3 | 17 |  9 |  9 |  9 |  26
+V (signed covariances, sci 2d+exp; diag no sign):
+ 10+0 +28-6 +88-6 -11-5 -61-6 -17-5 -86-6 -30-5
++28-6  60-5 -99-6 -18-5 -21-5 -66-6 -42-6 -27-6
++88-6 -99-6  13-4 +12-6 -37-5 -41-5 -23-5 -25-5
+-11-5 -18-5 +12-6  11-4 -21-6 +25-6 -77-5 -17-6
+-61-6 -21-5 -37-5 -21-6  95-5 -12-5 -44-6 -12-5
+-17-5 -66-6 -41-5 +25-6 -12-5  92-5 -76-6 -10-5
+-86-6 -42-6 -23-5 -77-5 -44-6 -76-6  13-4 -51-6
+-30-5 -27-6 -25-5 -17-6 -12-5 -10-5 -51-6  87-5
+    All founders distinguished; stop
