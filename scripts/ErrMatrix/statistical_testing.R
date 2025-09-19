@@ -227,6 +227,11 @@ cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
 hap_analysis <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   arrange(pos) %>%
+  mutate(
+    hap_freqs_C = map(hap_freqs_C, ~ .x[[1]]),
+    hap_freqs_Z = map(hap_freqs_Z, ~ .x[[1]]),
+    hap_diff = map(hap_diff, ~ .x[[1]])
+  ) %>%
   select(pos, hap_freqs_C, hap_freqs_Z, hap_diff)
 
 # Calculate changes between adjacent positions
