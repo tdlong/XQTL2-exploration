@@ -106,3 +106,27 @@ h4_compact <- h4_results %>%
   select(pos, B1 = avg_diff_B1, B2 = avg_diff_B2, B3 = avg_diff_B3, B4 = avg_diff_B4, 
          B5 = avg_diff_B5, B6 = avg_diff_B6, B7 = avg_diff_B7, B8 = avg_diff_AB8)
 print(h4_compact, n = Inf, width = Inf)
+
+# Calculate average absolute change between adjacent positions
+calculate_oscillation <- function(data) {
+  data %>%
+    arrange(pos) %>%
+    summarise(
+      B1 = mean(abs(B1 - lag(B1)), na.rm = TRUE),
+      B2 = mean(abs(B2 - lag(B2)), na.rm = TRUE),
+      B3 = mean(abs(B3 - lag(B3)), na.rm = TRUE),
+      B4 = mean(abs(B4 - lag(B4)), na.rm = TRUE),
+      B5 = mean(abs(B5 - lag(B5)), na.rm = TRUE),
+      B6 = mean(abs(B6 - lag(B6)), na.rm = TRUE),
+      B7 = mean(abs(B7 - lag(B7)), na.rm = TRUE),
+      B8 = mean(abs(B8 - lag(B8)), na.rm = TRUE)
+    ) %>%
+    round(1)
+}
+
+h10_oscillation <- calculate_oscillation(h10_compact)
+h4_oscillation <- calculate_oscillation(h4_compact)
+
+cat("\\n=== AVERAGE ABSOLUTE CHANGE BETWEEN ADJACENT POSITIONS ===\\n")
+cat("H10:", paste(h10_oscillation, collapse = " "), "\\n")
+cat("H4: ", paste(h4_oscillation, collapse = " "), "\\n")
