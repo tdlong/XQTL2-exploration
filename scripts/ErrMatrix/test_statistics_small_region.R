@@ -21,20 +21,21 @@ test_data <- reshaped_data %>%
 cat("=== STATISTICAL TESTING FOR SMALL REGION ===\n")
 cat("Testing", nrow(test_data), "positions in region 20,000,000-20,200,000\n\n")
 
+# Get sample names from the first position
+sample_names <- test_data$sample[[1]]
+cat("Sample names:", paste(sample_names, collapse = ", "), "\n\n")
+
 # Create a simple design matrix for our samples
 # Based on sample names: Rep01_W_M, Rep01_Z_M, etc.
-design_df <- test_data %>%
-  select(sample) %>%
-  distinct() %>%
-  mutate(
-    bam = sample,
-    TRT = ifelse(str_detect(sample, "_W_"), "W", "Z"),
-    REP = str_extract(sample, "Rep\\d+"),
-    REPrep = str_extract(sample, "Rep\\d+"),
-    Num = 100,  # Assume 100 flies per sample
-    Proportion = ifelse(TRT == "Z", 0.5, NA)  # 50% selection for Z treatment
-  ) %>%
-  filter(str_detect(sample, "_M"))  # Only males
+design_df <- data.frame(
+  bam = sample_names,
+  TRT = ifelse(str_detect(sample_names, "_W_"), "W", "Z"),
+  REP = str_extract(sample_names, "Rep\\d+"),
+  REPrep = str_extract(sample_names, "Rep\\d+"),
+  Num = 100,  # Assume 100 flies per sample
+  Proportion = ifelse(str_detect(sample_names, "_Z_"), 0.5, NA)  # 50% selection for Z treatment
+) %>%
+  filter(str_detect(bam, "_M"))  # Only males
 
 cat("Design matrix:\n")
 print(design_df)
@@ -130,21 +131,33 @@ pseudoN.test <- function(p1, p2, covar1, covar2, nrepl, N1, N2) {
   log10p
 }
 
-# Main testing function
+# Main testing function - Wald test only
 doscan2 <- function(df, chr, Nfounders) {
   sexlink <- 1
   if(chr == "chrX") sexlink <- 0.75
   
-  # Unnest and join with design
-  df2 <- df %>%
-    unnest(cols = c(sample, Groups, Haps, Err, Names)) %>%
+  # Extract data for this position
+  sample_names <- df$sample[[1]]
+  groups <- df$Groups[[1]]
+  haps <- df$Haps[[1]]
+  err <- df$Err[[1]]
+  names <- df$Names[[1]]
+  
+  # Create a data frame for this position
+  df2 <- data.frame(
+    sample = sample_names,
+    Groups = groups,
+    Haps = haps,
+    Err = err,
+    Names = names
+  ) %>%
     left_join(design_df, join_by(sample == bam)) %>%
     filter(!is.na(TRT))
   
   # Check if all founders are discernable
-  allFounders <- as.numeric(df2 %>% mutate(mm = max(unlist(Groups))) %>% summarize(max(mm)))
+  allFounders <- max(unlist(groups))
   
-  ll <- list(Wald_log10p = NA, Pseu_log10p = NA, avg.var = NA)
+  ll <- list(Wald_log10p = NA, avg.var = NA)
   if(allFounders != Nfounders) return(ll)
   
   # Collapse replicates
@@ -168,12 +181,11 @@ doscan2 <- function(df, chr, Nfounders) {
   N1 <- df3 %>% filter(TRT == "W") %>% pull(Num)
   N2 <- df3 %>% filter(TRT == "Z") %>% pull(Num)
   
-  # Run tests
+  # Run Wald test only
   wt <- wald.test3(p1, p2, covar1, covar2, nrepl, N1, N2)
   Wald_log10p <- -log10(wt$p.value)
-  Pseu_log10p <- pseudoN.test(p1, p2, covar1, covar2, nrepl, N1, N2)
   
-  ll <- list(Wald_log10p = Wald_log10p, Pseu_log10p = Pseu_log10p, avg.var = wt$avg.var)
+  ll <- list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
   ll
 }
 
@@ -187,13 +199,13 @@ results <- test_data %>%
   unnest_wider(out)
 
 # Display results
-cat("=== STATISTICAL TEST RESULTS ===\n")
-print(results %>% select(pos, Wald_log10p, Pseu_log10p, avg.var), n = Inf)
+cat("=== WALD TEST RESULTS ===\n")
+print(results %>% select(pos, Wald_log10p, avg.var), n = Inf)
 
 # Summary statistics
 cat("\n=== SUMMARY ===\n")
 cat("Positions tested:", nrow(results), "\n")
 cat("Successful Wald tests:", sum(!is.na(results$Wald_log10p)), "\n")
-cat("Successful Pseudo tests:", sum(!is.na(results$Pseu_log10p)), "\n")
 cat("Mean Wald log10p:", round(mean(results$Wald_log10p, na.rm = TRUE), 2), "\n")
-cat("Mean Pseudo log10p:", round(mean(results$Pseu_log10p, na.rm = TRUE), 2), "\n")
+cat("Max Wald log10p:", round(max(results$Wald_log10p, na.rm = TRUE), 2), "\n")
+cat("Min Wald log10p:", round(min(results$Wald_log10p, na.rm = TRUE), 2), "\n")
