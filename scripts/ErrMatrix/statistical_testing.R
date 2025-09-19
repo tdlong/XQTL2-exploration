@@ -167,6 +167,16 @@ doscan2 = function(df,chr,Nfounders){
 	N1 = df3 %>% filter(TRT=="C") %>% pull(Num)
 	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
 
+	# Store haplotype frequencies for analysis
+	hap_freqs_C = as.vector(p1)
+	hap_freqs_Z = as.vector(p2)
+	hap_diff = hap_freqs_C - hap_freqs_Z
+	
+	# Store error variances for analysis
+	err_var_C = diag(covar1[,,1])
+	err_var_Z = diag(covar2[,,1])
+	err_diff = err_var_C - err_var_Z
+
 	wt=wald.test3(p1,p2,covar1,covar2,nrepl,N1,N2)
 	Wald_log10p = -log10(wt$p.value)
 #	Pseu_log10p = pseudoN.test(p1,p2,covar1,covar2,nrepl,N1,N2)
@@ -176,7 +186,13 @@ doscan2 = function(df,chr,Nfounders){
 #	Falc_H2 = temp$Falconer_H2
 #	Cutl_H2 = temp$Cutler_H2
 
-	ll = list(Wald_log10p = Wald_log10p)
+	ll = list(Wald_log10p = Wald_log10p, 
+	          hap_freqs_C = list(hap_freqs_C),
+	          hap_freqs_Z = list(hap_freqs_Z), 
+	          hap_diff = list(hap_diff),
+	          err_var_C = list(err_var_C),
+	          err_var_Z = list(err_var_Z),
+	          err_diff = list(err_diff))
 	ll
 	}
 
@@ -197,6 +213,48 @@ bb3 = add_genetic(bb2)
 # Display results for our test region
 cat("=== WALD TEST RESULTS FOR TEST REGION ===\n")
 print(bb2 %>% select(pos, Wald_log10p), n = Inf)
+
+# Analyze haplotype frequency changes
+cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
+
+# Extract haplotype frequencies and calculate changes
+hap_analysis <- bb2 %>%
+  filter(!is.na(Wald_log10p)) %>%
+  arrange(pos) %>%
+  mutate(
+    hap_freqs_C = map(hap_freqs_C, ~ as.numeric(.x)),
+    hap_freqs_Z = map(hap_freqs_Z, ~ as.numeric(.x)),
+    hap_diff = map(hap_diff, ~ as.numeric(.x))
+  ) %>%
+  select(pos, hap_freqs_C, hap_freqs_Z, hap_diff)
+
+# Calculate changes between adjacent positions
+hap_changes <- hap_analysis %>%
+  mutate(
+    hap_diff_prev = lag(hap_diff),
+    hap_change = map2(hap_diff, hap_diff_prev, ~ abs(.x - .y))
+  ) %>%
+  filter(!is.na(hap_diff_prev)) %>%
+  select(pos, hap_change)
+
+cat("Haplotype treatment differences (C - Z) by position:\n")
+for(i in 1:nrow(hap_analysis)) {
+  cat("Position", hap_analysis$pos[i], ":", 
+      paste(round(hap_analysis$hap_diff[[i]], 4), collapse = " "), "\n")
+}
+
+cat("\nChanges in haplotype differences between adjacent positions:\n")
+for(i in 1:nrow(hap_changes)) {
+  cat("Position", hap_changes$pos[i], ":", 
+      paste(round(hap_changes$hap_change[[i]], 4), collapse = " "), "\n")
+}
+
+# Calculate summary statistics
+all_hap_changes <- unlist(hap_changes$hap_change)
+cat("\nHaplotype change summary:\n")
+cat("Mean change:", round(mean(all_hap_changes), 4), "\n")
+cat("SD change:", round(sd(all_hap_changes), 4), "\n")
+cat("Max change:", round(max(all_hap_changes), 4), "\n")
 
 cat("\n=== SUMMARY ===\n")
 cat("Positions tested:", nrow(bb2), "\n")
