@@ -1,12 +1,10 @@
 #!/usr/bin/env Rscript
 
-# Statistical testing script for haplotype data
+# Statistical testing for haplotype estimation methods
 # Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>
-# Example: Rscript statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
 
 library(tidyverse)
 library(limSolve)
-library(abind)
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -15,224 +13,146 @@ if (length(args) != 5) {
 }
 
 mydir <- args[1]
-mychr <- args[2]
+chromosome <- args[2]
 start_pos <- as.numeric(args[3])
 end_pos <- as.numeric(args[4])
 design_file <- args[5]
 
-# Load design file and data
-design.df <- read.table(design_file)
-source("scripts/haps2scan/scan_functions.R")
-filein <- paste0(mydir, "/R.haps.", mychr, ".out.rds")
-
 cat("=== STATISTICAL TESTING PARAMETERS ===\n")
 cat("Data directory:", mydir, "\n")
-cat("Chromosome:", mychr, "\n")
+cat("Chromosome:", chromosome, "\n")
 cat("Position range:", start_pos, "-", end_pos, "\n")
 cat("Design file:", design_file, "\n")
-cat("Input file:", filein, "\n\n")
 
-library(dplyr, warn.conflicts = FALSE)
-options(dplyr.summarise.inform = FALSE)
+# Read design file
+design.df = read.table(design_file, header=T, stringsAsFactors=F)
+cat("Design matrix:\n")
+print(design.df)
 
+# Read haplotype data
+input_file <- file.path(mydir, paste0("R.haps.", chromosome, ".out.rds"))
+cat("Input file:", input_file, "\n")
 
-average_variance <- function(cov_matrix, tolerance = 1e-10) {
-  n <- nrow(cov_matrix)  
-  # Calculate eigenvalues
-  eigenvalues <- eigen(cov_matrix, only.values = TRUE)$values  
-  # Filter out eigenvalues that are effectively zero or negative
-  positive_eigenvalues <- eigenvalues[eigenvalues > tolerance]  
-  # Calculate the product of positive eigenvalues
-  log_det <- sum(log(positive_eigenvalues))  
-  # Use the number of positive eigenvalues for the root
-  n_positive <- length(positive_eigenvalues)  
-  # Calculate log of average variance
-  log_avg_var <- log_det / n_positive  
-  # Convert back to original scale
-  avg_var <- exp(log_avg_var)  
-  return(list(avg_var = avg_var, n_positive = n_positive, n_total = n))
+if (!file.exists(input_file)) {
+  stop("Input file does not exist: ", input_file)
 }
 
-wald.test3 = function(p1,p2,covar1,covar2,nrepl=1,N1=NA,N2=NA){
-    
-    # Wald test for multinomial frequencies
-    # if nrepl = 1: (one replicate, analogous to chi square):
-    #  p1 and p2 are vectors of relative frequencies to be compared
-    # covar1 and covar2 are the reconstruction error 
-    # covariance matrices from limSolve
-    # the sampling covariance matrices are generated within limSolve
-    # if nrepl > 1 (multiple replicates, analogous to CMH):
-    #   p1 and p2 are matrices, each row is frequency vector for one replicate
-    # covar1 and covar2 are tensors (3-dimensional arrays, third dimension 
-    #  denotes replicate) for the linSolve covariance matrices
-    # N1 (initial) and N2 (after treatment) 
-    # are sample sizes, they are vectors when there is more than one replicate
-    # N1[i], N2[i] are then for replicate i
-    if (nrepl>1){
-      N1.eff=rep(NA,nrepl)
-      N2.eff=rep(NA,nrepl)
-      lp1 = length(p1[1,])
-      cv1=array(NA,c(lp1,lp1,nrepl))
-      cv2=array(NA,c(lp1,lp1,nrepl))
-      for (i in 1:nrepl){
-          
-        covmat1  = mn.covmat((N1[i]*p1[i,]+N2[i]*p2[i,])/(N1[i]+N2[i]),2*N1[i])
-        covmat2  = mn.covmat((N1[i]*p1[i,]+N2[i]*p2[i,])/(N1[i]+N2[i]),2*N2[i])
-    
-        N1.eff[i] = sum(diag(covmat1))*4*N1[i]^2/(sum(diag(covmat1))*2*N1[i]+2*N1[i]*sum(diag(covar1[,,i])) )
-        N2.eff[i] = sum(diag(covmat2))*4*N2[i]^2/(sum(diag(covmat2))*2*N2[i]+2*N2[i]*sum(diag(covar2[,,i])) )
-        cv1[,,i]= (covmat1 + covar1[ , ,i])  * (N1.eff[i])^2
-        cv2[,,i]= (covmat2 + covar2[ , ,i])  * (N2.eff[i])^2
-        
-      }
-        
-      p1 = N1.eff %*% p1 / sum(N1.eff)
-      p2 = N2.eff %*% p2 / sum(N2.eff)
-     
-      covar1= rowSums(cv1, dims = 2) / sum(N1.eff)^2
-      covar2= rowSums(cv2, dims = 2) / sum(N2.eff)^2
-     # browser()
-    }
-    else {
-      covmat1  = mn.covmat((N1*p1+N2*p2)/(N1+N2),2*N1)
-      covmat2  = mn.covmat((N1*p1+N2*p2)/(N1+N2),2*N2)
-      covar1 = covar1 + covmat1
-      covar2 = covar2 + covmat2
-    }
+xx1 = readRDS(input_file)
+
+# Wald test function
+wald.test3 = function(p1, p2, covar1, covar2) {
+  # p1, p2: haplotype frequencies for treatments 1 and 2
+  # covar1, covar2: covariance matrices for treatments 1 and 2
   
-  df = length(p1)-1
-  covar=covar1+covar2
-  eg <- eigen(covar)
-  # remove last eigenvector which corresponds to eigenvalue zero
-  ev <- eg$vectors[,1:df]
-  eval <- eg$values[1:df]
-  trafo<-diag(1/sqrt(eval)) %*% t(ev) 
-  # set extremely small values to zero
-  #new.covar[new.covar < 10^-9]=0
-  p1= as.vector(p1); p2=as.vector(p2)
-  tstat <- sum((trafo %*% (p1 - p2))^2)
-  pval<- exp(pchisq(tstat,df,lower.tail=FALSE,log.p=TRUE))
-  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var)
+  # Calculate difference
+  diff = p1 - p2
+  
+  # Calculate combined covariance
+  covar_combined = covar1 + covar2
+  
+  # Calculate Wald statistic
+  tryCatch({
+    # Use generalized inverse for numerical stability
+    covar_inv = ginv(covar_combined)
+    wald_stat = t(diff) %*% covar_inv %*% diff
+    p_value = 1 - pchisq(wald_stat, df = length(diff))
+    log10p = -log10(p_value)
+    return(log10p)
+  }, error = function(e) {
+    return(NA)
+  })
 }
 
-mn.covmat= function(p,n,min.p=0){
-  # generate multinomial covariance matrix
-  # p is vector of multinomial relative frequencies
-  # n is sample size
-  # compute covariance matrix for relative frequencies, for absolute frequencies multiply by n^2
-  # if min.p >0, then values of p smaller than min.p are set to min.p and the resulting vector is rescaled.
-  p[p<min.p] = min.p; p=p/sum(p)
-  mat = - tcrossprod(p)
-  diag(mat) = p*(1-p)
-  mat = mat/n
-  mat
+# Main analysis function
+doscan2 = function(data, CHROM) {
+  # Extract sample names and create design matrix
+  sample_names <- data$sample[[1]]
+  design_df <- data.frame(
+    sample = sample_names,
+    bam = sample_names,
+    TRT = ifelse(str_detect(sample_names, "_W_"), "W", "Z"),
+    REP = str_extract(sample_names, "Rep\\d+"),
+    stringsAsFactors = FALSE
+  ) %>%
+    left_join(design.df, by = "bam") %>%
+    filter(!is.na(TRT))
+  
+  # Filter for male samples only
+  design_df <- design_df %>% filter(str_detect(sample, "_M"))
+  
+  if (nrow(design_df) == 0) {
+    return(list(Wald_log10p = NA))
+  }
+  
+  # Separate by treatment
+  C_samples <- design_df %>% filter(TRT == "C") %>% pull(sample)
+  Z_samples <- design_df %>% filter(TRT == "Z") %>% pull(sample)
+  
+  if (length(C_samples) == 0 || length(Z_samples) == 0) {
+    return(list(Wald_log10p = NA))
+  }
+  
+  # Extract haplotype frequencies and error matrices
+  hap_freqs <- data$Haps[[1]]
+  err_matrices <- data$Err[[1]]
+  
+  # Get indices for each treatment
+  C_indices <- which(sample_names %in% C_samples)
+  Z_indices <- which(sample_names %in% Z_samples)
+  
+  # Calculate average haplotype frequencies per treatment
+  p1 <- colMeans(hap_freqs[C_indices, , drop = FALSE])  # Treatment C
+  p2 <- colMeans(hap_freqs[Z_indices, , drop = FALSE])  # Treatment Z
+  
+  # Calculate average error matrices per treatment
+  covar1 <- Reduce(`+`, err_matrices[C_indices]) / length(C_indices)  # Treatment C
+  covar2 <- Reduce(`+`, err_matrices[Z_indices]) / length(Z_indices)  # Treatment Z
+  
+  # Perform Wald test
+  Wald_log10p <- wald.test3(p1, p2, covar1, covar2)
+  
+  # Calculate treatment differences and error variances
+  hap_diff <- p1 - p2
+  err_var_C <- diag(covar1)
+  err_var_Z <- diag(covar2)
+  err_diff <- err_var_C - err_var_Z
+  
+  return(list(
+    Wald_log10p = Wald_log10p,
+    hap_freqs_C = list(p1),
+    hap_freqs_Z = list(p2), 
+    hap_diff = list(hap_diff),
+    err_var_C = list(err_var_C),
+    err_var_Z = list(err_var_Z),
+    err_diff = list(err_diff)
+  ))
 }
-doscan2 = function(df,chr,Nfounders){
-	sexlink = 1
-	if(chr=="chrX"){ sexlink=0.75 }
 
-	# I tested with xx2$data[[1]]
-	df2 = df %>%
-		unnest(cols = c(sample, Groups, Haps, Err, Names)) %>%
-		left_join(design.df, join_by(sample==bam)) %>%
-		filter(!is.na(TRT))
-	
-	# only analyze data for which all founders are discernable..
-	allFounders = as.numeric(df2 %>% mutate(mm = max(unlist(Groups))) %>% summarize(max(mm)))	
-
-	ll = list(Wald_log10p = NA, Pseu_log10p = NA, Falc_H2 = NA, Cutl_H2 = NA, avg.var = NA)
-	if(allFounders!=Nfounders){ return(ll) }
-
-	##  now cases where all founders are OK
-	##  now collapse any pure replicates.  This is tidy ugly.  But I feel there 
-	##  is value in keeping dataframe columns as lists...
-	df3 = df2 %>%
-		select(-Groups) %>%
-		group_by(TRT,REP) %>%	
-		summarise(Err_mean = list(reduce(map(Err, ~as.matrix(.x)), `+`)/length(Err)),
-			Haps_mean = list(reduce(map(Haps, ~as.vector(.x)), `+`)/length(Haps)),
-			Names = list(first(Names)),
-			Num_mean = sexlink*mean(Num)) %>%
-		rename(Haps=Haps_mean,Num=Num_mean,Err=Err_mean)
-
-	## these summaries of the data are pretty useful for tests
-	p1 = df3 %>% filter(TRT=="C") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t() 
-	row.names(p1) <- NULL
-	p2 = df3 %>% filter(TRT=="Z") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
-	row.names(p2) <- NULL
-	covar1 = do.call(abind, c(df3 %>% filter(TRT=="C") %>% pull(Err), along = 3))
-	covar2 = do.call(abind, c(df3 %>% filter(TRT=="Z") %>% pull(Err), along = 3))
-	nrepl = df3 %>% filter(TRT=="C") %>% nrow()
-	nrepl == df3 %>% filter(TRT=="Z") %>% nrow()
-	N1 = df3 %>% filter(TRT=="C") %>% pull(Num)
-	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
-
-	# Store mean haplotype frequencies for analysis (across replicates)
-	hap_freqs_C = colMeans(p1)  # Average across replicates for each founder
-	hap_freqs_Z = colMeans(p2)  # Average across replicates for each founder
-	hap_diff = hap_freqs_C - hap_freqs_Z
-	
-	# Store average error variances for analysis (across replicates)
-	err_var_C = diag(apply(covar1, c(1,2), mean))  # Average error matrix across replicates
-	err_var_Z = diag(apply(covar2, c(1,2), mean))  # Average error matrix across replicates
-	err_diff = err_var_C - err_var_Z
-
-	wt=wald.test3(p1,p2,covar1,covar2,nrepl,N1,N2)
-	Wald_log10p = -log10(wt$p.value)
-#	Pseu_log10p = pseudoN.test(p1,p2,covar1,covar2,nrepl,N1,N2)
-
-#	af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
-#	temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
-#	Falc_H2 = temp$Falconer_H2
-#	Cutl_H2 = temp$Cutler_H2
-
-	ll = list(Wald_log10p = Wald_log10p, 
-	          hap_freqs_C = list(hap_freqs_C),
-	          hap_freqs_Z = list(hap_freqs_Z), 
-	          hap_diff = list(hap_diff),
-	          err_var_C = list(err_var_C),
-	          err_var_Z = list(err_var_Z),
-	          err_diff = list(err_diff))
-	ll
-	}
-
-xx1 = readRDS(filein)
+# Run analysis
 Nfounders=length(xx1$Groups[[1]][[1]])
-ProportionSelect = design.df %>% filter(TRT=="Z") %>% select(REP,Proportion) %>% arrange(REP)
 
 bb1 = xx1 %>%
-#	head(n=100) %>%
-	filter(pos >= start_pos & pos <= end_pos) %>%  # User-specified region
-	group_by(CHROM,pos) %>%
-	nest() %>%
-	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
-	unnest_wider(out)
-bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
-# bb3 = add_genetic(bb2)
+  filter(pos >= start_pos & pos <= end_pos) %>%
+  group_by(CHROM,pos) %>%
+  nest() %>%
+  mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
+  unnest_wider(out)
 
-# Display results for our test region
-cat("=== WALD TEST RESULTS FOR TEST REGION ===\n")
+bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
+
+# Display Wald test results
+cat("\n=== WALD TEST RESULTS ===\n")
 print(bb2 %>% select(pos, Wald_log10p), n = Inf)
 
-# Save bb2 so we can examine it
-saveRDS(bb2, "temp.rds")
-cat("\nSaved bb2 as temp.rds for inspection\n")
+# HAPLOTYPE CHANGES (NUMERATOR)
+cat("\n=== HAPLOTYPE CHANGES BETWEEN ADJACENT POSITIONS ===\n")
 
-# Analyze haplotype frequency changes
-cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
-
-# Extract haplotype frequencies and calculate changes
 hap_analysis <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   arrange(pos) %>%
-  mutate(
-    hap_freqs_C = map(hap_freqs_C, ~ .x[[1]]),
-    hap_freqs_Z = map(hap_freqs_Z, ~ .x[[1]]),
-    hap_diff = map(hap_diff, ~ .x[[1]])
-  ) %>%
-  select(pos, hap_freqs_C, hap_freqs_Z, hap_diff)
+  mutate(hap_diff = map(hap_diff, ~ .x[[1]])) %>%
+  select(pos, hap_diff)
 
-# Calculate changes between adjacent positions
 hap_changes <- hap_analysis %>%
   mutate(
     hap_diff_prev = lag(hap_diff),
@@ -244,65 +164,38 @@ hap_changes <- hap_analysis %>%
   filter(!is.null(hap_diff_prev)) %>%
   select(pos, hap_change)
 
-cat("Haplotype treatment differences (C - Z) by position (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(hap_analysis)) {
-  diffs <- round(as.numeric(hap_analysis$hap_diff[[i]]) * 1000, 0)
-  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-              hap_analysis$pos[i], diffs[1], diffs[2], diffs[3], diffs[4], 
-              diffs[5], diffs[6], diffs[7], diffs[8]))
-}
-
-cat("\nChanges in haplotype differences between adjacent positions (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(hap_changes)) {
-  if (!is.null(hap_changes$hap_change[[i]])) {
-    changes <- round(as.numeric(hap_changes$hap_change[[i]]) * 1000, 0)
-    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                hap_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
-                changes[5], changes[6], changes[7], changes[8]))
+if (nrow(hap_changes) > 0) {
+  cat("Changes in haplotype differences (×1000):\n")
+  cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
+  for(i in 1:nrow(hap_changes)) {
+    if (!is.null(hap_changes$hap_change[[i]])) {
+      changes <- round(hap_changes$hap_change[[i]] * 1000, 0)
+      cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+                  hap_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
+                  changes[5], changes[6], changes[7], changes[8]))
+    }
   }
-}
-
-# Calculate summary statistics
-all_hap_changes <- unlist(hap_changes$hap_change)
-if (length(all_hap_changes) > 0) {
-  cat("\nHaplotype change summary (×1000):\n")
-  cat("Mean change:", round(mean(all_hap_changes) * 1000, 0), "\n")
-  cat("SD change:", round(sd(all_hap_changes) * 1000, 0), "\n")
-  cat("Max change:", round(max(all_hap_changes) * 1000, 0), "\n")
+  
+  all_changes <- unlist(hap_changes$hap_change)
+  cat(sprintf("\nHaplotype change summary (×1000): Mean=%.1f, SD=%.1f, Max=%.1f\n", 
+              mean(all_changes) * 1000, sd(all_changes) * 1000, max(all_changes) * 1000))
 } else {
-  cat("\nNo changes calculated - check data structure\n")
+  cat("No haplotype changes calculated\n")
 }
 
-# Analyze error variances - sqrt(average variance) per haplotype
-cat("\n=== ERROR VARIANCE ANALYSIS ===\n")
+# ERROR VARIANCE CHANGES (DENOMINATOR)
+cat("\n=== ERROR VARIANCE CHANGES BETWEEN ADJACENT POSITIONS ===\n")
 
-# Calculate sqrt(average variance) per haplotype for each position
 err_analysis <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   arrange(pos) %>%
   mutate(
     err_var_C = map(err_var_C, ~ .x[[1]]),
-    err_var_Z = map(err_var_Z, ~ .x[[1]])
+    err_var_Z = map(err_var_Z, ~ .x[[1]]),
+    sqrt_avg_err_var = map2(err_var_C, err_var_Z, ~ sqrt((.x + .y) / 2))
   ) %>%
-  rowwise() %>%
-  mutate(
-    sqrt_avg_err_var = list(sqrt((as.numeric(err_var_C) + as.numeric(err_var_Z)) / 2))
-  ) %>%
-  ungroup() %>%
   select(pos, sqrt_avg_err_var)
 
-cat("Sqrt(average variance) per haplotype by position (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(err_analysis)) {
-  errs <- round(as.numeric(err_analysis$sqrt_avg_err_var[[i]]) * 1000, 0)
-  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-              err_analysis$pos[i], errs[1], errs[2], errs[3], errs[4], 
-              errs[5], errs[6], errs[7], errs[8]))
-}
-
-# Calculate changes between adjacent positions
 err_changes <- err_analysis %>%
   mutate(
     err_prev = lag(sqrt_avg_err_var),
@@ -314,100 +207,21 @@ err_changes <- err_analysis %>%
   filter(!is.null(err_prev)) %>%
   select(pos, err_change)
 
-cat("\nChanges in sqrt(average variance) between adjacent positions (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(err_changes)) {
-  if (!is.null(err_changes$err_change[[i]])) {
-    changes <- round(as.numeric(err_changes$err_change[[i]]) * 1000, 0)
-    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                err_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
-                changes[5], changes[6], changes[7], changes[8]))
+if (nrow(err_changes) > 0) {
+  cat("Changes in sqrt(average variance) (×1000):\n")
+  cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
+  for(i in 1:nrow(err_changes)) {
+    if (!is.null(err_changes$err_change[[i]])) {
+      changes <- round(err_changes$err_change[[i]] * 1000, 0)
+      cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+                  err_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
+                  changes[5], changes[6], changes[7], changes[8]))
+    }
   }
-}
-
-# Calculate error change summary statistics
-all_err_changes <- unlist(err_changes$err_change)
-if (length(all_err_changes) > 0) {
-  cat("\nError variance change summary (×1000):\n")
-  cat("Mean change:", round(mean(all_err_changes) * 1000, 0), "\n")
-  cat("SD change:", round(sd(all_err_changes) * 1000, 0), "\n")
-  cat("Max change:", round(max(all_err_changes) * 1000, 0), "\n")
+  
+  all_err_changes <- unlist(err_changes$err_change)
+  cat(sprintf("\nError variance change summary (×1000): Mean=%.1f, SD=%.1f, Max=%.1f\n", 
+              mean(all_err_changes) * 1000, sd(all_err_changes) * 1000, max(all_err_changes) * 1000))
 } else {
-  cat("\nNo error changes calculated - check data structure\n")
+  cat("No error variance changes calculated\n")
 }
-
-# Analyze position-to-position variability in numerator vs denominator
-# Calculate sqrt(average variance) per position per founder per treatment
-cat("\n=== SQRT(AVERAGE VARIANCE) PER POSITION PER FOUNDER PER TREATMENT ===\n")
-
-# Treatment C
-cat("Sqrt(average variance) - Treatment C by position (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(bb2)) {
-  if (!is.na(bb2$Wald_log10p[i])) {
-    errs_C <- round(sqrt(as.numeric(bb2$err_var_C[[i]][[1]])) * 1000, 0)
-    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                bb2$pos[i], errs_C[1], errs_C[2], errs_C[3], errs_C[4], 
-                errs_C[5], errs_C[6], errs_C[7], errs_C[8]))
-  }
-}
-
-# Treatment Z
-cat("\nSqrt(average variance) - Treatment Z by position (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(bb2)) {
-  if (!is.na(bb2$Wald_log10p[i])) {
-    errs_Z <- round(sqrt(as.numeric(bb2$err_var_Z[[i]][[1]])) * 1000, 0)
-    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                bb2$pos[i], errs_Z[1], errs_Z[2], errs_Z[3], errs_Z[4], 
-                errs_Z[5], errs_Z[6], errs_Z[7], errs_Z[8]))
-  }
-}
-
-cat("\n=== POSITION-TO-POSITION VARIABILITY ANALYSIS ===\n")
-
-# Calculate summary statistics for each position
-pos_summary <- bb2 %>%
-  filter(!is.na(Wald_log10p)) %>%
-  mutate(
-    hap_diff = map(hap_diff, ~ .x[[1]]),
-    err_var_C = map(err_var_C, ~ .x[[1]]),
-    err_var_Z = map(err_var_Z, ~ .x[[1]])
-  ) %>%
-  rowwise() %>%
-  mutate(
-    # Numerator: mean squared haplotype differences
-    numerator = mean(as.numeric(hap_diff)^2),
-    # Denominator: mean error variance
-    denominator = mean(c(as.numeric(err_var_C), as.numeric(err_var_Z)))
-  ) %>%
-  ungroup() %>%
-  arrange(pos)
-
-cat("Position     Numerator  Denominator\n")
-for(i in 1:nrow(pos_summary)) {
-  cat(sprintf("%9.0f %11.6f %12.6f\n", 
-              pos_summary$pos[i], 
-              pos_summary$numerator[i],
-              pos_summary$denominator[i]))
-}
-
-# Calculate variability of numerator and denominator across positions
-cat("\nVariability across positions:\n")
-cat("Numerator (mean sq hap diff):\n")
-cat("  Mean:", round(mean(pos_summary$numerator), 6), "\n")
-cat("  SD:  ", round(sd(pos_summary$numerator), 6), "\n")
-cat("  CV:  ", round(sd(pos_summary$numerator)/mean(pos_summary$numerator)*100, 1), "%\n")
-
-cat("\nDenominator (mean error var):\n")
-cat("  Mean:", round(mean(pos_summary$denominator), 6), "\n")
-cat("  SD:  ", round(sd(pos_summary$denominator), 6), "\n")
-cat("  CV:  ", round(sd(pos_summary$denominator)/mean(pos_summary$denominator)*100, 1), "%\n")
-
-cat("\n=== SUMMARY ===\n")
-cat("Positions tested:", nrow(bb2), "\n")
-cat("Successful Wald tests:", sum(!is.na(bb2$Wald_log10p)), "\n")
-cat("Mean Wald log10p:", round(mean(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
-cat("Max Wald log10p:", round(max(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
-cat("Min Wald log10p:", round(min(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
-
