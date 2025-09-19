@@ -89,30 +89,38 @@ max_diffs <- comparison %>%
   )
 print(max_diffs)
 
-# 2. Check sample order consistency
-cat("\n=== 2. CHECKING SAMPLE ORDER CONSISTENCY ===\n")
+# 2. Check sample order consistency across entire chromosome
+cat("\n=== 2. CHECKING SAMPLE ORDER CONSISTENCY ACROSS ENTIRE CHROMOSOME ===\n")
 
-# Get sample order from first few positions
+# Get sample order from all positions
 sample_orders <- reshaped_data %>%
-  filter(pos %in% test_positions[1:5]) %>%  # Check first 5 positions
   select(pos, sample) %>%
   mutate(sample_list = map(sample, ~ .x)) %>%
-  select(pos, sample_list)
+  select(pos, sample_list) %>%
+  arrange(pos)
 
-cat("Sample order at first 5 positions:\n")
-for(i in 1:nrow(sample_orders)) {
-  cat("Position", sample_orders$pos[i], ":", paste(sample_orders$sample_list[[i]], collapse = " "), "\n")
-}
+cat("Checking", nrow(sample_orders), "positions across entire chromosome...\n")
 
-# Check if sample order is identical across positions
+# Check if sample order is identical across all positions
 first_order <- sample_orders$sample_list[[1]]
 all_identical <- all(map_lgl(sample_orders$sample_list, ~ identical(.x, first_order)))
 
-cat("\nAre all sample orders identical?", all_identical, "\n")
+cat("Are all sample orders identical across entire chromosome?", all_identical, "\n")
 
 if(!all_identical) {
   cat("WARNING: Sample order varies across positions!\n")
   cat("This could cause issues if your software assumes constant order.\n")
+  
+  # Find positions where order differs
+  differing_positions <- sample_orders %>%
+    mutate(order_differs = !map_lgl(sample_list, ~ identical(.x, first_order))) %>%
+    filter(order_differs) %>%
+    select(pos)
+  
+  cat("Positions with different sample order:", nrow(differing_positions), "out of", nrow(sample_orders), "\n")
+  if(nrow(differing_positions) <= 10) {
+    cat("First few differing positions:", paste(differing_positions$pos[1:min(10, nrow(differing_positions))], collapse = ", "), "\n")
+  }
 } else {
-  cat("Sample order is consistent across all positions.\n")
+  cat("Sample order is consistent across all", nrow(sample_orders), "positions.\n")
 }
