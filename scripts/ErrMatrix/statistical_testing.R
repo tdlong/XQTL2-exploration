@@ -227,7 +227,7 @@ hap_analysis <- bb2 %>%
 hap_changes <- hap_analysis %>%
   mutate(
     hap_diff_prev = lag(hap_diff),
-    hap_change = map2(hap_diff, hap_diff_prev, ~ abs(.x - .y))
+    hap_change = map2(hap_diff, hap_diff_prev, ~ abs(as.numeric(.x) - as.numeric(.y)))
   ) %>%
   filter(!is.na(hap_diff_prev)) %>%
   select(pos, hap_change)
