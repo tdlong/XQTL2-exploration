@@ -214,11 +214,9 @@ bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 cat("=== WALD TEST RESULTS FOR TEST REGION ===\n")
 print(bb2 %>% select(pos, Wald_log10p), n = Inf)
 
-# Let's see what bb2 actually contains
-cat("\n=== BB2 DATAFRAME STRUCTURE ===\n")
-print(bb2, n = Inf)
-cat("\nColumn types:\n")
-print(sapply(bb2, class))
+# Save bb2 so we can examine it
+saveRDS(bb2, "temp.rds")
+cat("\nSaved bb2 as temp.rds for inspection\n")
 
 # Analyze haplotype frequency changes
 cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
