@@ -325,6 +325,114 @@ process/
 - Examples: `process/ZINC2_h10`, `process/JUICE_h10`, `process/MYDATA_h5`
 - Script automatically detects data directory by removing `_h{parameter}` suffix
 
+## SUCCESSFUL PRODUCTION RUN - h_cutoff=10 ✅
+
+### Run Details
+**Date**: September 17, 2025  
+**Command**: `sbatch scripts/ErrMatrix/run_all_chroms.slurm helpfiles/ZINC2_haplotype_parameters.R process/ZINC2_h10 10`  
+**Job ID**: 43868735 (array job 1-5)  
+**Status**: ✅ **COMPLETED SUCCESSFULLY**
+
+### Performance Metrics
+- **Total function calls**: 132,900
+- **Time per call**: 0.0203 seconds
+- **Total runtime**: ~45 minutes (estimated from log timestamps)
+- **All 5 chromosomes processed**: chrX, chr2L, chr2R, chr3L, chr3R
+
+### Output Files Created
+**Location**: `process/ZINC2_h10/`
+
+**Long Format Files** (10 files total):
+- `adaptive_window_h10_results_chrX.RDS` (48.4 MB)
+- `adaptive_window_h10_results_chr2L.RDS` (51.0 MB)
+- `adaptive_window_h10_results_chr2R.RDS` (45.5 MB)
+- `adaptive_window_h10_results_chr3L.RDS` (53.4 MB)
+- `adaptive_window_h10_results_chr3R.RDS` (63.3 MB)
+- `smooth_h10_results_chrX.RDS` (41.6 MB)
+- `smooth_h10_results_chr2L.RDS` (49.3 MB)
+- `smooth_h10_results_chr2R.RDS` (45.0 MB)
+- `smooth_h10_results_chr3L.RDS` (52.1 MB)
+- `smooth_h10_results_chr3R.RDS` (59.9 MB)
+
+**Reshaped Files** (10 files total):
+- `adapt_h10/R.haps.chrX.out.rds`
+- `adapt_h10/R.haps.chr2L.out.rds`
+- `adapt_h10/R.haps.chr2R.out.rds`
+- `adapt_h10/R.haps.chr3L.out.rds`
+- `adapt_h10/R.haps.chr3R.out.rds`
+- `smooth_h10/R.haps.chrX.out.rds`
+- `smooth_h10/R.haps.chr2L.out.rds`
+- `smooth_h10/R.haps.chr2R.out.rds`
+- `smooth_h10/R.haps.chr3L.out.rds`
+- `smooth_h10/R.haps.chr3R.out.rds`
+
+### Key Achievements
+1. **Bug fixes working**: The linear dependence and single group V matrix fixes are functioning correctly
+2. **Optimal h_cutoff=10**: Using the recommended parameter that produces lowest error estimates (3.66x ratio vs fixed method)
+3. **Complete workflow**: Both adaptive estimation and smoothing completed successfully
+4. **Production ready**: All output files created in the expected format for downstream analysis
+5. **Scalable**: Processed all 5 chromosomes with reasonable performance
+
+### Next Steps
+- Files are ready for downstream analysis (QTL mapping, visualization, etc.)
+- The h_cutoff=10 parameter should provide optimal error estimates
+- All 20 output files (4 per chromosome) are available in production format
+
+## STATISTICAL TESTING RESULTS - Wald Test on Test Region ✅
+
+### Test Parameters
+**Date**: September 17, 2025  
+**Command**: `Rscript scripts/ErrMatrix/statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt`  
+**Region**: chr3R positions 20,000,000-20,200,000 (21 positions, 10kb apart)  
+**Dataset**: h_cutoff=10 adaptive results (reshaped format)
+
+### Wald Test Results
+**Positions tested**: 21  
+**Successful Wald tests**: 21 (100% success rate)  
+**Mean Wald log10p**: 26.23  
+**Max Wald log10p**: 38.57  
+**Min Wald log10p**: 13.63  
+
+**Individual Position Results**:
+```
+chr        pos Wald_log10p
+chr3R 20000000        19.3
+chr3R 20010000        18.9
+chr3R 20020000        24.0
+chr3R 20030000        33.7
+chr3R 20040000        29.1
+chr3R 20050000        38.6
+chr3R 20060000        28.8
+chr3R 20070000        16.3
+chr3R 20080000        17.0
+chr3R 20090000        13.6
+chr3R 20100000        20.6
+chr3R 20110000        24.0
+chr3R 20120000        26.9
+chr3R 20130000        35.1
+chr3R 20140000        35.2
+chr3R 20150000        29.2
+chr3R 20160000        28.3
+chr3R 20170000        31.7
+chr3R 20180000        26.6
+chr3R 20190000        26.7
+chr3R 20200000        27.3
+```
+
+### Key Observations
+1. **All tests successful**: No missing or failed Wald tests
+2. **High significance**: All positions show strong evidence for treatment differences (log10p > 13)
+3. **Variable signal strength**: Range from 13.6 to 38.6 log10p units
+4. **No obvious patterns**: Signal strength varies across the region without clear trends
+5. **Reshaped data works**: The statistical machinery successfully processes the reshaped file format
+
+### Comparison with User's Statistical Machinery
+This provides a baseline for comparing with the user's full statistical machinery results. The rapid changes observed in the user's downstream analysis can now be compared against these direct Wald test results to identify if the issue is:
+- Data format problems (reshaped vs long format)
+- Sample ordering issues
+- Different statistical methods
+- Or other downstream processing issues
+
 ## Files Created and Organized
 
 ### Scripts
