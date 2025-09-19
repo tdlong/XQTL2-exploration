@@ -115,8 +115,12 @@ doscan2 = function(data, CHROM) {
   cat("Z_indices:", Z_indices, "\n")
   
   # Calculate average haplotype frequencies per treatment
-  p1 <- colMeans(hap_freqs[C_indices, , drop = FALSE])  # Treatment C
-  p2 <- colMeans(hap_freqs[Z_indices, , drop = FALSE])  # Treatment Z
+  # hap_freqs is a list, so we need to extract the relevant elements and convert to matrix
+  hap_freqs_C <- do.call(rbind, hap_freqs[C_indices])  # Treatment C
+  hap_freqs_Z <- do.call(rbind, hap_freqs[Z_indices])  # Treatment Z
+  
+  p1 <- colMeans(hap_freqs_C)  # Treatment C
+  p2 <- colMeans(hap_freqs_Z)  # Treatment Z
   
   # Calculate average error matrices per treatment
   covar1 <- Reduce(`+`, err_matrices[C_indices]) / length(C_indices)  # Treatment C
