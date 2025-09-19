@@ -168,8 +168,8 @@ doscan2 = function(df,chr,Nfounders){
 	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
 
 	# Store mean haplotype frequencies for analysis (across replicates)
-	hap_freqs_C = rowMeans(p1)  # Average across replicates for each founder
-	hap_freqs_Z = rowMeans(p2)  # Average across replicates for each founder
+	hap_freqs_C = colMeans(p1)  # Average across replicates for each founder
+	hap_freqs_Z = colMeans(p2)  # Average across replicates for each founder
 	hap_diff = hap_freqs_C - hap_freqs_Z
 	
 	# Store average error variances for analysis (across replicates)
