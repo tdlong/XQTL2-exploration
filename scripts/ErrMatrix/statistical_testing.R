@@ -238,7 +238,7 @@ hap_changes <- hap_analysis %>%
     hap_diff_prev = lag(hap_diff),
     hap_change = map2(hap_diff, hap_diff_prev, ~ {
       if (is.null(.y)) return(NULL)
-      abs(.x - .y)
+      abs(as.numeric(.x) - as.numeric(.y))
     })
   ) %>%
   filter(!is.null(hap_diff_prev)) %>%
@@ -288,8 +288,7 @@ err_analysis <- bb2 %>%
   ) %>%
   rowwise() %>%
   mutate(
-    avg_err_var = (as.numeric(err_var_C) + as.numeric(err_var_Z)) / 2,
-    sqrt_avg_err_var = sqrt(avg_err_var)
+    sqrt_avg_err_var = sqrt((as.numeric(err_var_C) + as.numeric(err_var_Z)) / 2)
   ) %>%
   ungroup() %>%
   select(pos, sqrt_avg_err_var)
