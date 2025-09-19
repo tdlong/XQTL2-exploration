@@ -245,16 +245,22 @@ hap_changes <- hap_analysis %>%
   select(pos, hap_change)
 
 cat("Haplotype treatment differences (C - Z) by position (×1000):\n")
+cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
 for(i in 1:nrow(hap_analysis)) {
-  cat("Position", hap_analysis$pos[i], ":", 
-      paste(round(as.numeric(hap_analysis$hap_diff[[i]]) * 1000, 0), collapse = " "), "\n")
+  diffs <- round(as.numeric(hap_analysis$hap_diff[[i]]) * 1000, 0)
+  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+              hap_analysis$pos[i], diffs[1], diffs[2], diffs[3], diffs[4], 
+              diffs[5], diffs[6], diffs[7], diffs[8]))
 }
 
 cat("\nChanges in haplotype differences between adjacent positions (×1000):\n")
+cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
 for(i in 1:nrow(hap_changes)) {
   if (!is.null(hap_changes$hap_change[[i]])) {
-    cat("Position", hap_changes$pos[i], ":", 
-        paste(round(as.numeric(hap_changes$hap_change[[i]]) * 1000, 0), collapse = " "), "\n")
+    changes <- round(as.numeric(hap_changes$hap_change[[i]]) * 1000, 0)
+    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+                hap_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
+                changes[5], changes[6], changes[7], changes[8]))
   }
 }
 
@@ -267,6 +273,63 @@ if (length(all_hap_changes) > 0) {
   cat("Max change:", round(max(all_hap_changes) * 1000, 0), "\n")
 } else {
   cat("\nNo changes calculated - check data structure\n")
+}
+
+# Analyze error variance changes
+cat("\n=== ERROR VARIANCE ANALYSIS ===\n")
+
+# Extract error variances and calculate changes
+err_analysis <- bb2 %>%
+  filter(!is.na(Wald_log10p)) %>%
+  arrange(pos) %>%
+  mutate(
+    err_var_C = map(err_var_C, ~ .x[[1]]),
+    err_var_Z = map(err_var_Z, ~ .x[[1]]),
+    err_diff = map(err_diff, ~ .x[[1]])
+  ) %>%
+  select(pos, err_var_C, err_var_Z, err_diff)
+
+# Calculate changes between adjacent positions
+err_changes <- err_analysis %>%
+  mutate(
+    err_diff_prev = lag(err_diff),
+    err_change = map2(err_diff, err_diff_prev, ~ {
+      if (is.null(.y)) return(NULL)
+      abs(.x - .y)
+    })
+  ) %>%
+  filter(!is.null(err_diff_prev)) %>%
+  select(pos, err_change)
+
+cat("Error variance treatment differences (C - Z) by position (×1000):\n")
+cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
+for(i in 1:nrow(err_analysis)) {
+  diffs <- round(as.numeric(err_analysis$err_diff[[i]]) * 1000, 0)
+  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+              err_analysis$pos[i], diffs[1], diffs[2], diffs[3], diffs[4], 
+              diffs[5], diffs[6], diffs[7], diffs[8]))
+}
+
+cat("\nChanges in error variance differences between adjacent positions (×1000):\n")
+cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
+for(i in 1:nrow(err_changes)) {
+  if (!is.null(err_changes$err_change[[i]])) {
+    changes <- round(as.numeric(err_changes$err_change[[i]]) * 1000, 0)
+    cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+                err_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
+                changes[5], changes[6], changes[7], changes[8]))
+  }
+}
+
+# Calculate error change summary statistics
+all_err_changes <- unlist(err_changes$err_change)
+if (length(all_err_changes) > 0) {
+  cat("\nError variance change summary (×1000):\n")
+  cat("Mean change:", round(mean(all_err_changes) * 1000, 0), "\n")
+  cat("SD change:", round(sd(all_err_changes) * 1000, 0), "\n")
+  cat("Max change:", round(max(all_err_changes) * 1000, 0), "\n")
+} else {
+  cat("\nNo error changes calculated - check data structure\n")
 }
 
 cat("\n=== SUMMARY ===\n")
