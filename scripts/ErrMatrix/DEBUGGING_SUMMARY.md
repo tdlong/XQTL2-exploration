@@ -426,12 +426,57 @@ chr3R 20200000        27.3
 4. **No obvious patterns**: Signal strength varies across the region without clear trends
 5. **Reshaped data works**: The statistical machinery successfully processes the reshaped file format
 
+### Comparison: h_cutoff=10 vs h_cutoff=4 Results
+
+**h_cutoff=4 Results** (for comparison):
+```
+chr        pos Wald_log10p
+chr3R 20000000       12.7 
+chr3R 20010000       30.8 
+chr3R 20020000       24.4 
+chr3R 20030000       30.9 
+chr3R 20040000       33.7 
+chr3R 20050000       26.4 
+chr3R 20060000       24.8 
+chr3R 20070000       18.0 
+chr3R 20080000       18.3 
+chr3R 20090000       11.8 
+chr3R 20100000       18.6 
+chr3R 20110000       26.2 
+chr3R 20120000       24.4 
+chr3R 20130000       21.6 
+chr3R 20140000       31.5 
+chr3R 20150000       36.5 
+chr3R 20160000       11.7 
+chr3R 20170000        6.81
+chr3R 20180000       13.3 
+chr3R 20190000       28.3 
+chr3R 20200000       17.8 
+```
+
+**Summary Statistics Comparison**:
+| Metric | h_cutoff=10 | h_cutoff=4 | Difference |
+|--------|-------------|------------|------------|
+| Mean Wald log10p | 26.23 | 22.32 | +3.91 |
+| Max Wald log10p | 38.57 | 36.55 | +2.02 |
+| Min Wald log10p | 13.63 | 6.81 | +6.82 |
+| Range | 24.94 | 29.74 | -4.80 |
+
+### Key Findings
+1. **h_cutoff=10 is more stable**: Higher minimum values (13.63 vs 6.81) and more consistent signal
+2. **h_cutoff=4 shows more extreme variation**: Much lower minimum (6.81) and higher range (29.74)
+3. **h_cutoff=10 has higher average significance**: Mean 26.23 vs 22.32
+4. **Both methods show similar patterns**: Both have variable signal strength across positions
+5. **h_cutoff=10 eliminates low-significance positions**: No positions below 13.6 log10p vs h4 having positions as low as 6.81
+
 ### Comparison with User's Statistical Machinery
 This provides a baseline for comparing with the user's full statistical machinery results. The rapid changes observed in the user's downstream analysis can now be compared against these direct Wald test results to identify if the issue is:
 - Data format problems (reshaped vs long format)
 - Sample ordering issues
 - Different statistical methods
 - Or other downstream processing issues
+
+**The h_cutoff=10 results show more stability and higher significance, supporting the choice of h_cutoff=10 as the optimal parameter.**
 
 ## Files Created and Organized
 
