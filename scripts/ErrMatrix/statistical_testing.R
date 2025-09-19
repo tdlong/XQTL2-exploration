@@ -1,11 +1,36 @@
+#!/usr/bin/env Rscript
+
+# Statistical testing script for haplotype data
+# Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>
+# Example: Rscript statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+
 library(tidyverse)
 library(limSolve)
 library(abind)
-mychr="chr3R"
-mydir = "process/ZINC2_h10/adapt_h10"
-design.df = read.table("/dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt")
+
+# Parse command line arguments
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) != 5) {
+  stop("Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>")
+}
+
+mydir <- args[1]
+mychr <- args[2]
+start_pos <- as.numeric(args[3])
+end_pos <- as.numeric(args[4])
+design_file <- args[5]
+
+# Load design file and data
+design.df <- read.table(design_file)
 source("scripts/haps2scan/scan_functions.R")
-filein=paste0(mydir,"/R.haps.",mychr,".out.rds")
+filein <- paste0(mydir, "/R.haps.", mychr, ".out.rds")
+
+cat("=== STATISTICAL TESTING PARAMETERS ===\n")
+cat("Data directory:", mydir, "\n")
+cat("Chromosome:", mychr, "\n")
+cat("Position range:", start_pos, "-", end_pos, "\n")
+cat("Design file:", design_file, "\n")
+cat("Input file:", filein, "\n\n")
 
 library(dplyr, warn.conflicts = FALSE)
 options(dplyr.summarise.inform = FALSE)
@@ -161,7 +186,7 @@ ProportionSelect = design.df %>% filter(TRT=="Z") %>% select(REP,Proportion) %>%
 
 bb1 = xx1 %>%
 #	head(n=100) %>%
-	filter(pos >= 20000000 & pos <= 20200000) %>%  # Test region: 20,000,000-20,200,000
+	filter(pos >= start_pos & pos <= end_pos) %>%  # User-specified region
 	group_by(CHROM,pos) %>%
 	nest() %>%
 	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
