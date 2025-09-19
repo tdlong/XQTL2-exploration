@@ -7,8 +7,15 @@ library(tidyverse)
 library(limSolve)
 library(abind)
 
-# Load the reshaped data
+# Set up paths
+Z_base <- "/dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2"
 reshaped_file <- "process/ZINC2_h10/adapt_h10/R.haps.chr3R.out.rds"
+
+# Load the design file
+design_file <- paste0(Z_base, "/Zinc2.test.M.txt")
+design.df <- read.table(design_file)
+
+# Load the reshaped data
 reshaped_data <- readRDS(reshaped_file)
 
 # Define test region
@@ -20,25 +27,8 @@ test_data <- reshaped_data %>%
 
 cat("=== STATISTICAL TESTING FOR SMALL REGION ===\n")
 cat("Testing", nrow(test_data), "positions in region 20,000,000-20,200,000\n\n")
-
-# Get sample names from the first position
-sample_names <- test_data$sample[[1]]
-cat("Sample names:", paste(sample_names, collapse = ", "), "\n\n")
-
-# Create a simple design matrix for our samples
-# Based on sample names: Rep01_W_M, Rep01_Z_M, etc.
-design_df <- data.frame(
-  bam = sample_names,
-  TRT = ifelse(str_detect(sample_names, "_W_"), "W", "Z"),
-  REP = str_extract(sample_names, "Rep\\d+"),
-  REPrep = str_extract(sample_names, "Rep\\d+"),
-  Num = 100,  # Assume 100 flies per sample
-  Proportion = ifelse(str_detect(sample_names, "_Z_"), 0.5, NA)  # 50% selection for Z treatment
-) %>%
-  filter(str_detect(bam, "_M"))  # Only males
-
-cat("Design matrix:\n")
-print(design_df)
+cat("Design file loaded:", nrow(design.df), "samples\n")
+cat("Design columns:", paste(colnames(design.df), collapse = ", "), "\n\n")
 
 # Copy the statistical functions from scan_functions.R
 average_variance <- function(cov_matrix, tolerance = 1e-10) {
@@ -151,7 +141,7 @@ doscan2 <- function(df, chr, Nfounders) {
     Err = err,
     Names = names
   ) %>%
-    left_join(design_df, join_by(sample == bam)) %>%
+    left_join(design.df, join_by(sample == bam)) %>%
     filter(!is.na(TRT))
   
   # Check if all founders are discernable
@@ -170,7 +160,7 @@ doscan2 <- function(df, chr, Nfounders) {
               Num_mean = sexlink * mean(Num)) %>%
     rename(Haps = Haps_mean, Num = Num_mean, Err = Err_mean)
   
-  # Extract data for testing
+  # Extract data for testing (W vs Z treatments)
   p1 <- df3 %>% filter(TRT == "W") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
   row.names(p1) <- NULL
   p2 <- df3 %>% filter(TRT == "Z") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
