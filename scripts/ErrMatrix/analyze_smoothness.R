@@ -37,10 +37,10 @@ hap_freqs <- test_data %>%
     B5 = map_dbl(Haps, ~ .x["B5"]),
     B6 = map_dbl(Haps, ~ .x["B6"]),
     B7 = map_dbl(Haps, ~ .x["B7"]),
-    B8 = map_dbl(Haps, ~ .x["AB8"])  # Use AB8, not B8
+    AB8 = map_dbl(Haps, ~ .x["AB8"])  # Use AB8, not B8
   ) %>%
-  select(pos, B1, B2, B3, B4, B5, B6, B7, B8) %>%
-  mutate(across(B1:B8, ~ round(.x * 1000, 0)))
+  select(pos, B1, B2, B3, B4, B5, B6, B7, AB8) %>%
+  mutate(across(B1:AB8, ~ round(.x * 1000, 0)))
 
 print(hap_freqs)
 
@@ -56,10 +56,10 @@ error_vars <- test_data %>%
     B5 = map_dbl(Err, ~ sqrt(.x["B5", "B5"])),
     B6 = map_dbl(Err, ~ sqrt(.x["B6", "B6"])),
     B7 = map_dbl(Err, ~ sqrt(.x["B7", "B7"])),
-    B8 = map_dbl(Err, ~ sqrt(.x["AB8", "AB8"]))  # Use AB8, not B8
+    AB8 = map_dbl(Err, ~ sqrt(.x["AB8", "AB8"]))  # Use AB8, not B8
   ) %>%
-  select(pos, B1, B2, B3, B4, B5, B6, B7, B8) %>%
-  mutate(across(B1:B8, ~ round(.x * 1000, 0)))
+  select(pos, B1, B2, B3, B4, B5, B6, B7, AB8) %>%
+  mutate(across(B1:AB8, ~ round(.x * 1000, 0)))
 
 print(error_vars)
 
