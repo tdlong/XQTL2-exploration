@@ -146,15 +146,12 @@ doscan2 = function(data, CHROM) {
   # Perform Wald test
   Wald_log10p <- wald.test3(p1, p2, covar1, covar2)
   
-  # Debug Wald test (only for first position)
-  if (!exists("debug_printed4")) {
-    cat("Wald result:", Wald_log10p, "\n")
-    cat("p1 (first 3):", head(p1, 3), "\n")
-    cat("p2 (first 3):", head(p2, 3), "\n")
-    cat("covar1 dimensions:", dim(covar1), "\n")
-    cat("covar2 dimensions:", dim(covar2), "\n")
-    debug_printed4 <<- TRUE
-  }
+  # Debug Wald test
+  cat("Wald result:", Wald_log10p, "\n")
+  cat("p1 (first 3):", head(p1, 3), "\n")
+  cat("p2 (first 3):", head(p2, 3), "\n")
+  cat("covar1 dimensions:", dim(covar1), "\n")
+  cat("covar2 dimensions:", dim(covar2), "\n")
   
   # Calculate treatment differences and error variances
   hap_diff <- p1 - p2
