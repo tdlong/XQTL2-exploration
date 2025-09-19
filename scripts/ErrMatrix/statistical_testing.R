@@ -332,6 +332,39 @@ if (length(all_err_changes) > 0) {
   cat("\nNo error changes calculated - check data structure\n")
 }
 
+# Calculate Wald-like summary statistics
+cat("\n=== WALD-LIKE SUMMARY STATISTICS ===\n")
+
+# Calculate mean squared haplotype differences and mean error variances
+wald_summary <- bb2 %>%
+  filter(!is.na(Wald_log10p)) %>%
+  mutate(
+    hap_diff = map(hap_diff, ~ .x[[1]]),
+    err_var_C = map(err_var_C, ~ .x[[1]]),
+    err_var_Z = map(err_var_Z, ~ .x[[1]])
+  ) %>%
+  rowwise() %>%
+  mutate(
+    mean_sq_hap_diff = mean(as.numeric(hap_diff)^2),
+    mean_error_var = mean(c(as.numeric(err_var_C), as.numeric(err_var_Z))),
+    wald_ratio = sqrt(mean_sq_hap_diff / mean_error_var)
+  ) %>%
+  ungroup()
+
+cat("Position     MeanSqDiff  MeanErrVar  WaldRatio\n")
+for(i in 1:nrow(wald_summary)) {
+  cat(sprintf("%9.0f %11.6f %11.6f %9.3f\n", 
+              wald_summary$pos[i], 
+              wald_summary$mean_sq_hap_diff[i],
+              wald_summary$mean_error_var[i],
+              wald_summary$wald_ratio[i]))
+}
+
+cat("\nWald-like summary across positions:\n")
+cat("Mean Wald ratio:", round(mean(wald_summary$wald_ratio), 3), "\n")
+cat("SD Wald ratio:", round(sd(wald_summary$wald_ratio), 3), "\n")
+cat("Max Wald ratio:", round(max(wald_summary$wald_ratio), 3), "\n")
+
 cat("\n=== SUMMARY ===\n")
 cat("Positions tested:", nrow(bb2), "\n")
 cat("Successful Wald tests:", sum(!is.na(bb2$Wald_log10p)), "\n")
