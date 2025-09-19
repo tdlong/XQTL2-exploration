@@ -478,6 +478,72 @@ This provides a baseline for comparing with the user's full statistical machiner
 
 **The h_cutoff=10 results show more stability and higher significance, supporting the choice of h_cutoff=10 as the optimal parameter.**
 
+### Fixed 50kb Window Results (for comparison)
+
+**Fixed 50kb Results**:
+```
+chr        pos Wald_log10p
+chr3R 20000000        25.7
+chr3R 20005000        30.2
+chr3R 20010000        30.4
+chr3R 20015000        29.5
+chr3R 20020000        30.1
+chr3R 20025000        30.4
+chr3R 20030000        30.3
+chr3R 20035000        29.5
+chr3R 20040000        33.1
+chr3R 20045000        32.0
+chr3R 20050000        30.5
+chr3R 20055000        30.8
+chr3R 20060000        29.8
+chr3R 20065000        28.9
+chr3R 20070000        28.6
+chr3R 20075000        28.7
+chr3R 20080000        28.0
+chr3R 20085000        29.3
+chr3R 20090000        29.2
+chr3R 20095000        27.0
+chr3R 20100000        28.0
+chr3R 20105000        27.9
+chr3R 20110000        30.0
+chr3R 20115000        30.8
+chr3R 20120000        28.8
+chr3R 20125000        28.3
+chr3R 20130000        26.8
+chr3R 20135000        27.5
+chr3R 20140000        31.1
+chr3R 20145000        33.1
+chr3R 20150000        35.8
+chr3R 20155000        35.1
+chr3R 20160000        33.5
+chr3R 20165000        32.1
+chr3R 20170000        32.7
+chr3R 20175000        33.2
+chr3R 20180000        33.5
+chr3R 20185000        32.8
+chr3R 20190000        32.1
+chr3R 20195000        33.9
+chr3R 20200000        32.4
+```
+
+**Complete Comparison Summary**:
+| Metric | Fixed 50kb | h_cutoff=10 | h_cutoff=4 |
+|--------|------------|-------------|------------|
+| Positions tested | 41 | 21 | 21 |
+| Mean Wald log10p | 30.52 | 26.23 | 22.32 |
+| Max Wald log10p | 35.77 | 38.57 | 36.55 |
+| Min Wald log10p | 25.67 | 13.63 | 6.81 |
+| Range | 10.10 | 24.94 | 29.74 |
+
+### Final Key Findings
+1. **Fixed 50kb is most stable**: Smallest range (10.10) and highest minimum (25.67)
+2. **Fixed 50kb has highest average significance**: Mean 30.52 vs 26.23 (h10) vs 22.32 (h4)
+3. **Fixed 50kb shows smooth variation**: More gradual changes between adjacent positions
+4. **h_cutoff=10 is intermediate**: Better than h4 but more variable than fixed 50kb
+5. **h_cutoff=4 is least stable**: Highest range (29.74) and lowest minimum (6.81)
+
+**The fixed 50kb window method shows the most stable and consistent results, with the highest average significance and smoothest variation across positions.**
+
 ## Files Created and Organized
 
 ### Scripts
