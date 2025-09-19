@@ -5,6 +5,7 @@
 
 library(tidyverse)
 library(limSolve)
+library(abind)
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -64,110 +65,57 @@ wald.test3 = function(p1, p2, covar1, covar2) {
 }
 
 # Main analysis function
-doscan2 = function(data, CHROM) {
-  # Extract sample names and create design matrix
-  sample_names <- data$sample[[1]]
-  
-  # Debug: print first few sample names (only for first position)
-  if (!exists("debug_printed")) {
-    cat("Sample names:", head(sample_names, 3), "\n")
-    cat("Design file bam names:", head(design.df$bam, 3), "\n")
-    debug_printed <<- TRUE
-  }
-  
-  temp_df <- data.frame(
-    sample = sample_names,
-    bam = sample_names,
-    stringsAsFactors = FALSE
-  )
-  
-  design_df <- left_join(temp_df, design.df, by = "bam")
-  
-  if (!exists("debug_printed2")) {
-    cat("After join, TRT column exists:", "TRT" %in% names(design_df), "\n")
-    cat("Rows with TRT:", sum(!is.na(design_df$TRT)), "out of", nrow(design_df), "\n")
-    debug_printed2 <<- TRUE
-  }
-  
-  design_df <- design_df %>% filter(!is.na(TRT))
-  
-  # Filter for male samples only
-  design_df <- design_df %>% filter(str_detect(sample, "_M"))
-  
-  if (nrow(design_df) == 0) {
-    return(list(Wald_log10p = NA))
-  }
-  
-  # Separate by treatment
-  C_samples <- design_df %>% filter(TRT == "C") %>% pull(sample)
-  Z_samples <- design_df %>% filter(TRT == "Z") %>% pull(sample)
-  
-  if (length(C_samples) == 0 || length(Z_samples) == 0) {
-    return(list(Wald_log10p = NA))
-  }
-  
-  # Extract haplotype frequencies and error matrices
-  hap_freqs <- data$Haps[[1]]
-  err_matrices <- data$Err[[1]]
-  
-  # Get indices for each treatment
-  C_indices <- which(sample_names %in% C_samples)
-  Z_indices <- which(sample_names %in% Z_samples)
-  
-  # Debug: check hap_freqs structure (only for first position)
-  if (!exists("debug_printed3")) {
-    cat("hap_freqs class:", class(hap_freqs), "\n")
-    cat("hap_freqs dimensions:", dim(hap_freqs), "\n")
-    cat("C_indices:", C_indices, "\n")
-    cat("Z_indices:", Z_indices, "\n")
-    debug_printed3 <<- TRUE
-  }
-  
-  # Calculate average haplotype frequencies per treatment
-  # hap_freqs is a list, so we need to extract the relevant elements and convert to matrix
-  tryCatch({
-    hap_freqs_C <- do.call(rbind, hap_freqs[C_indices])  # Treatment C
-    hap_freqs_Z <- do.call(rbind, hap_freqs[Z_indices])  # Treatment Z
-    
-    p1 <- colMeans(hap_freqs_C)  # Treatment C
-    p2 <- colMeans(hap_freqs_Z)  # Treatment Z
-    
-    cat("p1 length:", length(p1), "\n")
-    cat("p2 length:", length(p2), "\n")
-  }, error = function(e) {
-    cat("Error in haplotype calculation:", e$message, "\n")
-    return(list(Wald_log10p = NA))
-  })
-  
-  # Calculate average error matrices per treatment
-  covar1 <- Reduce(`+`, err_matrices[C_indices]) / length(C_indices)  # Treatment C
-  covar2 <- Reduce(`+`, err_matrices[Z_indices]) / length(Z_indices)  # Treatment Z
-  
-  # Perform Wald test
-  Wald_log10p <- wald.test3(p1, p2, covar1, covar2)
-  
-  # Debug Wald test
-  cat("Wald result:", Wald_log10p, "\n")
-  cat("p1 (first 3):", head(p1, 3), "\n")
-  cat("p2 (first 3):", head(p2, 3), "\n")
-  cat("covar1 dimensions:", dim(covar1), "\n")
-  cat("covar2 dimensions:", dim(covar2), "\n")
-  
-  # Calculate treatment differences and error variances
-  hap_diff <- p1 - p2
-  err_var_C <- diag(covar1)
-  err_var_Z <- diag(covar2)
-  err_diff <- err_var_C - err_var_Z
-  
-  return(list(
-    Wald_log10p = Wald_log10p,
-    hap_freqs_C = list(p1),
-    hap_freqs_Z = list(p2), 
-    hap_diff = list(hap_diff),
-    err_var_C = list(err_var_C),
-    err_var_Z = list(err_var_Z),
-    err_diff = list(err_diff)
-  ))
+doscan2 = function(df,chr,Nfounders){
+	sexlink = 1
+	if(chr=="chrX"){ sexlink=0.75 }
+
+	# I tested with xx2$data[[1]]
+	df2 = df %>%
+		unnest(cols = c(sample, Groups, Haps, Err, Names)) %>%
+		left_join(design.df, join_by(sample==bam)) %>%
+		filter(!is.na(TRT))
+	
+	# only analyze data for which all founders are discernable..
+	allFounders = as.numeric(df2 %>% mutate(mm = max(unlist(Groups))) %>% summarize(max(mm)))	
+
+	ll = list(Wald_log10p = NA, Pseu_log10p = NA, Falc_H2 = NA, Cutl_H2 = NA, avg.var = NA)
+	if(allFounders!=Nfounders){ return(ll) }
+
+	##  now cases where all founders are OK
+	##  now collapse any pure replicates.  This is tidy ugly.  But I feel there 
+	##  is value in keeping dataframe columns as lists...
+	df3 = df2 %>%
+		select(-Groups) %>%
+		group_by(TRT,REP) %>%	
+		summarise(Err_mean = list(reduce(map(Err, ~as.matrix(.x)), `+`)/length(Err)),
+			Haps_mean = list(reduce(map(Haps, ~as.vector(.x)), `+`)/length(Haps)),
+			Names = list(first(Names)),
+			Num_mean = sexlink*mean(Num)) %>%
+		rename(Haps=Haps_mean,Num=Num_mean,Err=Err_mean)
+
+	## these summaries of the data are pretty useful for tests
+	p1 = df3 %>% filter(TRT=="C") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t() 
+	row.names(p1) <- NULL
+	p2 = df3 %>% filter(TRT=="Z") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
+	row.names(p2) <- NULL
+	covar1 = do.call(abind, c(df3 %>% filter(TRT=="C") %>% pull(Err), along = 3))
+	covar2 = do.call(abind, c(df3 %>% filter(TRT=="Z") %>% pull(Err), along = 3))
+	nrepl = df3 %>% filter(TRT=="C") %>% nrow()
+	nrepl == df3 %>% filter(TRT=="Z") %>% nrow()
+	N1 = df3 %>% filter(TRT=="C") %>% pull(Num)
+	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
+
+	wt=wald.test3(p1,p2,covar1,covar2,nrepl,N1,N2)
+	Wald_log10p = -log10(wt$p.value)
+	# Pseu_log10p = pseudoN.test(p1,p2,covar1,covar2,nrepl,N1,N2)
+
+	# af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
+	#temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
+	#Falc_H2 = temp$Falconer_H2
+	#Cutl_H2 = temp$Cutler_H2
+
+	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
+	ll
 }
 
 # Run analysis
@@ -175,10 +123,10 @@ Nfounders=length(xx1$Groups[[1]][[1]])
 
 bb1 = xx1 %>%
   filter(pos >= start_pos & pos <= end_pos) %>%
-	group_by(CHROM,pos) %>%
-	nest() %>%
-  mutate(out = map2(data, CHROM, doscan2)) %>%
-	unnest_wider(out)
+  group_by(CHROM,pos) %>%
+  nest() %>%
+  mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
+  unnest_wider(out)
 
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 
