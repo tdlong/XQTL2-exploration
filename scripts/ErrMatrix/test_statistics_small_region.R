@@ -160,15 +160,15 @@ doscan2 <- function(df, chr, Nfounders) {
               Num_mean = sexlink * mean(Num)) %>%
     rename(Haps = Haps_mean, Num = Num_mean, Err = Err_mean)
   
-  # Extract data for testing (W vs Z treatments)
-  p1 <- df3 %>% filter(TRT == "W") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
+  # Extract data for testing (C vs Z treatments)
+  p1 <- df3 %>% filter(TRT == "C") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
   row.names(p1) <- NULL
   p2 <- df3 %>% filter(TRT == "Z") %>% pull(Haps) %>% as.data.frame() %>% as.matrix() %>% t()
   row.names(p2) <- NULL
-  covar1 <- do.call(abind, c(df3 %>% filter(TRT == "W") %>% pull(Err), along = 3))
+  covar1 <- do.call(abind, c(df3 %>% filter(TRT == "C") %>% pull(Err), along = 3))
   covar2 <- do.call(abind, c(df3 %>% filter(TRT == "Z") %>% pull(Err), along = 3))
-  nrepl <- df3 %>% filter(TRT == "W") %>% nrow()
-  N1 <- df3 %>% filter(TRT == "W") %>% pull(Num)
+  nrepl <- df3 %>% filter(TRT == "C") %>% nrow()
+  N1 <- df3 %>% filter(TRT == "C") %>% pull(Num)
   N2 <- df3 %>% filter(TRT == "Z") %>% pull(Num)
   
   # Run Wald test only
