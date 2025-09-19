@@ -332,11 +332,11 @@ if (length(all_err_changes) > 0) {
   cat("\nNo error changes calculated - check data structure\n")
 }
 
-# Calculate Wald-like summary statistics
-cat("\n=== WALD-LIKE SUMMARY STATISTICS ===\n")
+# Analyze position-to-position variability in numerator vs denominator
+cat("\n=== POSITION-TO-POSITION VARIABILITY ANALYSIS ===\n")
 
-# Calculate mean squared haplotype differences and mean error variances
-wald_summary <- bb2 %>%
+# Calculate summary statistics for each position
+pos_summary <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   mutate(
     hap_diff = map(hap_diff, ~ .x[[1]]),
@@ -345,25 +345,33 @@ wald_summary <- bb2 %>%
   ) %>%
   rowwise() %>%
   mutate(
-    mean_sq_hap_diff = mean(as.numeric(hap_diff)^2),
-    mean_error_var = mean(c(as.numeric(err_var_C), as.numeric(err_var_Z))),
-    wald_ratio = sqrt(mean_sq_hap_diff / mean_error_var)
+    # Numerator: mean squared haplotype differences
+    numerator = mean(as.numeric(hap_diff)^2),
+    # Denominator: mean error variance
+    denominator = mean(c(as.numeric(err_var_C), as.numeric(err_var_Z)))
   ) %>%
-  ungroup()
+  ungroup() %>%
+  arrange(pos)
 
-cat("Position     MeanSqDiff  MeanErrVar  WaldRatio\n")
-for(i in 1:nrow(wald_summary)) {
-  cat(sprintf("%9.0f %11.6f %11.6f %9.3f\n", 
-              wald_summary$pos[i], 
-              wald_summary$mean_sq_hap_diff[i],
-              wald_summary$mean_error_var[i],
-              wald_summary$wald_ratio[i]))
+cat("Position     Numerator  Denominator\n")
+for(i in 1:nrow(pos_summary)) {
+  cat(sprintf("%9.0f %11.6f %12.6f\n", 
+              pos_summary$pos[i], 
+              pos_summary$numerator[i],
+              pos_summary$denominator[i]))
 }
 
-cat("\nWald-like summary across positions:\n")
-cat("Mean Wald ratio:", round(mean(wald_summary$wald_ratio), 3), "\n")
-cat("SD Wald ratio:", round(sd(wald_summary$wald_ratio), 3), "\n")
-cat("Max Wald ratio:", round(max(wald_summary$wald_ratio), 3), "\n")
+# Calculate variability of numerator and denominator across positions
+cat("\nVariability across positions:\n")
+cat("Numerator (mean sq hap diff):\n")
+cat("  Mean:", round(mean(pos_summary$numerator), 6), "\n")
+cat("  SD:  ", round(sd(pos_summary$numerator), 6), "\n")
+cat("  CV:  ", round(sd(pos_summary$numerator)/mean(pos_summary$numerator)*100, 1), "%\n")
+
+cat("\nDenominator (mean error var):\n")
+cat("  Mean:", round(mean(pos_summary$denominator), 6), "\n")
+cat("  SD:  ", round(sd(pos_summary$denominator), 6), "\n")
+cat("  CV:  ", round(sd(pos_summary$denominator)/mean(pos_summary$denominator)*100, 1), "%\n")
 
 cat("\n=== SUMMARY ===\n")
 cat("Positions tested:", nrow(bb2), "\n")
