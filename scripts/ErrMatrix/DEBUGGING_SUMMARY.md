@@ -534,15 +534,27 @@ chr3R 20200000        32.4
 | Max Wald log10p | 35.77 | 38.57 | 36.55 |
 | Min Wald log10p | 25.67 | 13.63 | 6.81 |
 | Range | 10.10 | 24.94 | 29.74 |
+| **Variance** | **5.51** | **45.72** | **67.51** |
+| **Std Deviation** | **2.35** | **6.76** | **8.22** |
+| **Coefficient of Variation** | **7.7%** | **25.8%** | **36.8%** |
 
 ### Final Key Findings
-1. **Fixed 50kb is most stable**: Smallest range (10.10) and highest minimum (25.67)
-2. **Fixed 50kb has highest average significance**: Mean 30.52 vs 26.23 (h10) vs 22.32 (h4)
-3. **Fixed 50kb shows smooth variation**: More gradual changes between adjacent positions
-4. **h_cutoff=10 is intermediate**: Better than h4 but more variable than fixed 50kb
-5. **h_cutoff=4 is least stable**: Highest range (29.74) and lowest minimum (6.81)
+1. **Fixed 50kb is dramatically more stable**: 
+   - Variance: 5.51 (vs 45.72 for h10, 67.51 for h4)
+   - Coefficient of Variation: 7.7% (vs 25.8% for h10, 36.8% for h4)
+   - 8x less variable than h_cutoff=10, 12x less variable than h_cutoff=4
 
-**The fixed 50kb window method shows the most stable and consistent results, with the highest average significance and smoothest variation across positions.**
+2. **Fixed 50kb has highest average significance**: Mean 30.52 vs 26.23 (h10) vs 22.32 (h4)
+
+3. **Fixed 50kb shows smooth variation**: More gradual changes between adjacent positions
+
+4. **h_cutoff=10 is intermediate**: Better than h4 but 8x more variable than fixed 50kb
+
+5. **h_cutoff=4 is least stable**: Highest variance (67.51) and coefficient of variation (36.8%)
+
+6. **Variance explains rapid changes**: The 8-12x higher variance in adaptive methods explains the rapid changes observed in downstream analysis
+
+**The fixed 50kb window method shows dramatically more stable and consistent results, with 8-12x lower variance than adaptive methods. This explains why you're seeing rapid changes in your downstream analysis when using adaptive window methods.**
 
 ## Files Created and Organized
 
