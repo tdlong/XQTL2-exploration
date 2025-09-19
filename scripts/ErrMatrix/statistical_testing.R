@@ -68,9 +68,12 @@ doscan2 = function(data, CHROM) {
   # Extract sample names and create design matrix
   sample_names <- data$sample[[1]]
   
-  # Debug: print first few sample names
-  cat("Sample names:", head(sample_names, 3), "\n")
-  cat("Design file bam names:", head(design.df$bam, 3), "\n")
+  # Debug: print first few sample names (only for first position)
+  if (!exists("debug_printed")) {
+    cat("Sample names:", head(sample_names, 3), "\n")
+    cat("Design file bam names:", head(design.df$bam, 3), "\n")
+    debug_printed <<- TRUE
+  }
   
   temp_df <- data.frame(
     sample = sample_names,
@@ -80,8 +83,11 @@ doscan2 = function(data, CHROM) {
   
   design_df <- left_join(temp_df, design.df, by = "bam")
   
-  cat("After join, TRT column exists:", "TRT" %in% names(design_df), "\n")
-  cat("Rows with TRT:", sum(!is.na(design_df$TRT)), "out of", nrow(design_df), "\n")
+  if (!exists("debug_printed2")) {
+    cat("After join, TRT column exists:", "TRT" %in% names(design_df), "\n")
+    cat("Rows with TRT:", sum(!is.na(design_df$TRT)), "out of", nrow(design_df), "\n")
+    debug_printed2 <<- TRUE
+  }
   
   design_df <- design_df %>% filter(!is.na(TRT))
   
@@ -108,19 +114,30 @@ doscan2 = function(data, CHROM) {
   C_indices <- which(sample_names %in% C_samples)
   Z_indices <- which(sample_names %in% Z_samples)
   
-  # Debug: check hap_freqs structure
-  cat("hap_freqs class:", class(hap_freqs), "\n")
-  cat("hap_freqs dimensions:", dim(hap_freqs), "\n")
-  cat("C_indices:", C_indices, "\n")
-  cat("Z_indices:", Z_indices, "\n")
+  # Debug: check hap_freqs structure (only for first position)
+  if (!exists("debug_printed3")) {
+    cat("hap_freqs class:", class(hap_freqs), "\n")
+    cat("hap_freqs dimensions:", dim(hap_freqs), "\n")
+    cat("C_indices:", C_indices, "\n")
+    cat("Z_indices:", Z_indices, "\n")
+    debug_printed3 <<- TRUE
+  }
   
   # Calculate average haplotype frequencies per treatment
   # hap_freqs is a list, so we need to extract the relevant elements and convert to matrix
-  hap_freqs_C <- do.call(rbind, hap_freqs[C_indices])  # Treatment C
-  hap_freqs_Z <- do.call(rbind, hap_freqs[Z_indices])  # Treatment Z
-  
-  p1 <- colMeans(hap_freqs_C)  # Treatment C
-  p2 <- colMeans(hap_freqs_Z)  # Treatment Z
+  tryCatch({
+    hap_freqs_C <- do.call(rbind, hap_freqs[C_indices])  # Treatment C
+    hap_freqs_Z <- do.call(rbind, hap_freqs[Z_indices])  # Treatment Z
+    
+    p1 <- colMeans(hap_freqs_C)  # Treatment C
+    p2 <- colMeans(hap_freqs_Z)  # Treatment Z
+    
+    cat("p1 length:", length(p1), "\n")
+    cat("p2 length:", length(p2), "\n")
+  }, error = function(e) {
+    cat("Error in haplotype calculation:", e$message, "\n")
+    return(list(Wald_log10p = NA))
+  })
   
   # Calculate average error matrices per treatment
   covar1 <- Reduce(`+`, err_matrices[C_indices]) / length(C_indices)  # Treatment C
@@ -151,10 +168,10 @@ Nfounders=length(xx1$Groups[[1]][[1]])
 
 bb1 = xx1 %>%
   filter(pos >= start_pos & pos <= end_pos) %>%
-  group_by(CHROM,pos) %>%
-  nest() %>%
+	group_by(CHROM,pos) %>%
+	nest() %>%
   mutate(out = map2(data, CHROM, doscan2)) %>%
-  unnest_wider(out)
+	unnest_wider(out)
 
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 
