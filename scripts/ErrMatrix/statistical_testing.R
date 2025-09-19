@@ -167,9 +167,9 @@ doscan2 = function(df,chr,Nfounders){
 	N1 = df3 %>% filter(TRT=="C") %>% pull(Num)
 	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
 
-	# Store haplotype frequencies for analysis
-	hap_freqs_C = as.vector(p1)
-	hap_freqs_Z = as.vector(p2)
+	# Store mean haplotype frequencies for analysis (across replicates)
+	hap_freqs_C = colMeans(p1)
+	hap_freqs_Z = colMeans(p2)
 	hap_diff = hap_freqs_C - hap_freqs_Z
 	
 	# Store error variances for analysis
