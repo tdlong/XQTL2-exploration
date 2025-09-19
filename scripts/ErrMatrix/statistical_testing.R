@@ -208,11 +208,17 @@ bb1 = xx1 %>%
 	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
 	unnest_wider(out)
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
-bb3 = add_genetic(bb2)
+# bb3 = add_genetic(bb2)
 
 # Display results for our test region
 cat("=== WALD TEST RESULTS FOR TEST REGION ===\n")
 print(bb2 %>% select(pos, Wald_log10p), n = Inf)
+
+# Let's see what bb2 actually contains
+cat("\n=== BB2 DATAFRAME STRUCTURE ===\n")
+print(bb2, n = Inf)
+cat("\nColumn types:\n")
+print(sapply(bb2, class))
 
 # Analyze haplotype frequency changes
 cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
@@ -227,9 +233,12 @@ hap_analysis <- bb2 %>%
 hap_changes <- hap_analysis %>%
   mutate(
     hap_diff_prev = lag(hap_diff),
-    hap_change = map2(hap_diff, hap_diff_prev, ~ abs(.x - .y))
+    hap_change = map2(hap_diff, hap_diff_prev, ~ {
+      if (is.null(.y)) return(NULL)
+      abs(.x - .y)
+    })
   ) %>%
-  filter(!is.na(hap_diff_prev)) %>%
+  filter(!is.null(hap_diff_prev)) %>%
   select(pos, hap_change)
 
 cat("Haplotype treatment differences (C - Z) by position:\n")
