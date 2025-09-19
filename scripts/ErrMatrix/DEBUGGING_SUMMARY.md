@@ -744,6 +744,47 @@ Where `parameter` is the h_cutoff value (e.g., "h4" for h_cutoff=4).
 
 **Current correct filename**: `hunk_data_chr3R_19780000_Rep01_W_F_h4.rds`
 
+## INVESTIGATING HAPLOTYPE vs ERROR CHANGES - h_cutoff=10 vs Fixed 50kb
+
+### Problem Statement
+We observed that h_cutoff=10 has 8x higher variance in Wald log10p values compared to fixed 50kb (45.72 vs 5.51). The key question is: **What is driving this difference?**
+
+Are the differences due to:
+1. **Haplotype treatment differences (C - Z) changing rapidly** between adjacent positions?
+2. **Error matrices behaving poorly** from position to position?
+3. **Something else entirely?**
+
+### Approach
+Modified `statistical_testing.R` to capture and analyze the key data right before the Wald test:
+- **Haplotype frequencies** for treatments C and Z (`p1`, `p2`)
+- **Treatment differences** (C - Z) for each founder at each position
+- **Changes in treatment differences** between adjacent positions
+- **Summary statistics** of how much haplotype differences change
+
+### Commands to Run
+
+**h_cutoff=10 (adaptive method):**
+```bash
+Rscript scripts/ErrMatrix/statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+```
+
+**Fixed 50kb method:**
+```bash
+Rscript scripts/ErrMatrix/statistical_testing.R /dfs7/adl/tdlong/fly_pool/XQTL2/process/ZINC2 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+```
+
+### Expected Output
+For each method, the script will show:
+1. **Wald test results** (as before)
+2. **Haplotype treatment differences (C - Z)** for each position and each founder
+3. **Changes in treatment differences** between adjacent positions
+4. **Summary statistics** (mean, SD, max changes)
+
+### Key Question
+This will tell us whether the 8x higher variance in h_cutoff=10 Wald statistics is driven by:
+- **Data-driven variability**: Rapid changes in the underlying haplotype treatment differences
+- **Method-driven variability**: Something else (error estimation, window size effects, etc.)
+
 ## Directory Organization
 - `scripts/ErrMatrix/working/` - Active debugging scripts and data
 - `scripts/ErrMatrix/analysis/` - Analysis scripts and results
