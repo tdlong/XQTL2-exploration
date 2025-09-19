@@ -1,36 +1,14 @@
-#!/usr/bin/env Rscript
 
-# Statistical testing script for haplotype data
-# Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>
-# Example: Rscript statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+Rscript scripts/haps2scan/haps2scan.Apr2025.R chr3R $Rfile $mydir
 
 library(tidyverse)
 library(limSolve)
 library(abind)
-
-# Parse command line arguments
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 5) {
-  stop("Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>")
-}
-
-mydir <- args[1]
-mychr <- args[2]
-start_pos <- as.numeric(args[3])
-end_pos <- as.numeric(args[4])
-design_file <- args[5]
-
-# Load design file and data
-design.df <- read.table(design_file)
+mychr="chr3R"
+mydir = "/dfs7/adl/tdlong/fly_pool/XQTL2/process/ZINC2_h10/adapt_h10"
+design.df = read.table("/dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt")
 source("scripts/haps2scan/scan_functions.R")
-filein <- paste0(mydir, "/R.haps.", mychr, ".out.rds")
-
-cat("=== STATISTICAL TESTING PARAMETERS ===\n")
-cat("Data directory:", mydir, "\n")
-cat("Chromosome:", mychr, "\n")
-cat("Position range:", start_pos, "-", end_pos, "\n")
-cat("Design file:", design_file, "\n")
-cat("Input file:", filein, "\n\n")
+filein=paste0(mydir,"/R.haps.",mychr,".out.rds")
 
 library(dplyr, warn.conflicts = FALSE)
 options(dplyr.summarise.inform = FALSE)
@@ -167,32 +145,17 @@ doscan2 = function(df,chr,Nfounders){
 	N1 = df3 %>% filter(TRT=="C") %>% pull(Num)
 	N2 = df3 %>% filter(TRT=="Z") %>% pull(Num)
 
-	# Store haplotype frequencies for analysis
-	hap_freqs_C = as.vector(p1)
-	hap_freqs_Z = as.vector(p2)
-	hap_diff = hap_freqs_C - hap_freqs_Z
-	
-	# Store error variances for analysis
-	err_var_C = diag(covar1[,,1])
-	err_var_Z = diag(covar2[,,1])
-	err_diff = err_var_C - err_var_Z
-
 	wt=wald.test3(p1,p2,covar1,covar2,nrepl,N1,N2)
 	Wald_log10p = -log10(wt$p.value)
-#	Pseu_log10p = pseudoN.test(p1,p2,covar1,covar2,nrepl,N1,N2)
+	Pseu_log10p = pseudoN.test(p1,p2,covar1,covar2,nrepl,N1,N2)
 
-#	af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
-#	temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
-#	Falc_H2 = temp$Falconer_H2
-#	Cutl_H2 = temp$Cutler_H2
+	af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
+	temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
+	Falc_H2 = temp$Falconer_H2
+	Cutl_H2 = temp$Cutler_H2
 
-	ll = list(Wald_log10p = Wald_log10p, 
-	          hap_freqs_C = list(hap_freqs_C),
-	          hap_freqs_Z = list(hap_freqs_Z), 
-	          hap_diff = list(hap_diff),
-	          err_var_C = list(err_var_C),
-	          err_var_Z = list(err_var_Z),
-	          err_diff = list(err_diff))
+	ll = list(Wald_log10p = Wald_log10p, Pseu_log10p = Pseu_log10p,
+			Falc_H2 = Falc_H2, Cutl_H2 = Cutl_H2, avg.var = wt$avg.var)
 	ll
 	}
 
@@ -202,7 +165,6 @@ ProportionSelect = design.df %>% filter(TRT=="Z") %>% select(REP,Proportion) %>%
 
 bb1 = xx1 %>%
 #	head(n=100) %>%
-	filter(pos >= start_pos & pos <= end_pos) %>%  # User-specified region
 	group_by(CHROM,pos) %>%
 	nest() %>%
 	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
@@ -210,51 +172,18 @@ bb1 = xx1 %>%
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 bb3 = add_genetic(bb2)
 
-# Display results for our test region
-cat("=== WALD TEST RESULTS FOR TEST REGION ===\n")
-print(bb2 %>% select(pos, Wald_log10p), n = Inf)
-
-# Analyze haplotype frequency changes
-cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
-
-# Extract haplotype frequencies and calculate changes
-hap_analysis <- bb2 %>%
-  filter(!is.na(Wald_log10p)) %>%
-  arrange(pos) %>%
-  select(pos, hap_freqs_C, hap_freqs_Z, hap_diff)
-
-# Calculate changes between adjacent positions
-hap_changes <- hap_analysis %>%
-  mutate(
-    hap_diff_prev = lag(hap_diff),
-    hap_change = map2(hap_diff, hap_diff_prev, ~ abs(.x - .y))
-  ) %>%
-  filter(!is.na(hap_diff_prev)) %>%
-  select(pos, hap_change)
-
-cat("Haplotype treatment differences (C - Z) by position:\n")
-for(i in 1:nrow(hap_analysis)) {
-  cat("Position", hap_analysis$pos[i], ":", 
-      paste(round(as.numeric(hap_analysis$hap_diff[[i]]), 4), collapse = " "), "\n")
-}
-
-cat("\nChanges in haplotype differences between adjacent positions:\n")
-for(i in 1:nrow(hap_changes)) {
-  cat("Position", hap_changes$pos[i], ":", 
-      paste(round(as.numeric(hap_changes$hap_change[[i]]), 4), collapse = " "), "\n")
-}
-
-# Calculate summary statistics
-all_hap_changes <- unlist(hap_changes$hap_change)
-cat("\nHaplotype change summary:\n")
-cat("Mean change:", round(mean(all_hap_changes), 4), "\n")
-cat("SD change:", round(sd(all_hap_changes), 4), "\n")
-cat("Max change:", round(max(all_hap_changes), 4), "\n")
-
-cat("\n=== SUMMARY ===\n")
-cat("Positions tested:", nrow(bb2), "\n")
-cat("Successful Wald tests:", sum(!is.na(bb2$Wald_log10p)), "\n")
-cat("Mean Wald log10p:", round(mean(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
-cat("Max Wald log10p:", round(max(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
-cat("Min Wald log10p:", round(min(bb2$Wald_log10p, na.rm = TRUE), 2), "\n")
+# I drop the loci for which the scan gives and NA
+bb4 = bb1 %>%
+	filter(!is.na(Pseu_log10p)) %>%
+	select(-c(Wald_log10p, Pseu_log10p, Falc_H2, Cutl_H2, avg.var, data)) %>%
+	left_join(xx1) %>%
+	select(-c(Err,Groups)) %>%
+	unnest(c(sample,Haps,Names)) %>%
+	unnest(c(Haps,Names)) %>%
+	rename(chr=CHROM,pool=sample,freq=Haps,founder=Names) %>%
+	left_join(design.df, by=c("pool"="bam")) %>%
+	select(c(chr,pos,TRT,REP,REPrep,freq,founder)) %>%
+	filter(!is.na(TRT)) %>%
+	group_by(chr,pos,TRT,REP,founder) %>%
+	summarize(freq=mean(freq,na.rm=TRUE))
 
