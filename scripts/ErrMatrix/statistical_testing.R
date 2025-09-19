@@ -108,6 +108,12 @@ doscan2 = function(data, CHROM) {
   C_indices <- which(sample_names %in% C_samples)
   Z_indices <- which(sample_names %in% Z_samples)
   
+  # Debug: check hap_freqs structure
+  cat("hap_freqs class:", class(hap_freqs), "\n")
+  cat("hap_freqs dimensions:", dim(hap_freqs), "\n")
+  cat("C_indices:", C_indices, "\n")
+  cat("Z_indices:", Z_indices, "\n")
+  
   # Calculate average haplotype frequencies per treatment
   p1 <- colMeans(hap_freqs[C_indices, , drop = FALSE])  # Treatment C
   p2 <- colMeans(hap_freqs[Z_indices, , drop = FALSE])  # Treatment Z
