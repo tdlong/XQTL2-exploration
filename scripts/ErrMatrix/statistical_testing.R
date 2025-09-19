@@ -67,13 +67,22 @@ wald.test3 = function(p1, p2, covar1, covar2) {
 doscan2 = function(data, CHROM) {
   # Extract sample names and create design matrix
   sample_names <- data$sample[[1]]
+  
+  # Debug: print first few sample names
+  cat("Sample names:", head(sample_names, 3), "\n")
+  cat("Design file bam names:", head(design.df$bam, 3), "\n")
+  
   design_df <- data.frame(
     sample = sample_names,
     bam = sample_names,
     stringsAsFactors = FALSE
   ) %>%
-    left_join(design.df, by = "bam") %>%
-    filter(!is.na(TRT))
+    left_join(design.df, by = "bam")
+  
+  cat("After join, TRT column exists:", "TRT" %in% names(design_df), "\n")
+  cat("Rows with TRT:", sum(!is.na(design_df$TRT)), "out of", nrow(design_df), "\n")
+  
+  design_df <- design_df %>% filter(!is.na(TRT))
   
   # Filter for male samples only
   design_df <- design_df %>% filter(str_detect(sample, "_M"))
