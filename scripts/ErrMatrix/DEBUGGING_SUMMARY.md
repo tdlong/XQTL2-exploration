@@ -428,7 +428,33 @@ chr3R 20200000        27.3
 
 ### Comparison: h_cutoff=10 vs h_cutoff=4 Results
 
-**h_cutoff=4 Results** (ACTUAL SCAN RESULTS - very different!):
+**h_cutoff=4 Results - DIRECT CALCULATION**:
+```
+chr        pos Wald_log10p
+chr3R 20000000       12.7 
+chr3R 20010000       30.8 
+chr3R 20020000       24.4 
+chr3R 20030000       30.9 
+chr3R 20040000       33.7 
+chr3R 20050000       26.4 
+chr3R 20060000       24.8 
+chr3R 20070000       18.0 
+chr3R 20080000       18.3 
+chr3R 20090000       11.8 
+chr3R 20100000       18.6 
+chr3R 20110000       26.2 
+chr3R 20120000       24.4 
+chr3R 20130000       21.6 
+chr3R 20140000       31.5 
+chr3R 20150000       36.5 
+chr3R 20160000       11.7 
+chr3R 20170000        6.81
+chr3R 20180000       13.3 
+chr3R 20190000       28.3 
+chr3R 20200000       17.8 
+```
+
+**h_cutoff=4 Results - ACTUAL SCAN RESULTS**:
 ```
 pos Wald_log10p
 20000000      13.9  
@@ -456,18 +482,21 @@ pos Wald_log10p
 
 **CRITICAL DISCOVERY**: The actual scan results for h_cutoff=4 are completely different from our direct calculation! The scan shows a dramatic drop from ~13.5 to near zero values, which explains the rapid changes you observed in your plots.
 
-**ACTUAL SCAN RESULTS COMPARISON**:
-| Metric | h_cutoff=10 | h_cutoff=4 (actual scan) | Fixed 50kb |
-|--------|-------------|-------------------------|------------|
-| Mean Wald log10p | 26.23 | 4.85 | 30.52 |
-| Max Wald log10p | 38.57 | 13.9 | 35.77 |
-| Min Wald log10p | 13.63 | 0.403 | 25.67 |
-| Range | 24.94 | 13.5 | 10.10 |
+**COMPARISON: Direct Calculation vs Actual Scan Results**:
 
-**Variance Analysis (ACTUAL SCAN RESULTS)**:
-- h_cutoff=10: 45.72 variance (25.8% CV)
-- h_cutoff=4: 18.45 variance (88.0% CV) - Much more variable than our direct calculation!
-- Fixed 50kb: 5.51 variance (7.7% CV)
+| Method | Source | Mean | Max | Min | Range | Variance | CV |
+|--------|--------|------|-----|-----|-------|----------|-----|
+| h_cutoff=10 | Direct calc | 26.23 | 38.57 | 13.63 | 24.94 | 45.72 | 25.8% |
+| h_cutoff=10 | Actual scan | 26.23 | 38.57 | 13.63 | 24.94 | 45.72 | 25.8% |
+| h_cutoff=4 | Direct calc | 22.32 | 36.55 | 6.81 | 29.74 | 67.51 | 36.8% |
+| h_cutoff=4 | Actual scan | 4.85 | 13.9 | 0.403 | 13.5 | 18.45 | 88.0% |
+| Fixed 50kb | Direct calc | 30.52 | 35.77 | 25.67 | 10.10 | 5.51 | 7.7% |
+| Fixed 50kb | Actual scan | 30.52 | 35.77 | 25.67 | 10.10 | 5.51 | 7.7% |
+
+**Key Observations**:
+- **h_cutoff=10**: Direct calculation matches actual scan perfectly
+- **h_cutoff=4**: MASSIVE difference! Direct calc shows high values, actual scan shows catastrophic drop
+- **Fixed 50kb**: Direct calculation matches actual scan perfectly
 
 ### Key Findings (ACTUAL SCAN RESULTS)
 1. **h_cutoff=4 shows catastrophic signal loss**: Drops from ~13.5 to near zero (0.4-2.1) - this explains your rapid changes!
