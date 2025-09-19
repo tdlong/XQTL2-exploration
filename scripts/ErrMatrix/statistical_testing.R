@@ -275,42 +275,47 @@ if (length(all_hap_changes) > 0) {
   cat("\nNo changes calculated - check data structure\n")
 }
 
-# Analyze error variance changes
+# Analyze error variances - sqrt(average variance) per haplotype
 cat("\n=== ERROR VARIANCE ANALYSIS ===\n")
 
-# Extract error variances and calculate changes
+# Calculate sqrt(average variance) per haplotype for each position
 err_analysis <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   arrange(pos) %>%
   mutate(
     err_var_C = map(err_var_C, ~ .x[[1]]),
-    err_var_Z = map(err_var_Z, ~ .x[[1]]),
-    err_diff = map(err_diff, ~ .x[[1]])
+    err_var_Z = map(err_var_Z, ~ .x[[1]])
   ) %>%
-  select(pos, err_var_C, err_var_Z, err_diff)
+  rowwise() %>%
+  mutate(
+    avg_err_var = (as.numeric(err_var_C) + as.numeric(err_var_Z)) / 2,
+    sqrt_avg_err_var = sqrt(avg_err_var)
+  ) %>%
+  ungroup() %>%
+  select(pos, sqrt_avg_err_var)
+
+cat("Sqrt(average variance) per haplotype by position (×1000):\n")
+cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
+for(i in 1:nrow(err_analysis)) {
+  errs <- round(as.numeric(err_analysis$sqrt_avg_err_var[[i]]) * 1000, 0)
+  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
+              err_analysis$pos[i], errs[1], errs[2], errs[3], errs[4], 
+              errs[5], errs[6], errs[7], errs[8]))
+}
 
 # Calculate changes between adjacent positions
 err_changes <- err_analysis %>%
   mutate(
-    err_diff_prev = lag(err_diff),
-    err_change = map2(err_diff, err_diff_prev, ~ {
+    err_prev = lag(sqrt_avg_err_var),
+    err_change = map2(sqrt_avg_err_var, err_prev, ~ {
       if (is.null(.y)) return(NULL)
       abs(.x - .y)
     })
   ) %>%
-  filter(!is.null(err_diff_prev)) %>%
+  filter(!is.null(err_prev)) %>%
   select(pos, err_change)
 
-cat("Error variance treatment differences (C - Z) by position (×1000):\n")
-cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-for(i in 1:nrow(err_analysis)) {
-  diffs <- round(as.numeric(err_analysis$err_diff[[i]]) * 1000, 0)
-  cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-              err_analysis$pos[i], diffs[1], diffs[2], diffs[3], diffs[4], 
-              diffs[5], diffs[6], diffs[7], diffs[8]))
-}
-
-cat("\nChanges in error variance differences between adjacent positions (×1000):\n")
+cat("\nChanges in sqrt(average variance) between adjacent positions (×1000):\n")
 cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
 for(i in 1:nrow(err_changes)) {
   if (!is.null(err_changes$err_change[[i]])) {
