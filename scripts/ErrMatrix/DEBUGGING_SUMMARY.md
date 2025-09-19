@@ -428,46 +428,53 @@ chr3R 20200000        27.3
 
 ### Comparison: h_cutoff=10 vs h_cutoff=4 Results
 
-**h_cutoff=4 Results** (for comparison):
+**h_cutoff=4 Results** (ACTUAL SCAN RESULTS - very different!):
 ```
-chr        pos Wald_log10p
-chr3R 20000000       12.7 
-chr3R 20010000       30.8 
-chr3R 20020000       24.4 
-chr3R 20030000       30.9 
-chr3R 20040000       33.7 
-chr3R 20050000       26.4 
-chr3R 20060000       24.8 
-chr3R 20070000       18.0 
-chr3R 20080000       18.3 
-chr3R 20090000       11.8 
-chr3R 20100000       18.6 
-chr3R 20110000       26.2 
-chr3R 20120000       24.4 
-chr3R 20130000       21.6 
-chr3R 20140000       31.5 
-chr3R 20150000       36.5 
-chr3R 20160000       11.7 
-chr3R 20170000        6.81
-chr3R 20180000       13.3 
-chr3R 20190000       28.3 
-chr3R 20200000       17.8 
+pos Wald_log10p
+20000000      13.9  
+20010000      13.6  
+20020000      13.5  
+20030000      13.2  
+20040000      13.0  
+20050000      13.1  
+20060000       0.499
+20070000       0.462
+20080000       0.485
+20090000       0.403
+20100000       0.568
+20110000       0.598
+20120000       0.726
+20130000       0.766
+20140000       0.818
+20150000       1.01 
+20160000       1.12 
+20170000       1.33 
+20180000       1.52 
+20190000       1.62 
+20200000       2.10 
 ```
 
-**Summary Statistics Comparison**:
-| Metric | h_cutoff=10 | h_cutoff=4 | Difference |
-|--------|-------------|------------|------------|
-| Mean Wald log10p | 26.23 | 22.32 | +3.91 |
-| Max Wald log10p | 38.57 | 36.55 | +2.02 |
-| Min Wald log10p | 13.63 | 6.81 | +6.82 |
-| Range | 24.94 | 29.74 | -4.80 |
+**CRITICAL DISCOVERY**: The actual scan results for h_cutoff=4 are completely different from our direct calculation! The scan shows a dramatic drop from ~13.5 to near zero values, which explains the rapid changes you observed in your plots.
 
-### Key Findings
-1. **h_cutoff=10 is more stable**: Higher minimum values (13.63 vs 6.81) and more consistent signal
-2. **h_cutoff=4 shows more extreme variation**: Much lower minimum (6.81) and higher range (29.74)
-3. **h_cutoff=10 has higher average significance**: Mean 26.23 vs 22.32
-4. **Both methods show similar patterns**: Both have variable signal strength across positions
-5. **h_cutoff=10 eliminates low-significance positions**: No positions below 13.6 log10p vs h4 having positions as low as 6.81
+**ACTUAL SCAN RESULTS COMPARISON**:
+| Metric | h_cutoff=10 | h_cutoff=4 (actual scan) | Fixed 50kb |
+|--------|-------------|-------------------------|------------|
+| Mean Wald log10p | 26.23 | 4.85 | 30.52 |
+| Max Wald log10p | 38.57 | 13.9 | 35.77 |
+| Min Wald log10p | 13.63 | 0.403 | 25.67 |
+| Range | 24.94 | 13.5 | 10.10 |
+
+**Variance Analysis (ACTUAL SCAN RESULTS)**:
+- h_cutoff=10: 45.72 variance (25.8% CV)
+- h_cutoff=4: 18.45 variance (88.0% CV) - Much more variable than our direct calculation!
+- Fixed 50kb: 5.51 variance (7.7% CV)
+
+### Key Findings (ACTUAL SCAN RESULTS)
+1. **h_cutoff=4 shows catastrophic signal loss**: Drops from ~13.5 to near zero (0.4-2.1) - this explains your rapid changes!
+2. **h_cutoff=10 maintains high significance**: All positions above 13.6 log10p
+3. **Fixed 50kb is most stable**: Consistent high values (25.7-35.8)
+4. **The dramatic drop in h_cutoff=4 explains your plots**: The signal essentially disappears mid-region
+5. **Our direct calculation was wrong for h4**: Something different happens in the full scan pipeline
 
 ### Comparison with User's Statistical Machinery
 This provides a baseline for comparing with the user's full statistical machinery results. The rapid changes observed in the user's downstream analysis can now be compared against these direct Wald test results to identify if the issue is:
