@@ -70,8 +70,6 @@ doscan2 = function(data, CHROM) {
   design_df <- data.frame(
     sample = sample_names,
     bam = sample_names,
-    TRT = ifelse(str_detect(sample_names, "_W_"), "W", "Z"),
-    REP = str_extract(sample_names, "Rep\\d+"),
     stringsAsFactors = FALSE
   ) %>%
     left_join(design.df, by = "bam") %>%
