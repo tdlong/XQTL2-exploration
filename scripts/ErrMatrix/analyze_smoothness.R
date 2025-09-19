@@ -42,7 +42,7 @@ hap_freqs <- test_data %>%
   select(pos, B1, B2, B3, B4, B5, B6, B7, AB8) %>%
   mutate(across(B1:AB8, ~ round(.x * 1000, 0)))
 
-print(hap_freqs)
+print(hap_freqs, n = Inf)
 
 # Extract error variances (sqrt of diagonal) - use actual founder names
 cat("\n=== ERROR VARIANCES (sqrt × 1000) ===\n")
@@ -61,44 +61,5 @@ error_vars <- test_data %>%
   select(pos, B1, B2, B3, B4, B5, B6, B7, AB8) %>%
   mutate(across(B1:AB8, ~ round(.x * 1000, 0)))
 
-print(error_vars)
+print(error_vars, n = Inf)
 
-# Calculate differences between adjacent positions
-cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (adjacent positions) ===\n")
-hap_diffs <- hap_freqs %>%
-  mutate(
-    across(B1:B8, ~ .x - lag(.x), .names = "diff_{.col}")
-  ) %>%
-  select(pos, starts_with("diff_")) %>%
-  filter(!is.na(diff_B1))
-
-print(hap_diffs)
-
-# Calculate differences in error variances
-cat("\n=== ERROR VARIANCE DIFFERENCES (adjacent positions) ===\n")
-err_diffs <- error_vars %>%
-  mutate(
-    across(sqrt_var_B1:sqrt_var_B8, ~ .x - lag(.x), .names = "diff_{.col}")
-  ) %>%
-  select(pos, starts_with("diff_")) %>%
-  filter(!is.na(diff_sqrt_var_B1))
-
-print(err_diffs)
-
-# Summary statistics
-cat("\n=== SUMMARY STATISTICS ===\n")
-cat("Max haplotype frequency change:", max(abs(hap_diffs[,2:9]), na.rm = TRUE), "\n")
-cat("Mean haplotype frequency change:", mean(abs(hap_diffs[,2:9]), na.rm = TRUE), "\n")
-cat("Max error variance change:", max(abs(err_diffs[,2:9]), na.rm = TRUE), "\n")
-cat("Mean error variance change:", mean(abs(err_diffs[,2:9]), na.rm = TRUE), "\n")
-
-# Additional analysis: check for patterns
-cat("\n=== PATTERN ANALYSIS ===\n")
-cat("Number of positions with large haplotype changes (>0.1):", 
-    sum(abs(hap_diffs[,2:9]) > 0.1, na.rm = TRUE), "\n")
-cat("Number of positions with large error changes (>0.01):", 
-    sum(abs(err_diffs[,2:9]) > 0.01, na.rm = TRUE), "\n")
-
-# Check if there are any NA values
-cat("Positions with NA haplotype frequencies:", sum(is.na(hap_freqs[,2:9])), "\n")
-cat("Positions with NA error variances:", sum(is.na(error_vars[,2:9])), "\n")
