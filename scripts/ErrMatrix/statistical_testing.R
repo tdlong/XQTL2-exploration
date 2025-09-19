@@ -2,7 +2,7 @@ library(tidyverse)
 library(limSolve)
 library(abind)
 mychr="chr3R"
-mydir = "/dfs7/adl/tdlong/fly_pool/XQTL2/process/ZINC2_h10/adapt_h10"
+mydir = "process/ZINC2_h10/adapt_h10"
 design.df = read.table("/dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt")
 source("scripts/haps2scan/scan_functions.R")
 filein=paste0(mydir,"/R.haps.",mychr,".out.rds")
