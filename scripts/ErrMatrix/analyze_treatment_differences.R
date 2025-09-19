@@ -94,9 +94,15 @@ h4_results <- analyze_treatment_differences(
   "H4"
 )
 
-# Display results
+# Display results in compact format
 cat("\\n=== H10 MALE TREATMENT DIFFERENCES (W - Z, ×1000) ===\\n")
-print(h10_results, n = Inf)
+h10_compact <- h10_results %>%
+  select(pos, B1 = avg_diff_B1, B2 = avg_diff_B2, B3 = avg_diff_B3, B4 = avg_diff_B4, 
+         B5 = avg_diff_B5, B6 = avg_diff_B6, B7 = avg_diff_B7, B8 = avg_diff_AB8)
+print(h10_compact, n = Inf, width = Inf)
 
 cat("\\n=== H4 MALE TREATMENT DIFFERENCES (W - Z, ×1000) ===\\n")
-print(h4_results, n = Inf)
+h4_compact <- h4_results %>%
+  select(pos, B1 = avg_diff_B1, B2 = avg_diff_B2, B3 = avg_diff_B3, B4 = avg_diff_B4, 
+         B5 = avg_diff_B5, B6 = avg_diff_B6, B7 = avg_diff_B7, B8 = avg_diff_AB8)
+print(h4_compact, n = Inf, width = Inf)
