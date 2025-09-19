@@ -143,7 +143,7 @@ bb1 = xx1 %>%
   filter(pos >= start_pos & pos <= end_pos) %>%
   group_by(CHROM,pos) %>%
   nest() %>%
-  mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
+  mutate(out = map2(data, CHROM, doscan2)) %>%
   unnest_wider(out)
 
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
