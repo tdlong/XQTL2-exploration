@@ -244,24 +244,30 @@ hap_changes <- hap_analysis %>%
   filter(!is.null(hap_diff_prev)) %>%
   select(pos, hap_change)
 
-cat("Haplotype treatment differences (C - Z) by position:\n")
+cat("Haplotype treatment differences (C - Z) by position (×1000):\n")
 for(i in 1:nrow(hap_analysis)) {
   cat("Position", hap_analysis$pos[i], ":", 
-      paste(round(as.numeric(hap_analysis$hap_diff[[i]]), 4), collapse = " "), "\n")
+      paste(round(as.numeric(hap_analysis$hap_diff[[i]]) * 1000, 0), collapse = " "), "\n")
 }
 
-cat("\nChanges in haplotype differences between adjacent positions:\n")
+cat("\nChanges in haplotype differences between adjacent positions (×1000):\n")
 for(i in 1:nrow(hap_changes)) {
-  cat("Position", hap_changes$pos[i], ":", 
-      paste(round(as.numeric(hap_changes$hap_change[[i]]), 4), collapse = " "), "\n")
+  if (!is.null(hap_changes$hap_change[[i]])) {
+    cat("Position", hap_changes$pos[i], ":", 
+        paste(round(as.numeric(hap_changes$hap_change[[i]]) * 1000, 0), collapse = " "), "\n")
+  }
 }
 
 # Calculate summary statistics
 all_hap_changes <- unlist(hap_changes$hap_change)
-cat("\nHaplotype change summary:\n")
-cat("Mean change:", round(mean(all_hap_changes), 4), "\n")
-cat("SD change:", round(sd(all_hap_changes), 4), "\n")
-cat("Max change:", round(max(all_hap_changes), 4), "\n")
+if (length(all_hap_changes) > 0) {
+  cat("\nHaplotype change summary (×1000):\n")
+  cat("Mean change:", round(mean(all_hap_changes) * 1000, 0), "\n")
+  cat("SD change:", round(sd(all_hap_changes) * 1000, 0), "\n")
+  cat("Max change:", round(max(all_hap_changes) * 1000, 0), "\n")
+} else {
+  cat("\nNo changes calculated - check data structure\n")
+}
 
 cat("\n=== SUMMARY ===\n")
 cat("Positions tested:", nrow(bb2), "\n")
