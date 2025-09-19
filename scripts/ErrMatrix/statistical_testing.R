@@ -337,6 +337,33 @@ if (length(all_err_changes) > 0) {
 }
 
 # Analyze position-to-position variability in numerator vs denominator
+# Calculate average variance per founder per treatment
+cat("\n=== AVERAGE VARIANCE PER FOUNDER PER TREATMENT ===\n")
+
+# Extract all error variances and calculate averages
+all_err_var_C <- map_dfr(bb2$err_var_C, ~ as.data.frame(t(as.numeric(.x[[1]])))) %>% 
+  set_names(paste0("B", 1:8))
+all_err_var_Z <- map_dfr(bb2$err_var_Z, ~ as.data.frame(t(as.numeric(.x[[1]])))) %>% 
+  set_names(paste0("B", 1:8))
+
+cat("Average variance per founder - Treatment C:\n")
+avg_var_C <- colMeans(all_err_var_C)
+for(i in 1:8) {
+  cat(sprintf("B%d: %8.6f\n", i, avg_var_C[i]))
+}
+
+cat("\nAverage variance per founder - Treatment Z:\n")
+avg_var_Z <- colMeans(all_err_var_Z)
+for(i in 1:8) {
+  cat(sprintf("B%d: %8.6f\n", i, avg_var_Z[i]))
+}
+
+cat("\nAverage variance per founder - Both treatments combined:\n")
+avg_var_combined <- (avg_var_C + avg_var_Z) / 2
+for(i in 1:8) {
+  cat(sprintf("B%d: %8.6f\n", i, avg_var_combined[i]))
+}
+
 cat("\n=== POSITION-TO-POSITION VARIABILITY ANALYSIS ===\n")
 
 # Calculate summary statistics for each position
