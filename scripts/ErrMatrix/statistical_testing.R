@@ -221,11 +221,6 @@ cat("\n=== HAPLOTYPE FREQUENCY ANALYSIS ===\n")
 hap_analysis <- bb2 %>%
   filter(!is.na(Wald_log10p)) %>%
   arrange(pos) %>%
-  mutate(
-    hap_freqs_C = map(hap_freqs_C, ~ as.numeric(.x)),
-    hap_freqs_Z = map(hap_freqs_Z, ~ as.numeric(.x)),
-    hap_diff = map(hap_diff, ~ as.numeric(.x))
-  ) %>%
   select(pos, hap_freqs_C, hap_freqs_Z, hap_diff)
 
 # Calculate changes between adjacent positions
@@ -240,13 +235,13 @@ hap_changes <- hap_analysis %>%
 cat("Haplotype treatment differences (C - Z) by position:\n")
 for(i in 1:nrow(hap_analysis)) {
   cat("Position", hap_analysis$pos[i], ":", 
-      paste(round(hap_analysis$hap_diff[[i]], 4), collapse = " "), "\n")
+      paste(round(as.numeric(hap_analysis$hap_diff[[i]]), 4), collapse = " "), "\n")
 }
 
 cat("\nChanges in haplotype differences between adjacent positions:\n")
 for(i in 1:nrow(hap_changes)) {
   cat("Position", hap_changes$pos[i], ":", 
-      paste(round(hap_changes$hap_change[[i]], 4), collapse = " "), "\n")
+      paste(round(as.numeric(hap_changes$hap_change[[i]]), 4), collapse = " "), "\n")
 }
 
 # Calculate summary statistics
