@@ -1,11 +1,5 @@
+
 #!/usr/bin/env Rscript
-
-# Statistical testing for haplotype estimation methods
-# Usage: Rscript statistical_testing.R <data_dir> <chromosome> <start_pos> <end_pos> <design_file>
-
-library(tidyverse)
-library(limSolve)
-library(abind)
 
 # Parse command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -14,57 +8,113 @@ if (length(args) != 5) {
 }
 
 mydir <- args[1]
-chromosome <- args[2]
+mychr <- args[2]
 start_pos <- as.numeric(args[3])
 end_pos <- as.numeric(args[4])
 design_file <- args[5]
 
-cat("=== STATISTICAL TESTING PARAMETERS ===\n")
-cat("Data directory:", mydir, "\n")
-cat("Chromosome:", chromosome, "\n")
-cat("Position range:", start_pos, "-", end_pos, "\n")
-cat("Design file:", design_file, "\n")
-
-# Read design file
+library(tidyverse)
+library(limSolve)
+library(abind)
 design.df = read.table(design_file, header=T, stringsAsFactors=F)
-cat("Design matrix:\n")
-print(design.df)
+source("scripts/haps2scan/scan_functions.R")
+filein=paste0(mydir,"/R.haps.",mychr,".out.rds")
 
-# Read haplotype data
-input_file <- file.path(mydir, paste0("R.haps.", chromosome, ".out.rds"))
-cat("Input file:", input_file, "\n")
+library(dplyr, warn.conflicts = FALSE)
+options(dplyr.summarise.inform = FALSE)
 
-if (!file.exists(input_file)) {
-  stop("Input file does not exist: ", input_file)
+
+average_variance <- function(cov_matrix, tolerance = 1e-10) {
+  n <- nrow(cov_matrix)  
+  # Calculate eigenvalues
+  eigenvalues <- eigen(cov_matrix, only.values = TRUE)$values  
+  # Filter out eigenvalues that are effectively zero or negative
+  positive_eigenvalues <- eigenvalues[eigenvalues > tolerance]  
+  # Calculate the product of positive eigenvalues
+  log_det <- sum(log(positive_eigenvalues))  
+  # Use the number of positive eigenvalues for the root
+  n_positive <- length(positive_eigenvalues)  
+  # Calculate log of average variance
+  log_avg_var <- log_det / n_positive  
+  # Convert back to original scale
+  avg_var <- exp(log_avg_var)  
+  return(list(avg_var = avg_var, n_positive = n_positive, n_total = n))
 }
 
-xx1 = readRDS(input_file)
-
-# Wald test function
-wald.test3 = function(p1, p2, covar1, covar2) {
-  # p1, p2: haplotype frequencies for treatments 1 and 2
-  # covar1, covar2: covariance matrices for treatments 1 and 2
+wald.test3 = function(p1,p2,covar1,covar2,nrepl=1,N1=NA,N2=NA){
+    
+    # Wald test for multinomial frequencies
+    # if nrepl = 1: (one replicate, analogous to chi square):
+    #  p1 and p2 are vectors of relative frequencies to be compared
+    # covar1 and covar2 are the reconstruction error 
+    # covariance matrices from limSolve
+    # the sampling covariance matrices are generated within limSolve
+    # if nrepl > 1 (multiple replicates, analogous to CMH):
+    #   p1 and p2 are matrices, each row is frequency vector for one replicate
+    # covar1 and covar2 are tensors (3-dimensional arrays, third dimension 
+    #  denotes replicate) for the linSolve covariance matrices
+    # N1 (initial) and N2 (after treatment) 
+    # are sample sizes, they are vectors when there is more than one replicate
+    # N1[i], N2[i] are then for replicate i
+    if (nrepl>1){
+      N1.eff=rep(NA,nrepl)
+      N2.eff=rep(NA,nrepl)
+      lp1 = length(p1[1,])
+      cv1=array(NA,c(lp1,lp1,nrepl))
+      cv2=array(NA,c(lp1,lp1,nrepl))
+      for (i in 1:nrepl){
+          
+        covmat1  = mn.covmat((N1[i]*p1[i,]+N2[i]*p2[i,])/(N1[i]+N2[i]),2*N1[i])
+        covmat2  = mn.covmat((N1[i]*p1[i,]+N2[i]*p2[i,])/(N1[i]+N2[i]),2*N2[i])
+    
+        N1.eff[i] = sum(diag(covmat1))*4*N1[i]^2/(sum(diag(covmat1))*2*N1[i]+2*N1[i]*sum(diag(covar1[,,i])) )
+        N2.eff[i] = sum(diag(covmat2))*4*N2[i]^2/(sum(diag(covmat2))*2*N2[i]+2*N2[i]*sum(diag(covar2[,,i])) )
+        cv1[,,i]= (covmat1 + covar1[ , ,i])  * (N1.eff[i])^2
+        cv2[,,i]= (covmat2 + covar2[ , ,i])  * (N2.eff[i])^2
+        
+      }
+        
+      p1 = N1.eff %*% p1 / sum(N1.eff)
+      p2 = N2.eff %*% p2 / sum(N2.eff)
+     
+      covar1= rowSums(cv1, dims = 2) / sum(N1.eff)^2
+      covar2= rowSums(cv2, dims = 2) / sum(N2.eff)^2
+     # browser()
+    }
+    else {
+      covmat1  = mn.covmat((N1*p1+N2*p2)/(N1+N2),2*N1)
+      covmat2  = mn.covmat((N1*p1+N2*p2)/(N1+N2),2*N2)
+      covar1 = covar1 + covmat1
+      covar2 = covar2 + covmat2
+    }
   
-  # Calculate difference
-  diff = p1 - p2
-  
-  # Calculate combined covariance
-  covar_combined = covar1 + covar2
-  
-  # Calculate Wald statistic
-  tryCatch({
-    # Use generalized inverse for numerical stability
-    covar_inv = ginv(covar_combined)
-    wald_stat = t(diff) %*% covar_inv %*% diff
-    p_value = 1 - pchisq(wald_stat, df = length(diff))
-    log10p = -log10(p_value)
-    return(log10p)
-  }, error = function(e) {
-    return(NA)
-  })
+  df = length(p1)-1
+  covar=covar1+covar2
+  eg <- eigen(covar)
+  # remove last eigenvector which corresponds to eigenvalue zero
+  ev <- eg$vectors[,1:df]
+  eval <- eg$values[1:df]
+  trafo<-diag(1/sqrt(eval)) %*% t(ev) 
+  # set extremely small values to zero
+  #new.covar[new.covar < 10^-9]=0
+  p1= as.vector(p1); p2=as.vector(p2)
+  tstat <- sum((trafo %*% (p1 - p2))^2)
+  pval<- exp(pchisq(tstat,df,lower.tail=FALSE,log.p=TRUE))
+  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var)
 }
 
-# Main analysis function
+mn.covmat= function(p,n,min.p=0){
+  # generate multinomial covariance matrix
+  # p is vector of multinomial relative frequencies
+  # n is sample size
+  # compute covariance matrix for relative frequencies, for absolute frequencies multiply by n^2
+  # if min.p >0, then values of p smaller than min.p are set to min.p and the resulting vector is rescaled.
+  p[p<min.p] = min.p; p=p/sum(p)
+  mat = - tcrossprod(p)
+  diag(mat) = p*(1-p)
+  mat = mat/n
+  mat
+}
 doscan2 = function(df,chr,Nfounders){
 	sexlink = 1
 	if(chr=="chrX"){ sexlink=0.75 }
@@ -112,106 +162,25 @@ doscan2 = function(df,chr,Nfounders){
 	# af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
 	#temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
 	#Falc_H2 = temp$Falconer_H2
-	#Cutl_H2 = temp$Cutler_H2
+	Cutl_H2 = temp$Cutler_H2
 
-	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
+	ll = list(Wald_log10p = Wald_log10p avg.var = wt$avg.var)
 	ll
-}
+	}
 
-# Run analysis
+xx1 = readRDS(filein)
 Nfounders=length(xx1$Groups[[1]][[1]])
+ProportionSelect = design.df %>% filter(TRT=="Z") %>% select(REP,Proportion) %>% arrange(REP)
 
 bb1 = xx1 %>%
-  filter(pos >= start_pos & pos <= end_pos) %>%
-  group_by(CHROM,pos) %>%
-  nest() %>%
-  mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
-  unnest_wider(out)
-
+	filter(pos >= start_pos & pos <= end_pos) %>%
+	group_by(CHROM,pos) %>%
+	nest() %>%
+	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
+	unnest_wider(out)
 bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 
-# Display Wald test results
-cat("\n=== WALD TEST RESULTS ===\n")
-print(bb2 %>% select(pos, Wald_log10p), n = Inf)
+# Display results
+cat("=== WALD TEST RESULTS ===\n")
+print(bb2 %>% select(chr, pos, Wald_log10p), n = Inf)
 
-# HAPLOTYPE CHANGES (NUMERATOR)
-cat("\n=== HAPLOTYPE CHANGES BETWEEN ADJACENT POSITIONS ===\n")
-
-hap_analysis <- bb2 %>%
-  filter(!is.na(Wald_log10p)) %>%
-  arrange(pos) %>%
-  mutate(hap_diff = map(hap_diff, ~ .x[[1]])) %>%
-  select(pos, hap_diff)
-
-hap_changes <- hap_analysis %>%
-  mutate(
-    hap_diff_prev = lag(hap_diff),
-    hap_change = map2(hap_diff, hap_diff_prev, ~ {
-      if (is.null(.y)) return(NULL)
-      abs(.x - .y)
-    })
-  ) %>%
-  filter(!is.null(hap_diff_prev)) %>%
-  select(pos, hap_change)
-
-if (nrow(hap_changes) > 0) {
-  cat("Changes in haplotype differences (×1000):\n")
-  cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-  for(i in 1:nrow(hap_changes)) {
-    if (!is.null(hap_changes$hap_change[[i]])) {
-      changes <- round(hap_changes$hap_change[[i]] * 1000, 0)
-      cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                  hap_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
-                  changes[5], changes[6], changes[7], changes[8]))
-    }
-  }
-  
-  all_changes <- unlist(hap_changes$hap_change)
-  cat(sprintf("\nHaplotype change summary (×1000): Mean=%.1f, SD=%.1f, Max=%.1f\n", 
-              mean(all_changes) * 1000, sd(all_changes) * 1000, max(all_changes) * 1000))
-} else {
-  cat("No haplotype changes calculated\n")
-}
-
-# ERROR VARIANCE CHANGES (DENOMINATOR)
-cat("\n=== ERROR VARIANCE CHANGES BETWEEN ADJACENT POSITIONS ===\n")
-
-err_analysis <- bb2 %>%
-  filter(!is.na(Wald_log10p)) %>%
-  arrange(pos) %>%
-  mutate(
-    err_var_C = map(err_var_C, ~ .x[[1]]),
-    err_var_Z = map(err_var_Z, ~ .x[[1]]),
-    sqrt_avg_err_var = map2(err_var_C, err_var_Z, ~ sqrt((.x + .y) / 2))
-  ) %>%
-  select(pos, sqrt_avg_err_var)
-
-err_changes <- err_analysis %>%
-  mutate(
-    err_prev = lag(sqrt_avg_err_var),
-    err_change = map2(sqrt_avg_err_var, err_prev, ~ {
-      if (is.null(.y)) return(NULL)
-      abs(.x - .y)
-    })
-  ) %>%
-  filter(!is.null(err_prev)) %>%
-  select(pos, err_change)
-
-if (nrow(err_changes) > 0) {
-  cat("Changes in sqrt(average variance) (×1000):\n")
-  cat("Position     B1    B2    B3    B4    B5    B6    B7   AB8\n")
-  for(i in 1:nrow(err_changes)) {
-    if (!is.null(err_changes$err_change[[i]])) {
-      changes <- round(err_changes$err_change[[i]] * 1000, 0)
-      cat(sprintf("%9.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f\n", 
-                  err_changes$pos[i], changes[1], changes[2], changes[3], changes[4], 
-                  changes[5], changes[6], changes[7], changes[8]))
-    }
-  }
-  
-  all_err_changes <- unlist(err_changes$err_change)
-  cat(sprintf("\nError variance change summary (×1000): Mean=%.1f, SD=%.1f, Max=%.1f\n", 
-              mean(all_err_changes) * 1000, sd(all_err_changes) * 1000, max(all_err_changes) * 1000))
-} else {
-  cat("No error variance changes calculated\n")
-}
