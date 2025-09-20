@@ -202,21 +202,12 @@ bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 cat("=== WALD TEST RESULTS ===\n")
 print(bb2 %>% select(chr, pos, Wald_log10p), n = Inf)
 
-cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION (×1000) ===\n")
-# Extract and print mean differences for each position
-for(i in 1:nrow(bb2)) {
-  pos <- bb2$pos[i]
-  if(!is.null(bb2$mean_diff[[i]])) {
-    cat("Position", pos, ":", round(bb2$mean_diff[[i]] * 1000, 0), "\n")
-  }
-}
-
 cat("\n=== 1000 * SQRT(AVERAGE VARIANCE) BY POSITION ===\n")
 # Extract and print sqrt(average variance) for each position
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
   if(!is.null(bb2$sqrt_avg_var[[i]])) {
-    cat("Position", pos, ":", round(bb2$sqrt_avg_var[[i]] * 1000, 1), "\n")
+    cat(sprintf("Position %8.0f : %5.1f\n", pos, bb2$sqrt_avg_var[[i]] * 1000))
   }
 }
 
@@ -225,7 +216,7 @@ cat("\n=== 1000 * SQRT(SUM OF DIAGONAL) BY POSITION ===\n")
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
   if(!is.null(bb2$sqrt_sum_diag[[i]])) {
-    cat("Position", pos, ":", round(bb2$sqrt_sum_diag[[i]] * 1000, 1), "\n")
+    cat(sprintf("Position %8.0f : %5.1f\n", pos, bb2$sqrt_sum_diag[[i]] * 1000))
   }
 }
 
