@@ -100,7 +100,11 @@ wald.test3 = function(p1,p2,covar1,covar2,nrepl=1,N1=NA,N2=NA){
   p1= as.vector(p1); p2=as.vector(p2)
   tstat <- sum((trafo %*% (p1 - p2))^2)
   pval<- exp(pchisq(tstat,df,lower.tail=FALSE,log.p=TRUE))
-  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var)
+  
+  # Calculate sqrt(sum of diagonal) of the processed covar matrix
+  sqrt_sum_diag = sqrt(sum(diag(covar)))
+  
+  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var, sqrt_sum_diag=sqrt_sum_diag)
 }
 
 mn.covmat= function(p,n,min.p=0){
@@ -172,10 +176,8 @@ doscan2 = function(df,chr,Nfounders){
 	# Calculate sqrt(average variance) for each founder
 	sqrt_avg_var = sqrt(wt$avg.var)
 	
-	# Calculate sqrt(sum of diagonal) of combined covariance matrix
-	# This is more interpretable than the geometric mean of eigenvalues
-	covar_combined = covar1 + covar2
-	sqrt_sum_diag = sqrt(sum(diag(covar_combined)))
+	# Get sqrt(sum of diagonal) from wald.test3 (calculated from processed covar matrix)
+	sqrt_sum_diag = wt$sqrt_sum_diag
 
 	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var, 
 	         mean_freq_C = mean_freq_C, mean_freq_Z = mean_freq_Z, 
