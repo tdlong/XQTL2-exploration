@@ -101,14 +101,11 @@ wald.test3 = function(p1,p2,covar1,covar2,nrepl=1,N1=NA,N2=NA){
   tstat <- sum((trafo %*% (p1 - p2))^2)
   pval<- exp(pchisq(tstat,df,lower.tail=FALSE,log.p=TRUE))
   
-  # Calculate sqrt(sum of diagonal) of the processed covar matrix
-  sqrt_sum_diag = sqrt(sum(diag(covar)))
-  
   # Calculate sqrt of individual diagonal elements
   sqrt_diag_elements = sqrt(diag(covar))
   
   list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var, 
-       sqrt_sum_diag=sqrt_sum_diag, sqrt_diag_elements=sqrt_diag_elements)
+       sqrt_diag_elements=sqrt_diag_elements)
 }
 
 mn.covmat= function(p,n,min.p=0){
@@ -180,14 +177,13 @@ doscan2 = function(df,chr,Nfounders){
 	# Calculate sqrt(average variance) for each founder
 	sqrt_avg_var = sqrt(wt$avg.var)
 	
-	# Get sqrt(sum of diagonal) and individual diagonal elements from wald.test3
-	sqrt_sum_diag = wt$sqrt_sum_diag
+	# Get individual diagonal elements from wald.test3
 	sqrt_diag_elements = wt$sqrt_diag_elements
 
 	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var, 
 	         mean_freq_C = mean_freq_C, mean_freq_Z = mean_freq_Z, 
 	         mean_diff = mean_diff, sqrt_avg_var = sqrt_avg_var,
-	         sqrt_sum_diag = sqrt_sum_diag, sqrt_diag_elements = sqrt_diag_elements)
+	         sqrt_diag_elements = sqrt_diag_elements)
 	ll
 	}
 
