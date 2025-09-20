@@ -104,7 +104,11 @@ wald.test3 = function(p1,p2,covar1,covar2,nrepl=1,N1=NA,N2=NA){
   # Calculate sqrt(sum of diagonal) of the processed covar matrix
   sqrt_sum_diag = sqrt(sum(diag(covar)))
   
-  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var, sqrt_sum_diag=sqrt_sum_diag)
+  # Calculate sqrt of individual diagonal elements
+  sqrt_diag_elements = sqrt(diag(covar))
+  
+  list(wald.test=tstat, p.value=pval, avg.var=average_variance(covar)$avg_var, 
+       sqrt_sum_diag=sqrt_sum_diag, sqrt_diag_elements=sqrt_diag_elements)
 }
 
 mn.covmat= function(p,n,min.p=0){
@@ -176,13 +180,14 @@ doscan2 = function(df,chr,Nfounders){
 	# Calculate sqrt(average variance) for each founder
 	sqrt_avg_var = sqrt(wt$avg.var)
 	
-	# Get sqrt(sum of diagonal) from wald.test3 (calculated from processed covar matrix)
+	# Get sqrt(sum of diagonal) and individual diagonal elements from wald.test3
 	sqrt_sum_diag = wt$sqrt_sum_diag
+	sqrt_diag_elements = wt$sqrt_diag_elements
 
 	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var, 
 	         mean_freq_C = mean_freq_C, mean_freq_Z = mean_freq_Z, 
 	         mean_diff = mean_diff, sqrt_avg_var = sqrt_avg_var,
-	         sqrt_sum_diag = sqrt_sum_diag)
+	         sqrt_sum_diag = sqrt_sum_diag, sqrt_diag_elements = sqrt_diag_elements)
 	ll
 	}
 
@@ -202,21 +207,27 @@ bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 cat("=== WALD TEST RESULTS ===\n")
 print(bb2 %>% select(chr, pos, Wald_log10p), n = Inf)
 
-cat("\n=== 1000 * SQRT(AVERAGE VARIANCE) BY POSITION ===\n")
-# Extract and print sqrt(average variance) for each position
+cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION (×1000) ===\n")
+# Extract and print mean differences for each position with proper alignment
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
-  if(!is.null(bb2$sqrt_avg_var[[i]])) {
-    cat(sprintf("Position %8.0f : %5.1f\n", pos, bb2$sqrt_avg_var[[i]] * 1000))
+  if(!is.null(bb2$mean_diff[[i]])) {
+    diff_values <- round(bb2$mean_diff[[i]] * 1000, 0)
+    cat(sprintf("Position %8.0f : %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f %4.0f\n", 
+                pos, diff_values[1], diff_values[2], diff_values[3], diff_values[4], 
+                diff_values[5], diff_values[6], diff_values[7], diff_values[8]))
   }
 }
 
-cat("\n=== 1000 * SQRT(SUM OF DIAGONAL) BY POSITION ===\n")
-# Extract and print sqrt(sum of diagonal) for each position
+cat("\n=== 1000 * SQRT(DIAGONAL ELEMENTS) BY POSITION ===\n")
+# Extract and print individual diagonal elements for each position
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
-  if(!is.null(bb2$sqrt_sum_diag[[i]])) {
-    cat(sprintf("Position %8.0f : %5.1f\n", pos, bb2$sqrt_sum_diag[[i]] * 1000))
+  if(!is.null(bb2$sqrt_diag_elements[[i]])) {
+    diag_values <- round(bb2$sqrt_diag_elements[[i]] * 1000, 1)
+    cat(sprintf("Position %8.0f : %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n", 
+                pos, diag_values[1], diag_values[2], diag_values[3], diag_values[4], 
+                diag_values[5], diag_values[6], diag_values[7], diag_values[8]))
   }
 }
 
