@@ -227,3 +227,17 @@ for(i in 1:nrow(bb2)) {
   }
 }
 
+cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES VARIABILITY BY FOUNDER ===\n")
+# Calculate standard deviation of haplotype differences per founder across all positions
+hap_diff_matrix <- matrix(NA, nrow = nrow(bb2), ncol = 8)
+for(i in 1:nrow(bb2)) {
+  if(!is.null(bb2$mean_diff[[i]])) {
+    hap_diff_matrix[i, ] <- bb2$mean_diff[[i]] * 1000  # Convert to ×1000 scale
+  }
+}
+
+# Calculate SD for each founder (column)
+founder_sds <- apply(hap_diff_matrix, 2, sd, na.rm = TRUE)
+cat("Founder SDs (×1000):", sprintf("%5.1f", founder_sds), "\n")
+cat("Mean SD across founders:", sprintf("%5.1f", mean(founder_sds, na.rm = TRUE)), "\n")
+
