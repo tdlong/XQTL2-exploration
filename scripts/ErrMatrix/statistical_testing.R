@@ -164,7 +164,17 @@ doscan2 = function(df,chr,Nfounders){
 	#Falc_H2 = temp$Falconer_H2
 	#Cutl_H2 = temp$Cutler_H2
 
-	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
+	# Calculate mean haplotype frequencies by treatment
+	mean_freq_C = colMeans(p1)  # Average across samples for treatment C
+	mean_freq_Z = colMeans(p2)  # Average across samples for treatment Z
+	mean_diff = mean_freq_C - mean_freq_Z  # Treatment difference
+	
+	# Calculate sqrt(average variance) for each founder
+	sqrt_avg_var = sqrt(wt$avg.var)
+
+	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var, 
+	         mean_freq_C = mean_freq_C, mean_freq_Z = mean_freq_Z, 
+	         mean_diff = mean_diff, sqrt_avg_var = sqrt_avg_var)
 	ll
 	}
 
@@ -183,4 +193,22 @@ bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 # Display results
 cat("=== WALD TEST RESULTS ===\n")
 print(bb2 %>% select(chr, pos, Wald_log10p), n = Inf)
+
+cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION ===\n")
+# Extract and print mean differences for each position
+for(i in 1:nrow(bb2)) {
+  pos <- bb2$pos[i]
+  if(!is.null(bb2$mean_diff[[i]])) {
+    cat("Position", pos, ":", round(bb2$mean_diff[[i]] * 1000, 1), "\n")
+  }
+}
+
+cat("\n=== SQRT(AVERAGE VARIANCE) BY POSITION ===\n")
+# Extract and print sqrt(average variance) for each position
+for(i in 1:nrow(bb2)) {
+  pos <- bb2$pos[i]
+  if(!is.null(bb2$sqrt_avg_var[[i]])) {
+    cat("Position", pos, ":", round(bb2$sqrt_avg_var[[i]] * 1000, 1), "\n")
+  }
+}
 
