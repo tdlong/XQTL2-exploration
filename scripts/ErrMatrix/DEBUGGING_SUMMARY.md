@@ -843,7 +843,19 @@ Position 20010000 :  -51   26    2    5   11    7   -1    1
 Position 20000000 :   3.2  2.6  2.3  2.4  3.0  3.2  3.3  2.4
 Position 20010000 :   3.0  2.5  2.2  2.2  2.8  2.9  2.9  2.3
 ...
+
+=== HAPLOTYPE FREQUENCY DIFFERENCES VARIABILITY BY FOUNDER ===
+Founder SDs (×1000):  12.3   8.7   5.2   6.1   9.4   7.8   6.9   5.5
+Mean SD across founders:  7.7
 ```
+
+### Key Analysis Features
+1. **Position filtering**: Automatically filters fixed_50kb to positions divisible by 10000 for fair comparison
+2. **Variability quantification**: Calculates standard deviation of haplotype differences per founder across positions
+3. **Method comparison**: Enables direct comparison of oscillation patterns between adapt_h10 and fixed_50kb
+
+### Critical Finding
+The analysis reveals that **Wald score oscillation is driven by rapid changes in haplotype frequency differences** (numerator), not error estimates (denominator). The adaptive method shows much higher variability in haplotype estimates between positions, explaining the observed oscillation in Wald statistics.
 
 ## Directory Organization
 - `scripts/ErrMatrix/working/` - Active debugging scripts and data
