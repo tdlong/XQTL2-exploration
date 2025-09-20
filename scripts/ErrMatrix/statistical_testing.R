@@ -171,10 +171,16 @@ doscan2 = function(df,chr,Nfounders){
 	
 	# Calculate sqrt(average variance) for each founder
 	sqrt_avg_var = sqrt(wt$avg.var)
+	
+	# Calculate sqrt(sum of diagonal) of combined covariance matrix
+	# This is more interpretable than the geometric mean of eigenvalues
+	covar_combined = covar1 + covar2
+	sqrt_sum_diag = sqrt(sum(diag(covar_combined)))
 
 	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var, 
 	         mean_freq_C = mean_freq_C, mean_freq_Z = mean_freq_Z, 
-	         mean_diff = mean_diff, sqrt_avg_var = sqrt_avg_var)
+	         mean_diff = mean_diff, sqrt_avg_var = sqrt_avg_var,
+	         sqrt_sum_diag = sqrt_sum_diag)
 	ll
 	}
 
@@ -194,21 +200,30 @@ bb2 = bb1 %>% select(-data) %>% rename(chr=CHROM)
 cat("=== WALD TEST RESULTS ===\n")
 print(bb2 %>% select(chr, pos, Wald_log10p), n = Inf)
 
-cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION ===\n")
+cat("\n=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION (×1000) ===\n")
 # Extract and print mean differences for each position
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
   if(!is.null(bb2$mean_diff[[i]])) {
-    cat("Position", pos, ":", round(bb2$mean_diff[[i]] * 1000, 1), "\n")
+    cat("Position", pos, ":", round(bb2$mean_diff[[i]] * 1000, 0), "\n")
   }
 }
 
-cat("\n=== SQRT(AVERAGE VARIANCE) BY POSITION ===\n")
+cat("\n=== 1000 * SQRT(AVERAGE VARIANCE) BY POSITION ===\n")
 # Extract and print sqrt(average variance) for each position
 for(i in 1:nrow(bb2)) {
   pos <- bb2$pos[i]
   if(!is.null(bb2$sqrt_avg_var[[i]])) {
     cat("Position", pos, ":", round(bb2$sqrt_avg_var[[i]] * 1000, 1), "\n")
+  }
+}
+
+cat("\n=== 1000 * SQRT(SUM OF DIAGONAL) BY POSITION ===\n")
+# Extract and print sqrt(sum of diagonal) for each position
+for(i in 1:nrow(bb2)) {
+  pos <- bb2$pos[i]
+  if(!is.null(bb2$sqrt_sum_diag[[i]])) {
+    cat("Position", pos, ":", round(bb2$sqrt_sum_diag[[i]] * 1000, 1), "\n")
   }
 }
 
