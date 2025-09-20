@@ -193,6 +193,8 @@ ProportionSelect = design.df %>% filter(TRT=="Z") %>% select(REP,Proportion) %>%
 
 bb1 = xx1 %>%
 	filter(pos >= start_pos & pos <= end_pos) %>%
+	# For fair comparison, filter fixed_50kb to only positions divisible by 10000
+	filter(pos %% 10000 == 0) %>%
 	group_by(CHROM,pos) %>%
 	nest() %>%
 	mutate(out = map2(data, CHROM, doscan2, Nfounders=Nfounders)) %>%
