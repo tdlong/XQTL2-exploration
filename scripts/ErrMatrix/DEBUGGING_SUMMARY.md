@@ -785,6 +785,66 @@ This will tell us whether the 8x higher variance in h_cutoff=10 Wald statistics 
 - **Data-driven variability**: Rapid changes in the underlying haplotype treatment differences
 - **Method-driven variability**: Something else (error estimation, window size effects, etc.)
 
+## Statistical Testing Script Development
+
+### Problem
+Need to understand what drives the 8x higher variance in Wald statistics for h_cutoff=10 vs fixed_50kb methods.
+
+### Solution: Enhanced Statistical Testing Script
+Created `scripts/ErrMatrix/statistical_testing.R` with comprehensive analysis:
+
+#### Key Features
+1. **Command-line arguments** for flexible testing:
+   - `data_dir` - path to haplotype data
+   - `chromosome` - target chromosome
+   - `start_pos` / `end_pos` - genomic region
+   - `design_file` - treatment design matrix
+
+2. **Enhanced wald.test3 function**:
+   - Added `sqrt_diag_elements` return value
+   - Calculates sqrt of individual diagonal elements from processed covariance matrix
+   - Preserves original `avg.var` calculation (geometric mean of eigenvalues)
+
+3. **Comprehensive output**:
+   - **Wald test results** - main statistical test
+   - **Haplotype frequency differences (C - Z)** - 8 aligned columns per founder
+   - **Individual diagonal elements** - 8 aligned columns showing sqrt(variance) per founder
+
+#### Analysis Capabilities
+- **Numerator analysis**: How haplotype treatment differences vary across positions
+- **Denominator analysis**: How individual founder variances change across positions
+- **Method comparison**: Run same analysis on different methods (h_cutoff=10, h_cutoff=4, fixed_50kb)
+
+### Usage
+```bash
+# For h_cutoff=10 adaptive method
+Rscript scripts/ErrMatrix/statistical_testing.R process/ZINC2_h10/adapt_h10 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+
+# For fixed 50kb method  
+Rscript scripts/ErrMatrix/statistical_testing.R /dfs7/adl/tdlong/fly_pool/XQTL2/process/ZINC2 chr3R 20000000 20200000 /dfs7/adl/tdlong/fly_pool/XQTL2/helpfiles/ZINC2/Zinc2.test.M.txt
+```
+
+### Expected Output Format
+```
+=== WALD TEST RESULTS ===
+# A tibble: 21 × 3
+   chr   pos      Wald_log10p
+   <chr> <dbl>          <dbl>
+ 1 chr3R 20000000        19.3
+ 2 chr3R 20010000        18.9
+...
+
+=== HAPLOTYPE FREQUENCY DIFFERENCES (C - Z) BY POSITION (×1000) ===
+Position 20000000 :  -52   24   -1    4   14    8    4   -2
+Position 20010000 :  -51   26    2    5   11    7   -1    1
+...
+
+=== 1000 * SQRT(DIAGONAL ELEMENTS) BY POSITION ===
+Position 20000000 :   3.2  2.6  2.3  2.4  3.0  3.2  3.3  2.4
+Position 20010000 :   3.0  2.5  2.2  2.2  2.8  2.9  2.9  2.3
+...
+```
+
 ## Directory Organization
 - `scripts/ErrMatrix/working/` - Active debugging scripts and data
 - `scripts/ErrMatrix/analysis/` - Analysis scripts and results
