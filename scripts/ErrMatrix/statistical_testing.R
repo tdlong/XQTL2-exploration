@@ -162,7 +162,7 @@ doscan2 = function(df,chr,Nfounders){
 	# af_cutoff = 0.01     # 1% --- heritability estimators can be off for really low allele frequencies
 	#temp = Heritability(p1, p2, nrepl, ProportionSelect, af_cutoff)
 	#Falc_H2 = temp$Falconer_H2
-	Cutl_H2 = temp$Cutler_H2
+	#Cutl_H2 = temp$Cutler_H2
 
 	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
 	ll
