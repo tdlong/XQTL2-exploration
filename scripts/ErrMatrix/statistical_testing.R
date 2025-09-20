@@ -164,7 +164,7 @@ doscan2 = function(df,chr,Nfounders){
 	#Falc_H2 = temp$Falconer_H2
 	Cutl_H2 = temp$Cutler_H2
 
-	ll = list(Wald_log10p = Wald_log10p avg.var = wt$avg.var)
+	ll = list(Wald_log10p = Wald_log10p, avg.var = wt$avg.var)
 	ll
 	}
 
